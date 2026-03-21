@@ -10,7 +10,7 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir \
     fastapi uvicorn[standard] pydantic pydantic-settings \
     sqlalchemy[asyncio] asyncpg alembic \
-    redis[hiredis] passlib[bcrypt] pyjwt gunicorn httpx
+    redis[hiredis] bcrypt pyjwt gunicorn httpx
 
 COPY . .
 

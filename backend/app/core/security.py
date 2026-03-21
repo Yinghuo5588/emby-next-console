@@ -2,21 +2,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import jwt
-from passlib.context import CryptContext
+import bcrypt
 
 from app.core.settings import settings
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
