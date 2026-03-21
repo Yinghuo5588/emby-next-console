@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 
-import requests
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -175,18 +175,19 @@ class WebhookService:
         key = settings.EMBY_API_KEY
         if session_id and host and key:
             try:
-                requests.post(
-                    f"{host}/emby/Sessions/{session_id}/Command?api_key={key}",
-                    json={"Name": "DisplayMessage", "Arguments": {"Header": "🚫 违规拦截", "Text": f"客户端 {client} 已被禁止", "TimeoutMs": "10000"}},
-                    timeout=2,
-                )
-                requests.post(f"{host}/emby/Sessions/{session_id}/Playing/Stop?api_key={key}", timeout=2)
+                async with httpx.AsyncClient(timeout=3) as http:
+                    await http.post(
+                        f"{host}/emby/Sessions/{session_id}/Command?api_key={key}",
+                        json={"Name": "DisplayMessage", "Arguments": {"Header": "🚫 违规拦截", "Text": f"客户端 {client} 已被禁止", "TimeoutMs": "10000"}},
+                    )
+                    await http.post(f"{host}/emby/Sessions/{session_id}/Playing/Stop?api_key={key}")
             except Exception:
                 pass
 
         if device_id and host and key:
             try:
-                requests.delete(f"{host}/emby/Devices?Id={device_id}&api_key={key}", timeout=3)
+                async with httpx.AsyncClient(timeout=3) as http:
+                    await http.delete(f"{host}/emby/Devices?Id={device_id}&api_key={key}")
             except Exception:
                 pass
 
