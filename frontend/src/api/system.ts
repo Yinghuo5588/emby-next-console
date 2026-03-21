@@ -42,4 +42,20 @@ export const systemApi = {
     const response = await apiClient.get<ApiResponse<JobRunItem[]>>('/system/jobs')
     return response.data
   },
+
+  // 客户端黑名单
+  async clientBlacklist(): Promise<ApiResponse<string[]>> {
+    const response = await apiClient.get<ApiResponse<string[]>>('/system/client-blacklist')
+    return response.data
+  },
+
+  async addClientBlacklist(appName: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.post<ApiResponse<void>>(`/system/client-blacklist?app_name=${encodeURIComponent(appName)}`)
+    return response.data
+  },
+
+  async removeClientBlacklist(appName: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.delete<ApiResponse<void>>(`/system/client-blacklist/${encodeURIComponent(appName)}`)
+    return response.data
+  },
 }
