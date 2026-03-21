@@ -15,4 +15,3 @@ const layout = computed(() =>
  route.meta.layout === 'auth' ? AuthLayout : DefaultLayout
 )
 </script>
-</style>
