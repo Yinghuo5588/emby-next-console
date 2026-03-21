@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.db.session import AsyncSessionFactory
 from app.db.models.user import User
-from app.core.security import get_password_hash
+from app.core.security import hash_password
 
 logger = logging.getLogger("app.seed")
 
@@ -31,7 +31,7 @@ async def seed_data():
         # 创建默认管理员
         admin = User(
             username=DEFAULT_ADMIN["username"],
-            hashed_password=get_password_hash(DEFAULT_ADMIN["password"]),
+            hashed_password=hash_password(DEFAULT_ADMIN["password"]),
             display_name=DEFAULT_ADMIN["display_name"],
             role=DEFAULT_ADMIN["role"],
             status="active",
