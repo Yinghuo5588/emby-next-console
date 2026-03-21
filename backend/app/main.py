@@ -8,6 +8,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.middleware import register_middlewares
 from app.cache.redis import get_redis, close_redis
 from app.core.emby import emby
+from app.core.seed import seed_data
 
 from app.modules.auth.api import router as auth_router
 from app.modules.dashboard.api import router as dashboard_router
@@ -26,6 +27,7 @@ logger = logging.getLogger("app")
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     await get_redis()
+    await seed_data()
     yield
     logger.info("Shutting down...")
     await emby.close()
