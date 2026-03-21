@@ -18,8 +18,8 @@ export interface NotificationsResponse {
 }
 
 export const notificationsApi = {
-  async list(params: { page?: number; page_size?: number } = {}): Promise<ApiResponse<NotificationsResponse>> {
-    const response = await apiClient.get<ApiResponse<NotificationsResponse>>('/notifications', { params })
+  async list(page = 1, pageSize = 20): Promise<ApiResponse<NotificationsResponse>> {
+    const response = await apiClient.get<ApiResponse<NotificationsResponse>>('/notifications', { params: { page, page_size: pageSize } })
     return response.data
   },
 
