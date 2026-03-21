@@ -5,7 +5,7 @@
     
     <!-- Main Content -->
     <main class="main-content" :class="{ 'with-sidebar': !uiStore.isMobile }">
-      <slot />
+      <router-view />
     </main>
     
     <!-- Mobile Tab Bar -->
@@ -40,6 +40,7 @@ const uiStore = useUiStore()
 .main-content {
   flex: 1;
   min-height: 100vh;
+  padding: 20px;
   transition: margin-left 0.3s ease;
 }
 
@@ -47,10 +48,10 @@ const uiStore = useUiStore()
   margin-left: 240px;
 }
 
-/* Mobile adjustments */
 @media (max-width: 767px) {
   .main-content {
-    padding-bottom: 80px; /* Space for tab bar */
+    padding: 12px;
+    padding-bottom: calc(var(--tab-height) + 12px);
   }
 }
 
