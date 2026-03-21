@@ -11,10 +11,6 @@
   </div>
 </template>
 
-<script setup lang="ts">
-// No script needed for layout
-</script>
-
 <style scoped>
 .auth-layout {
   min-height: 100vh;
