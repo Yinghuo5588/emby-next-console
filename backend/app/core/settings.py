@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/emby_next"
 
+    # Emby
+    EMBY_HOST: str = "http://127.0.0.1:8096"
+    EMBY_API_KEY: str = ""
+    EMBY_DB_PATH: str = "/emby-data/playback_reporting.db"
+    EMBY_DATA_MODE: str = "api"  # "api" | "sqlite" | "auto"
+    EMBY_WEBHOOK_TOKEN: str = "embyconsole"
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 

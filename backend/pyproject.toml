@@ -16,3 +16,4 @@ redis = {extras = ["hiredis"], version = "^5.0"}
 passlib = {extras = ["bcrypt"], version = "^1.7"}
 pyjwt = "^2.8"
 gunicorn = "^22.0"
+httpx = "^0.27"

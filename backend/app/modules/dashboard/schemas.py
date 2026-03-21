@@ -23,8 +23,17 @@ class NotificationSummaryData(BaseModel):
     unread_count: int
 
 
+class SessionInfo(BaseModel):
+    session_id: str
+    username: str
+    media_name: str
+    client: str = ""
+    device_name: str = ""
+
+
 class DashboardSummary(BaseModel):
     overview: OverviewData
     playback: PlaybackData
     risk: RiskSummaryData
     notifications: NotificationSummaryData
+    sessions: list[SessionInfo] = []

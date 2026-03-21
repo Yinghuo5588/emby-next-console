@@ -1,0 +1,177 @@
+"""
+Emby API 适配器
+支持 Emby / Jellyfin 双协议，统一请求入口。
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import httpx
+
+from app.core.settings import settings
+
+logger = logging.getLogger("app.emby")
+
+
+class EmbyAdapter:
+    """Emby/Jellyfin REST API 适配器，基于 httpx 异步客户端。"""
+
+    def __init__(self, host: str = "", api_key: str = "") -> None:
+        self._host = (host or settings.EMBY_HOST).rstrip("/")
+        self._api_key = api_key or settings.EMBY_API_KEY
+        self._client: httpx.AsyncClient | None = None
+
+    # ── 连接管理 ──────────────────────────────────────────────
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(15.0, connect=5.0),
+                limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
+            )
+        return self._client
+
+    async def close(self) -> None:
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+
+    # ── 内部方法 ──────────────────────────────────────────────
+
+    def _build_url(self, path: str) -> str:
+        if not path.startswith("/"):
+            path = "/" + path
+        if not path.startswith("/emby/"):
+            path = "/emby" + path
+        return f"{self._host}{path}"
+
+    @staticmethod
+    def _headers() -> dict[str, str]:
+        return {"X-Emby-Token": settings.EMBY_API_KEY}
+
+    async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        client = await self._get_client()
+        url = self._build_url(path)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"].update(self._headers())
+        # 移除可能残留的 api_key params（改用 header 鉴权）
+        params = kwargs.get("params")
+        if params and "api_key" in params:
+            del params["api_key"]
+        return await client.request(method, url, **kwargs)
+
+    # ── 便捷方法 ──────────────────────────────────────────────
+
+    async def get(self, path: str, **kw: Any) -> httpx.Response:
+        return await self._request("GET", path, **kw)
+
+    async def post(self, path: str, **kw: Any) -> httpx.Response:
+        return await self._request("POST", path, **kw)
+
+    async def delete(self, path: str, **kw: Any) -> httpx.Response:
+        return await self._request("DELETE", path, **kw)
+
+    # ── 高层 API ─────────────────────────────────────────────
+
+    async def get_users(self) -> list[dict]:
+        """获取所有 Emby 用户"""
+        resp = await self.get("/Users")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_user(self, user_id: str) -> dict:
+        """获取单个用户详情"""
+        resp = await self.get(f"/Users/{user_id}")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_sessions(self, active_only: bool = True) -> list[dict]:
+        """获取当前播放会话"""
+        params = {}
+        if active_only:
+            params["activeWithinSeconds"] = 600
+        resp = await self.get("/Sessions", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_playing_sessions(self) -> list[dict]:
+        """获取正在播放的会话（有 NowPlayingItem）"""
+        sessions = await self.get_sessions()
+        return [s for s in sessions if s.get("NowPlayingItem")]
+
+    async def get_library_virtual_folders(self) -> list[dict]:
+        """获取媒体库列表"""
+        resp = await self.get("/Library/VirtualFolders")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_items(self, **params: Any) -> dict:
+        """通用 Items 查询（分页、筛选等）"""
+        resp = await self.get("/Items", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_system_info(self) -> dict:
+        """获取 Emby 系统信息"""
+        resp = await self.get("/System/Info")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_activity_log(self, min_date: str = "", limit: int = 50) -> list[dict]:
+        """获取活动日志"""
+        params: dict[str, Any] = {"limit": limit}
+        if min_date:
+            params["minDate"] = min_date
+        resp = await self.get("/System/ActivityLog/Entries", params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("Items", data) if isinstance(data, dict) else data
+
+    async def query_playback_stats(self, sql: str) -> list[dict]:
+        """
+        通过 playback_reporting 插件的 API 穿透查询。
+        需要 Emby 安装了 playback_reporting 插件。
+        """
+        resp = await self.post(
+            "/user_usage_stats/submit_custom_query",
+            json={"CustomQueryString": sql},
+        )
+        if resp.status_code != 200:
+            logger.warning("playback stats API 返回 %d: %s", resp.status_code, resp.text[:200])
+            return []
+        data = resp.json()
+        if isinstance(data, str):
+            import json
+            data = json.loads(data)
+        if isinstance(data, dict):
+            columns = data.get("colums") or data.get("columns") or []
+            results = data.get("results") or []
+            rows = []
+            for row in results:
+                if isinstance(row, list):
+                    row_dict = {}
+                    for i, col in enumerate(columns):
+                        val = row[i] if i < len(row) else None
+                        if isinstance(val, str) and val.isdigit():
+                            val = int(val)
+                        row_dict[col] = val
+                    rows.append(row_dict)
+            return rows
+        return data if isinstance(data, list) else [data]
+
+    async def health_check(self) -> tuple[bool, str]:
+        """检查 Emby 连接状态"""
+        try:
+            resp = await self.get("/System/Info/Public")
+            if resp.status_code == 200:
+                info = resp.json()
+                return True, info.get("ServerName", "OK")
+            return False, f"HTTP {resp.status_code}"
+        except Exception as e:
+            return False, str(e)
+
+
+# ── 全局单例 ──────────────────────────────────────────────────
+
+emby = EmbyAdapter()
