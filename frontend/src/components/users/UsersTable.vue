@@ -1,203 +1,113 @@
 <template>
   <div class="users-table">
-    <LoadingState v-if="loading" />
+    <LoadingState v-if="loading" height="120px" />
     <ErrorState v-else-if="error" :message="error" />
-    <EmptyState v-else-if="!items || items.length === 0" message="No users found" />
-    
-    <div v-else class="table-container">
+    <EmptyState v-else-if="!items || items.length === 0" title="暂无用户" />
+
+    <!-- Desktop table -->
+    <div v-else class="table-wrap desktop-only">
       <table>
         <thead>
           <tr>
-            <th>User</th>
-            <th>Status</th>
-            <th>Role</th>
-            <th>VIP</th>
-            <th>Last Active</th>
-            <th>Actions</th>
+            <th>用户</th>
+            <th>状态</th>
+            <th>角色</th>
+            <th>最后活跃</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in items" :key="user.id">
+          <tr v-for="u in items" :key="u.user_id" @click="$emit('view', u)" style="cursor:pointer">
             <td>
               <div class="user-cell">
-                <div class="avatar">
-                  {{ user.name?.charAt(0) || 'U' }}
-                </div>
-                <div class="user-info">
-                  <div class="name">{{ user.name || 'Unknown' }}</div>
-                  <div class="email">{{ user.email || 'No email' }}</div>
+                <div class="avatar">{{ u.username?.charAt(0)?.toUpperCase() || '?' }}</div>
+                <div class="user-meta">
+                  <div class="uname">{{ u.username }}</div>
+                  <div class="uemail">{{ u.display_name || '' }}</div>
                 </div>
               </div>
             </td>
+            <td><span class="tag" :class="u.status === 'active' ? 'tag-green' : 'tag-red'">{{ u.status === 'active' ? '正常' : '禁用' }}</span></td>
+            <td><span class="tag" :class="u.role === 'admin' ? 'tag-blue' : 'tag-gray'">{{ u.role === 'admin' ? '管理员' : '用户' }}</span></td>
+            <td class="muted">{{ formatDate(u.last_active) }}</td>
             <td>
-              <span :class="`tag tag-${getStatusColor(user.status)}`">
-                {{ user.status || 'unknown' }}
-              </span>
-            </td>
-            <td>
-              <span :class="`tag tag-${getRoleColor(user.role)}`">
-                {{ user.role || 'user' }}
-              </span>
-            </td>
-            <td>
-              <span v-if="user.is_vip" class="tag tag-yellow">VIP</span>
-              <span v-else class="tag tag-gray">-</span>
-            </td>
-            <td>
-              <div class="last-active">
-                {{ formatDate(user.last_active) }}
-              </div>
-            </td>
-            <td>
-              <div class="actions">
-                <button class="btn btn-ghost btn-sm" @click="$emit('view', user)">
-                  View
-                </button>
-                <button class="btn btn-ghost btn-sm" @click="$emit('edit', user)">
-                  Edit
-                </button>
-              </div>
+              <RouterLink :to="`/users/${u.user_id}`" class="btn btn-ghost btn-sm">详情</RouterLink>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <!-- Mobile cards -->
+    <div v-if="items && items.length > 0" class="cards-wrap mobile-only">
+      <RouterLink v-for="u in items" :key="u.user_id" :to="`/users/${u.user_id}`" class="user-card card">
+        <div class="uc-top">
+          <div class="avatar">{{ u.username?.charAt(0)?.toUpperCase() || '?' }}</div>
+          <div class="uc-info">
+            <div class="uname">{{ u.username }}</div>
+            <div class="uc-meta">
+              <span class="tag" :class="u.status === 'active' ? 'tag-green' : 'tag-red'" style="font-size:10px">{{ u.status === 'active' ? '正常' : '禁用' }}</span>
+              <span v-if="u.role === 'admin'" class="tag tag-blue" style="font-size:10px">管理员</span>
+            </div>
+          </div>
+        </div>
+        <div class="uc-bottom">
+          <span class="muted">{{ formatDate(u.last_active) }}</span>
+        </div>
+      </RouterLink>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
-interface User {
-  id: string
-  name?: string
-  email?: string
-  status?: string
-  role?: string
-  is_vip?: boolean
-  last_active?: string
-}
-
-const props = defineProps<{
-  items: User[]
+defineProps<{
+  items: any[]
   loading: boolean
-  error?: string
+  error?: string | null
 }>()
 
-const emit = defineEmits<{
-  view: [user: User]
-  edit: [user: User]
-}>()
+defineEmits<{ view: [user: any] }>()
 
-const getStatusColor = (status?: string) => {
-  switch (status?.toLowerCase()) {
-    case 'active': return 'green'
-    case 'inactive': return 'gray'
-    case 'banned': return 'red'
-    default: return 'gray'
-  }
-}
-
-const getRoleColor = (role?: string) => {
-  switch (role?.toLowerCase()) {
-    case 'admin': return 'red'
-    case 'user': return 'blue'
-    case 'guest': return 'gray'
-    default: return 'gray'
-  }
-}
-
-const formatDate = (date?: string) => {
-  if (!date) return 'Never'
-  const d = new Date(date)
+function formatDate(iso?: string) {
+  if (!iso) return '从未'
+  const d = new Date(iso)
   const now = new Date()
   const diff = now.getTime() - d.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
-  return d.toLocaleDateString()
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`
+  return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
 }
 </script>
 
 <style scoped>
-.users-table {
-  background: var(--surface);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
+.users-table { overflow: hidden; }
+.table-wrap { overflow-x: auto; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; flex-shrink: 0; }
+.user-cell { display: flex; align-items: center; gap: 10px; }
+.user-meta { min-width: 0; }
+.uname { font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uemail { font-size: 12px; color: var(--text-muted); }
+.muted { color: var(--text-muted); font-size: 12px; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
 
-.table-container {
-  overflow-x: auto;
-}
+.cards-wrap { display: flex; flex-direction: column; gap: 8px; }
+.user-card { display: block; text-decoration: none; color: inherit; padding: 12px; }
+.uc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.uc-info { flex: 1; min-width: 0; }
+.uc-meta { display: flex; gap: 6px; margin-top: 4px; }
+.uc-bottom { display: flex; justify-content: flex-end; }
 
-.user-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--brand);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.name {
-  font-weight: 500;
-  color: var(--text);
-}
-
-.email {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.last-active {
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 12px;
-}
-
-.tag {
-  font-size: 11px;
-  padding: 2px 6px;
-}
+.desktop-only { display: block; }
+.mobile-only { display: none; }
 
 @media (max-width: 768px) {
-  table {
-    min-width: 800px;
-  }
-  
-  .actions {
-    flex-direction: column;
-  }
+  .desktop-only { display: none; }
+  .mobile-only { display: flex; }
 }
 </style>
