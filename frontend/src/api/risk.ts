@@ -28,7 +28,10 @@ export const riskApi = {
     return response.data
   },
 
-  async events(params: { page?: number; page_size?: number } = {}): Promise<ApiResponse<RiskEventsResponse>> {
+  async events(page = 1, pageSize = 20, status?: string, severity?: string): Promise<ApiResponse<RiskEventsResponse>> {
+    const params: Record<string, any> = { page, page_size: pageSize }
+    if (status) params.status = status
+    if (severity) params.severity = severity
     const response = await apiClient.get<ApiResponse<RiskEventsResponse>>('/risk/events', { params })
     return response.data
   },
