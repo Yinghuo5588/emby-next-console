@@ -1,42 +1,38 @@
 import apiClient, { type ApiResponse } from './client'
 
-export interface Notification {
-  id: string
-  level: 'info' | 'warning' | 'error' | 'success'
+export interface NotificationItem {
+  notification_id: string
+  type: string
   title: string
-  body: string
-  read: boolean
-  action_url?: string
-  action_text?: string
+  message: string
+  level: string
+  is_read: boolean
+  action_url: string | null
   created_at: string
 }
 
-export interface NotificationListParams {
-  page?: number
-  pageSize?: number
-  unread_only?: boolean
+export interface NotificationsResponse {
+  items: NotificationItem[]
+  total: number
+  unread_count: number
 }
 
 export const notificationsApi = {
-  // List notifications
-  async list(params: NotificationListParams = {}): Promise<ApiResponse<Notification[]>> {
-    const response = await apiClient.get<ApiResponse<Notification[]>>('/notifications', { params })
+  async list(params: { page?: number; page_size?: number } = {}): Promise<ApiResponse<NotificationsResponse>> {
+    const response = await apiClient.get<ApiResponse<NotificationsResponse>>('/notifications', { params })
     return response.data
   },
 
-  // Get unread count
-  async unreadCount(): Promise<ApiResponse<{ count: number }>> {
-    const response = await apiClient.get<ApiResponse<{ count: number }>>('/notifications/unread-count')
+  async unreadCount(): Promise<ApiResponse<{ unread_count: number }>> {
+    const response = await apiClient.get<ApiResponse<{ unread_count: number }>>('/notifications/unread-count')
     return response.data
   },
 
-  // Mark notification as read
   async markRead(id: string): Promise<ApiResponse<void>> {
     const response = await apiClient.post<ApiResponse<void>>(`/notifications/${id}/read`)
     return response.data
   },
 
-  // Mark all notifications as read
   async markAllRead(): Promise<ApiResponse<void>> {
     const response = await apiClient.post<ApiResponse<void>>('/notifications/read-all')
     return response.data

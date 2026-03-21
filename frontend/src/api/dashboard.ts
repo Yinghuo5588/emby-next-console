@@ -1,27 +1,36 @@
 import apiClient, { type ApiResponse } from './client'
 
+export interface SessionInfo {
+  session_id: string
+  username: string
+  media_name: string
+  client: string
+  device_name: string
+}
+
 export interface DashboardSummary {
-  total_users: number
-  active_users: number
-  total_playbacks: number
-  active_playbacks: number
-  total_storage_gb: number
-  used_storage_gb: number
-  risk_events_open: number
-  risk_events_high: number
-  recent_sessions: Array<{
-    id: string
-    user_id: string
-    username: string
-    device: string
-    ip: string
-    started_at: string
-    last_activity: string
-  }>
+  overview: {
+    total_users: number
+    active_users_today: number
+    current_active_sessions: number
+    total_media_count: number
+  }
+  playback: {
+    today_play_count: number
+    today_play_duration_sec: number
+    peak_concurrent_today: number
+  }
+  risk: {
+    open_risk_count: number
+    high_risk_count: number
+  }
+  notifications: {
+    unread_count: number
+  }
+  sessions: SessionInfo[]
 }
 
 export const dashboardApi = {
-  // Get dashboard summary
   async summary(): Promise<ApiResponse<DashboardSummary>> {
     const response = await apiClient.get<ApiResponse<DashboardSummary>>('/dashboard/summary')
     return response.data

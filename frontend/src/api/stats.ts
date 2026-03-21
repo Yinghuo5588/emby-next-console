@@ -1,46 +1,37 @@
 import apiClient, { type ApiResponse } from './client'
 
 export interface StatsOverview {
-  total_playbacks: number
+  total_play_count: number
+  total_play_duration_sec: number
   unique_users: number
-  total_duration_hours: number
-  avg_session_minutes: number
-  peak_concurrent: number
-  bandwidth_gb: number
+  unique_media: number
 }
 
 export interface TrendPoint {
   date: string
-  playbacks: number
-  users: number
-  duration: number
+  play_count: number
+  active_users: number
 }
 
 export interface TopUser {
   user_id: string
   username: string
-  playbacks: number
-  duration_hours: number
-  last_active: string
+  play_count: number
+  play_duration_sec: number
 }
 
 export interface TopMedia {
   media_id: string
-  title: string
-  type: string
-  playbacks: number
-  duration_hours: number
-  last_played: string
+  media_name: string
+  play_count: number
 }
 
 export const statsApi = {
-  // Get overview stats
   async overview(): Promise<ApiResponse<StatsOverview>> {
     const response = await apiClient.get<ApiResponse<StatsOverview>>('/stats/overview')
     return response.data
   },
 
-  // Get trends
   async trends(days: number = 7): Promise<ApiResponse<TrendPoint[]>> {
     const response = await apiClient.get<ApiResponse<TrendPoint[]>>('/stats/trends', {
       params: { days },
@@ -48,7 +39,6 @@ export const statsApi = {
     return response.data
   },
 
-  // Get top users
   async topUsers(limit: number = 10): Promise<ApiResponse<TopUser[]>> {
     const response = await apiClient.get<ApiResponse<TopUser[]>>('/stats/top-users', {
       params: { limit },
@@ -56,7 +46,6 @@ export const statsApi = {
     return response.data
   },
 
-  // Get top media
   async topMedia(limit: number = 10): Promise<ApiResponse<TopMedia[]>> {
     const response = await apiClient.get<ApiResponse<TopMedia[]>>('/stats/top-media', {
       params: { limit },

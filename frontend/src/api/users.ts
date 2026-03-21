@@ -1,55 +1,37 @@
 import apiClient, { type ApiResponse } from './client'
 
-export interface User {
-  id: string
+export interface UserListItem {
+  user_id: string
   username: string
-  email?: string
-  avatar?: string
-  role: string
-  is_active: boolean
+  display_name: string | null
+  role: 'admin' | 'user'
+  status: 'active' | 'disabled'
+  expire_at: string | null
   is_vip: boolean
   created_at: string
-  last_login?: string
-  total_playbacks: number
-  total_duration_hours: number
-  devices: string[]
 }
 
-export interface UserListParams {
-  page?: number
-  pageSize?: number
-  search?: string
-  status?: 'active' | 'inactive' | 'all'
-  is_vip?: boolean | 'all'
-  role?: string
-  sortBy?: string
-  sortOrder?: 'asc' | 'desc'
+export interface UserDetail extends UserListItem {
+  note: string | null
+  max_concurrent: number | null
+  emby_user_id: string | null
 }
 
-export interface UserUpdateData {
-  username?: string
-  email?: string
-  role?: string
-  is_active?: boolean
-  is_vip?: boolean
+export interface UserListResponse {
+  items: UserListItem[]
+  total: number
+  page: number
+  page_size: number
 }
 
 export const usersApi = {
-  // List users with filters
-  async list(params: UserListParams = {}): Promise<ApiResponse<User[]>> {
-    const response = await apiClient.get<ApiResponse<User[]>>('/users', { params })
+  async list(params: { page?: number; page_size?: number } = {}): Promise<ApiResponse<UserListResponse>> {
+    const response = await apiClient.get<ApiResponse<UserListResponse>>('/users', { params })
     return response.data
   },
 
-  // Get single user
-  async get(id: string): Promise<ApiResponse<User>> {
-    const response = await apiClient.get<ApiResponse<User>>(`/users/${id}`)
-    return response.data
-  },
-
-  // Update user
-  async update(id: string, data: UserUpdateData): Promise<ApiResponse<User>> {
-    const response = await apiClient.patch<ApiResponse<User>>(`/users/${id}`, data)
+  async get(id: string): Promise<ApiResponse<UserDetail>> {
+    const response = await apiClient.get<ApiResponse<UserDetail>>(`/users/${id}`)
     return response.data
   },
 }
