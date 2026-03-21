@@ -19,7 +19,7 @@ def upgrade() -> None:
  "users",
  sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
  sa.Column("emby_user_id", sa.String(128), unique=True, nullable=True),
- sa.Column("username", sa.String(128), nullable=False),
+ sa.Column("username", sa.String(128), nullable=False, unique=True),
  sa.Column("hashed_password", sa.String(256), nullable=True),
  sa.Column("display_name", sa.String(128), nullable=True),
  sa.Column("role", sa.String(32), nullable=False, server_default="user"),
