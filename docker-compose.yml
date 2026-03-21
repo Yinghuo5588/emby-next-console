@@ -13,6 +13,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -25,6 +26,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   backend:
     image: ghcr.io/${GITHUB_REPOSITORY:-owner/emby-next-console}-backend:latest
@@ -36,6 +38,16 @@ services:
       DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/emby_next"
       REDIS_URL: "redis://redis:6379/0"
       CORS_ORIGINS: "http://localhost:3000"
+      # ====== Emby 配置 ======
+      EMBY_HOST: "${EMBY_HOST:-http://host.docker.internal:8096}"
+      EMBY_API_KEY: "${EMBY_API_KEY:-}"
+      EMBY_DATA_MODE: "${EMBY_DATA_MODE:-api}"
+      EMBY_WEBHOOK_TOKEN: "${EMBY_WEBHOOK_TOKEN:-embyconsole}"
+      # 同机部署时可读取数据库文件（需挂载）
+      # EMBY_DB_PATH: "/data/playback_reporting.db"
+    volumes:
+      # 同机部署时挂载 Emby 数据库目录（可选）
+      # - /path/to/emby-data:/data:ro
     depends_on:
       postgres:
         condition: service_healthy
