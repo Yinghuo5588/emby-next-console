@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.db.session import AsyncSessionFactory
-from app.db.models.user import User
+from app.db.models.user import User, UserProfile
 from app.core.security import hash_password
 
 logger = logging.getLogger("app.seed")
@@ -29,7 +29,6 @@ async def seed_data():
         return
 
     async with AsyncSessionFactory() as db:
-        # 检查是否已有 admin 用户
         result = await db.execute(
             select(User).where(User.username == DEFAULT_ADMIN["username"]).limit(1)
         )
@@ -38,7 +37,6 @@ async def seed_data():
             _seed_done = True
             return
 
-        # 创建默认管理员（并发安全）
         admin = User(
             username=DEFAULT_ADMIN["username"],
             hashed_password=hash_password(DEFAULT_ADMIN["password"]),
@@ -49,6 +47,9 @@ async def seed_data():
         )
         db.add(admin)
         try:
+            await db.flush()  # 获取 admin.id
+            profile = UserProfile(user_id=admin.id)
+            db.add(profile)
             await db.commit()
             logger.info("✅ 已创建默认管理员账号: admin / admin")
         except IntegrityError:
