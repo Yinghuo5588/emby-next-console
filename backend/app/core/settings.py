@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     EMBY_DB_PATH: str = "/emby-data/playback_reporting.db"
     EMBY_DATA_MODE: str = "api"  # "api" | "sqlite" | "auto"
     EMBY_WEBHOOK_TOKEN: str = "embyconsole"
+    DEFAULT_MAX_CONCURRENT: int = 2  # 默认并发限额
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
