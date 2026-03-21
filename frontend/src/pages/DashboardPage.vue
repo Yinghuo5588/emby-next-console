@@ -9,17 +9,12 @@
     </PageHeader>
 
     <section class="stat-grid">
-      <template v-if="summaryLoading && !summary">
-        <div v-for="i in 6" :key="i" class="card skeleton" />
-      </template>
-      <template v-else-if="summary">
-        <StatCard label="总用户" :value="summary.overview?.total_users ?? 0" />
-        <StatCard label="今日活跃" :value="summary.overview?.active_users_today ?? 0" />
-        <StatCard label="在线会话" :value="summary.overview?.current_active_sessions ?? 0" :highlight="(summary.overview?.current_active_sessions ?? 0) > 0" />
-        <StatCard label="媒体总量" :value="summary.overview?.total_media_count ?? 0" />
-        <StatCard label="今日播放" :value="summary.playback?.today_play_count ?? 0" />
-        <StatCard label="未读通知" :value="summary.notifications?.unread_count ?? 0" :danger="(summary.notifications?.unread_count ?? 0) > 0" />
-      </template>
+      <StatCard label="总用户" :value="summary?.overview?.total_users ?? 0" />
+      <StatCard label="今日活跃" :value="summary?.overview?.active_users_today ?? 0" />
+      <StatCard label="在线会话" :value="summary?.overview?.current_active_sessions ?? 0" :highlight="(summary?.overview?.current_active_sessions ?? 0) > 0" />
+      <StatCard label="媒体总量" :value="summary?.overview?.total_media_count ?? 0" />
+      <StatCard label="今日播放" :value="summary?.playback?.today_play_count ?? 0" />
+      <StatCard label="未读通知" :value="summary?.notifications?.unread_count ?? 0" :danger="(summary?.notifications?.unread_count ?? 0) > 0" />
     </section>
 
     <div class="body-grid">
@@ -82,25 +77,48 @@ import { dashboardApi } from '@/api/dashboard'
 import { statsApi } from '@/api/stats'
 
 const summary = ref<any>(null)
-const summaryLoading = ref(false)
 const sessions = ref<any[]>([])
-const sessionsLoading = ref(false)
 const trends = ref<any[]>([])
 const trendsLoading = ref(false)
+const sessionsLoading = ref(false)
 const trendDays = ref(7)
 const loading = ref(false)
 
-async function fetchSummary() { summaryLoading.value = true; try { summary.value = (await dashboardApi.summary()).data } finally { summaryLoading.value = false } }
-async function fetchSessions() { sessionsLoading.value = true; try { const r = await dashboardApi.summary(); sessions.value = r.data?.sessions ?? [] } finally { sessionsLoading.value = false } }
-async function fetchTrends() { trendsLoading.value = true; try { trends.value = (await statsApi.trends(trendDays.value)).data ?? [] } finally { trendsLoading.value = false } }
-async function refresh() { loading.value = true; await Promise.all([fetchSummary(), fetchSessions(), fetchTrends()]); loading.value = false }
+async function fetchSummary() {
+  try {
+    const res = await dashboardApi.summary()
+    if (res.success && res.data) {
+      summary.value = res.data
+      sessions.value = res.data.sessions ?? []
+    }
+  } catch (e) {
+    console.error('获取仪表盘数据失败:', e)
+  }
+}
+
+async function fetchTrends() {
+  trendsLoading.value = true
+  try {
+    const res = await statsApi.trends(trendDays.value)
+    trends.value = res.data ?? []
+  } catch (e) {
+    trends.value = []
+  } finally {
+    trendsLoading.value = false
+  }
+}
+
+async function refresh() {
+  loading.value = true
+  await Promise.all([fetchSummary(), fetchTrends()])
+  loading.value = false
+}
 
 onMounted(refresh)
 </script>
 
 <style scoped>
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
-.skeleton { height: 88px; background: var(--bg-secondary); border-radius: var(--radius); }
 .body-grid { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; }
 .left, .right { display: flex; flex-direction: column; gap: 16px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
