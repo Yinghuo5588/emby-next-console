@@ -9,6 +9,8 @@ from app.core.middleware import register_middlewares
 from app.cache.redis import get_redis, close_redis
 from app.core.emby import emby
 from app.core.seed import seed_data
+from app.core.risk_monitor import start_risk_monitor
+from app.db.session import AsyncSessionFactory
 
 from app.modules.auth.api import router as auth_router
 from app.modules.dashboard.api import router as dashboard_router
@@ -28,6 +30,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     await get_redis()
     await seed_data()
+    start_risk_monitor(AsyncSessionFactory)
+    logger.info("🛡️ Risk monitor started")
     yield
     logger.info("Shutting down...")
     await emby.close()
