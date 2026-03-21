@@ -1,221 +1,203 @@
 <template>
- <div class="table-wrap card">
- <!-- loading overlay（首次加载，无数据时全覆盖） -->
- <div v-if="loading && items.length === 0" class="table-state">
- <LoadingState height="280px" />
- </div>
-
- <!-- error -->
- <div v-else-if="error" class="table-state">
- <ErrorState :message="error" @retry="emit('retry')" />
- </div>
-
- <!-- 正常渲染（含刷新时的半透明蒙层） -->
- <template v-else>
- <div v-if="loading" class="refresh-mask" />
-
- <table>
- <thead>
- <tr>
- <th>用户</th>
- <th>状态</th>
- <th>角色</th>
- <th>VIP</th>
- <th>到期时间</th>
- <th>注册时间</th>
- <th style="width: 72px;">操作</th>
- </tr>
- </thead>
- <tbody>
- <!-- empty -->
- <tr v-if="items.length === 0">
- <td colspan="7">
- <div class="row-empty">暂无匹配用户</div>
- </td>
- </tr>
-
- <tr v-for="u in items" :key="u.user_id" class="user-row">
- <!-- 用户列 -->
- <td>
- <div class="user-cell">
- <RouterLink :to="`/users/${u.user_id}`" class="user-name">
- {{ u.display_name || u.username }}
- </RouterLink>
- <span class="user-handle">@{{ u.username }}</span>
- </div>
- </td>
-
- <!-- 状态 -->
- <td>
- <span class="tag" :class="statusClass(u.status)">
- {{ statusLabel(u.status) }}
- </span>
- </td>
-
- <!-- 角色 -->
- <td>
- <span class="tag" :class="u.role === 'admin' ? 'tag-purple' : 'tag-gray'">
- {{ u.role === 'admin' ? '管理员' : '用户' }}
- </span>
- </td>
-
- <!-- VIP -->
- <td>
- <span v-if="u.is_vip" class="vip-badge">⭐ VIP</span>
- <span v-else class="tag tag-gray" style="opacity:.6;">—</span>
- </td>
-
- <!-- 到期时间 -->
- <td>
- <span :class="{ 'text-expiring': isExpiringSoon(u.expire_at) }">
- {{ u.expire_at ? formatDate(u.expire_at) : '永久' }}
- </span>
- <span
- v-if="isExpiringSoon(u.expire_at)"
- class="expiring-tip"
- >即将到期</span>
- </td>
-
- <!-- 注册时间 -->
- <td class="muted">{{ formatDate(u.created_at) }}</td>
-
- <!-- 操作 -->
- <td>
- <RouterLink
- :to="`/users/${u.user_id}`"
- class="btn btn-ghost action-btn"
- >
- 详情
- </RouterLink>
- </td>
- </tr>
- </tbody>
- </table>
- </template>
- </div>
+  <div class="users-table">
+    <LoadingState v-if="loading" />
+    <ErrorState v-else-if="error" :message="error" />
+    <EmptyState v-else-if="!items || items.length === 0" message="No users found" />
+    
+    <div v-else class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Status</th>
+            <th>Role</th>
+            <th>VIP</th>
+            <th>Last Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in items" :key="user.id">
+            <td>
+              <div class="user-cell">
+                <div class="avatar">
+                  {{ user.name?.charAt(0) || 'U' }}
+                </div>
+                <div class="user-info">
+                  <div class="name">{{ user.name || 'Unknown' }}</div>
+                  <div class="email">{{ user.email || 'No email' }}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span :class="`tag tag-${getStatusColor(user.status)}`">
+                {{ user.status || 'unknown' }}
+              </span>
+            </td>
+            <td>
+              <span :class="`tag tag-${getRoleColor(user.role)}`">
+                {{ user.role || 'user' }}
+              </span>
+            </td>
+            <td>
+              <span v-if="user.is_vip" class="tag tag-yellow">VIP</span>
+              <span v-else class="tag tag-gray">-</span>
+            </td>
+            <td>
+              <div class="last-active">
+                {{ formatDate(user.last_active) }}
+              </div>
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm" @click="$emit('view', user)">
+                  View
+                </button>
+                <button class="btn btn-ghost btn-sm" @click="$emit('edit', user)">
+                  Edit
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
-import type { UserListItem, UserStatus } from '@/api/users'
-import { formatDate, isExpiringSoon } from '@/utils/time'
+import EmptyState from '@/components/common/EmptyState.vue'
 
-defineProps<{
- items: UserListItem[]
- loading: boolean
- error: string | null
-}>()
-
-const emit = defineEmits<{ retry: [] }>()
-
-function statusClass(s: UserStatus) {
- const map: Record<string, string> = {
- active: 'tag-green',
- disabled: 'tag-gray',
- expired: 'tag-yellow',
- }
- return map[s] ?? 'tag-gray'
+interface User {
+  id: string
+  name?: string
+  email?: string
+  status?: string
+  role?: string
+  is_vip?: boolean
+  last_active?: string
 }
 
-function statusLabel(s: UserStatus) {
- const map: Record<string, string> = {
- active: '活跃',
- disabled: '禁用',
- expired: '已过期',
- }
- return map[s] ?? s
+const props = defineProps<{
+  items: User[]
+  loading: boolean
+  error?: string
+}>()
+
+const emit = defineEmits<{
+  view: [user: User]
+  edit: [user: User]
+}>()
+
+const getStatusColor = (status?: string) => {
+  switch (status?.toLowerCase()) {
+    case 'active': return 'green'
+    case 'inactive': return 'gray'
+    case 'banned': return 'red'
+    default: return 'gray'
+  }
+}
+
+const getRoleColor = (role?: string) => {
+  switch (role?.toLowerCase()) {
+    case 'admin': return 'red'
+    case 'user': return 'blue'
+    case 'guest': return 'gray'
+    default: return 'gray'
+  }
+}
+
+const formatDate = (date?: string) => {
+  if (!date) return 'Never'
+  const d = new Date(date)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
+  return d.toLocaleDateString()
 }
 </script>
 
 <style scoped>
-.table-wrap {
- padding: 0;
- position: relative;
- overflow: hidden;
+.users-table {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
 }
 
-/* 全覆盖状态容器 */
-.table-state {
- min-height: 280px;
- display: flex;
- align-items: center;
- justify-content: center;
+.table-container {
+  overflow-x: auto;
 }
 
-/* 刷新时半透明蒙层，不打断表格显示 */
-.refresh-mask {
- position: absolute;
- inset: 0;
- background: rgba(15, 17, 23, 0.35);
- z-index: 1;
- pointer-events: none;
-}
-
-/* 空行 */
-.row-empty {
- padding: 48px;
- text-align: center;
- color: var(--color-text-muted);
- font-size: 13px;
-}
-
-/* 用户列 */
 .user-cell {
- display: flex;
- flex-direction: column;
- gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.user-name {
- font-weight: 500;
- font-size: 13px;
- color: var(--color-text);
- line-height: 1.3;
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
 }
 
-.user-name:hover {
- color: var(--color-primary);
+.user-info {
+  display: flex;
+  flex-direction: column;
 }
 
-.user-handle {
- font-size: 12px;
- color: var(--color-text-muted);
+.name {
+  font-weight: 500;
+  color: var(--text);
 }
 
-/* VIP */
-.vip-badge {
- font-size: 12px;
- font-weight: 600;
- color: #f59e0b;
+.email {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-/* 到期 */
-.text-expiring {
- color: var(--color-warning);
+.last-active {
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
-.expiring-tip {
- display: block;
- font-size: 11px;
- color: var(--color-warning);
- opacity: 0.8;
- margin-top: 1px;
+.actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
-/* 操作按钮 */
-.action-btn {
- padding: 4px 10px;
- font-size: 12px;
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
-.muted {
- color: var(--color-text-muted);
- font-size: 13px;
+.tag {
+  font-size: 11px;
+  padding: 2px 6px;
 }
 
-/* 行 hover */
-.user-row:hover td {
- background: var(--color-surface-2);
+@media (max-width: 768px) {
+  table {
+    min-width: 800px;
+  }
+  
+  .actions {
+    flex-direction: column;
+  }
 }
 </style>

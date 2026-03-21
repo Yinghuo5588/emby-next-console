@@ -1,88 +1,119 @@
 <template>
- <div class="filter-bar card">
- <span class="filter-label">筛选：</span>
- <select
- :value="modelValue.status"
- class="filter-select"
- @change="update('status', ($event.target as HTMLSelectElement).value)"
- >
- <option value="">全部状态</option>
- <option value="open">待处理</option>
- <option value="ignored">已忽略</option>
- <option value="resolved">已解决</option>
- </select>
- <select
- :value="modelValue.severity"
- class="filter-select"
- @change="update('severity', ($event.target as HTMLSelectElement).value)"
- >
- <option value="">全部等级</option>
- <option value="high">高危</option>
- <option value="medium">中危</option>
- <option value="low">低危</option>
- </select>
- <button
- v-if="modelValue.status || modelValue.severity"
- class="btn btn-ghost reset-btn"
- @click="emit('update:modelValue', { status: '', severity: '' })"
- >
- × 清除筛选
- </button>
- </div>
+  <div class="risk-filter-bar">
+    <div class="filter-group">
+      <label>Status</label>
+      <select v-model="localFilter.status" @change="updateFilter">
+        <option value="">All Status</option>
+        <option value="open">Open</option>
+        <option value="investigating">Investigating</option>
+        <option value="resolved">Resolved</option>
+        <option value="dismissed">Dismissed</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Severity</label>
+      <select v-model="localFilter.severity" @change="updateFilter">
+        <option value="">All Severity</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="info">Info</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Time Range</label>
+      <select v-model="localFilter.timeRange" @change="updateFilter">
+        <option value="24h">Last 24 hours</option>
+        <option value="7d">Last 7 days</option>
+        <option value="30d">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
+    </div>
+    
+    <button class="btn btn-ghost" @click="resetFilters">
+      Reset
+    </button>
+  </div>
 </template>
 
 <script setup lang="ts">
-export interface RiskFilterValues {
- status: string
- severity: string
+import { ref, watch } from 'vue'
+
+interface FilterValues {
+  status: string
+  severity: string
+  timeRange: string
 }
 
-const props = defineProps<{ modelValue: RiskFilterValues }>()
-const emit = defineEmits<{ 'update:modelValue': [v: RiskFilterValues] }>()
+const props = defineProps<{
+  modelValue: FilterValues
+}>()
 
-function update(key: keyof RiskFilterValues, value: string) {
- emit('update:modelValue', { ...props.modelValue, [key]: value })
+const emit = defineEmits<{
+  'update:modelValue': [value: FilterValues]
+}>()
+
+const defaultFilter: FilterValues = {
+  status: '',
+  severity: '',
+  timeRange: '24h'
+}
+
+const localFilter = ref<FilterValues>({ ...props.modelValue })
+
+watch(() => props.modelValue, (newVal) => {
+  localFilter.value = { ...newVal }
+}, { deep: true })
+
+const updateFilter = () => {
+  emit('update:modelValue', { ...localFilter.value })
+}
+
+const resetFilters = () => {
+  localFilter.value = { ...defaultFilter }
+  updateFilter()
 }
 </script>
 
 <style scoped>
-.filter-bar {
- display: flex;
- align-items: center;
- gap: 10px;
- padding: 12px 16px;
- flex-wrap: wrap;
+.risk-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 
-.filter-label {
- font-size: 13px;
- color: var(--color-text-muted);
- flex-shrink: 0;
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 150px;
 }
 
-.filter-select {
- padding: 6px 10px;
- background: var(--color-surface-2);
- border: 1px solid var(--color-border);
- border-radius: 6px;
- color: var(--color-text);
- font-size: 13px;
- outline: none;
- cursor: pointer;
- transition: border-color 0.15s;
+.filter-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
-.filter-select:focus {
- border-color: var(--color-primary);
+.filter-group select {
+  width: 100%;
 }
 
-.reset-btn {
- padding: 5px 10px;
- font-size: 12px;
- color: var(--color-text-muted);
-}
-
-.reset-btn:hover {
- color: var(--color-text);
+@media (max-width: 768px) {
+  .risk-filter-bar {
+    flex-direction: column;
+  }
+  
+  .filter-group {
+    min-width: 100%;
+  }
 }
 </style>

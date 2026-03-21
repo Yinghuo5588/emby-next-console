@@ -1,47 +1,55 @@
-import { get, patch, post } from './client'
+import apiClient, { type ApiResponse } from './client'
 
-export type UserStatus = 'active' | 'disabled' | 'expired'
-export type UserRole = 'admin' | 'user'
-
-export interface UserListItem {
- user_id: string
- username: string
- display_name: string | null
- role: UserRole
- status: UserStatus
- expire_at: string | null
- is_vip: boolean
- created_at: string
+export interface User {
+  id: string
+  username: string
+  email?: string
+  avatar?: string
+  role: string
+  is_active: boolean
+  is_vip: boolean
+  created_at: string
+  last_login?: string
+  total_playbacks: number
+  total_duration_hours: number
+  devices: string[]
 }
 
-export interface UserDetail extends UserListItem {
- note: string | null
- max_concurrent: number | null
- emby_user_id: string | null
+export interface UserListParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  status?: 'active' | 'inactive' | 'all'
+  is_vip?: boolean | 'all'
+  role?: string
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
 }
 
-export interface UserUpdateRequest {
- display_name?: string
- status?: UserStatus
- expire_at?: string | null
- note?: string
- is_vip?: boolean
- max_concurrent?: number | null
-}
-
-export interface UserListResponse {
- items: UserListItem[]
- total: number
- page: number
- page_size: number
+export interface UserUpdateData {
+  username?: string
+  email?: string
+  role?: string
+  is_active?: boolean
+  is_vip?: boolean
 }
 
 export const usersApi = {
- list: (params: { page?: number; page_size?: number; status?: string } = {}) =>
- get<UserListResponse>('/users', params),
- detail: (userId: string) => get<UserListItem>(`/users/${userId}`),
- update: (userId: string, body: UserUpdateRequest) =>
- patch<UserListItem>(`/users/${userId}`, body),
- action: (userId: string, action: string) =>
- post<UserListItem>(`/users/${userId}/actions`, { action }),
+  // List users with filters
+  async list(params: UserListParams = {}): Promise<ApiResponse<User[]>> {
+    const response = await apiClient.get<ApiResponse<User[]>>('/users', { params })
+    return response.data
+  },
+
+  // Get single user
+  async get(id: string): Promise<ApiResponse<User>> {
+    const response = await apiClient.get<ApiResponse<User>>(`/users/${id}`)
+    return response.data
+  },
+
+  // Update user
+  async update(id: string, data: UserUpdateData): Promise<ApiResponse<User>> {
+    const response = await apiClient.patch<ApiResponse<User>>(`/users/${id}`, data)
+    return response.data
+  },
 }

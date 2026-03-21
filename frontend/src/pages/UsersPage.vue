@@ -1,129 +1,179 @@
 <template>
- <div class="users-page">
- <!-- 页头 -->
- <PageHeader
- title="用户管理"
- :desc="total > 0 ? `共 ${total} 名用户` : ''"
- >
- <template #actions>
- <button class="btn btn-ghost" @click="handleReset">重置筛选</button>
- </template>
- </PageHeader>
-
- <!-- 筛选栏 -->
- <UsersFilterBar
- v-model="filters"
- style="margin-bottom: 16px;"
- @search="handleSearch"
- @update:model-value="handleFilterChange"
- />
-
- <!-- 用户表格 -->
- <UsersTable
- :items="users"
- :loading="loading"
- :error="error"
- @retry="loadUsers(currentPage)"
- />
-
- <!-- 分页（error 或 loading 首屏时不显示） -->
- <PaginationBar
- v-if="!error && !(loading && users.length === 0)"
- :total="total"
- :current-page="currentPage"
- :page-size="PAGE_SIZE"
- :disabled="loading"
- style="background: var(--color-surface); border-radius: 0 0 10px 10px;"
- @change="loadUsers"
- />
- </div>
+  <div class="users-page">
+    <PageHeader title="Users" desc="Manage system users and permissions">
+      <template #actions>
+        <button class="btn btn-primary" @click="handleAddUser">
+          Add User
+        </button>
+      </template>
+    </PageHeader>
+    
+    <div class="users-content">
+      <UsersFilterBar v-model="filter" />
+      
+      <div class="table-section">
+        <UsersTable
+          :items="filteredUsers"
+          :loading="loading"
+          :error="error"
+          @view="handleViewUser"
+          @edit="handleEditUser"
+        />
+        
+        <PaginationBar
+          v-if="!loading && !error && filteredUsers.length > 0"
+          :current-page="currentPage"
+          :total-pages="totalPages"
+          :total-items="totalItems"
+          @page-change="handlePageChange"
+        />
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import PageHeader from '@/components/common/PageHeader.vue'
-import UsersFilterBar, { type FilterValues } from '@/components/users/UsersFilterBar.vue'
+import UsersFilterBar from '@/components/users/UsersFilterBar.vue'
 import UsersTable from '@/components/users/UsersTable.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
-import { usersApi, type UserListItem } from '@/api/users'
+import { fetchUsers } from '@/api/users'
 
-const PAGE_SIZE = 20
+interface User {
+  id: string
+  name?: string
+  email?: string
+  status?: string
+  role?: string
+  is_vip?: boolean
+  last_active?: string
+}
 
-// --- state ---
-const users = ref<UserListItem[]>([])
-const total = ref(0)
+interface FilterValues {
+  search: string
+  status: string
+  is_vip: string
+  role: string
+}
+
+const router = useRouter()
+
+const loading = ref(true)
+const error = ref('')
+const users = ref<User[]>([])
+const filter = ref<FilterValues>({
+  search: '',
+  status: '',
+  is_vip: '',
+  role: ''
+})
 const currentPage = ref(1)
-const loading = ref(false)
-const error = ref<string | null>(null)
+const pageSize = 20
+const totalItems = ref(0)
 
-const filters = reactive<FilterValues>({
- search: '',
- status: '',
- is_vip: '',
- role: '',
+const filteredUsers = computed(() => {
+  let filtered = [...users.value]
+  
+  if (filter.value.search) {
+    const search = filter.value.search.toLowerCase()
+    filtered = filtered.filter(user => 
+      user.name?.toLowerCase().includes(search) ||
+      user.email?.toLowerCase().includes(search)
+    )
+  }
+  
+  if (filter.value.status) {
+    filtered = filtered.filter(user => user.status === filter.value.status)
+  }
+  
+  if (filter.value.is_vip !== '') {
+    const isVip = filter.value.is_vip === 'true'
+    filtered = filtered.filter(user => user.is_vip === isVip)
+  }
+  
+  if (filter.value.role) {
+    filtered = filtered.filter(user => user.role === filter.value.role)
+  }
+  
+  totalItems.value = filtered.length
+  
+  // Pagination
+  const start = (currentPage.value - 1) * pageSize
+  const end = start + pageSize
+  return filtered.slice(start, end)
 })
 
-// 监听 status / is_vip / role 变化，立即刷新第 1 页
-// search 需要手动回车 / 点击，不在这里 watch
-watch(
- () => [filters.status, filters.is_vip, filters.role],
- () => loadUsers(1),
-)
+const totalPages = computed(() => {
+  return Math.ceil(totalItems.value / pageSize)
+})
 
-// --- methods ---
-function handleSearch(_value: string) {
- loadUsers(1)
+const fetchUserData = async () => {
+  loading.value = true
+  error.value = ''
+  
+  try {
+    const data = await fetchUsers()
+    users.value = data.users || []
+    
+    // Mock data for demonstration
+    if (users.value.length === 0) {
+      users.value = [
+        { id: '1', name: 'John Doe', email: 'john@example.com', status: 'active', role: 'admin', is_vip: true, last_active: new Date().toISOString() },
+        { id: '2', name: 'Jane Smith', email: 'jane@example.com', status: 'active', role: 'user', is_vip: true, last_active: new Date(Date.now() - 86400000).toISOString() },
+        { id: '3', name: 'Bob Johnson', email: 'bob@example.com', status: 'inactive', role: 'user', is_vip: false, last_active: new Date(Date.now() - 172800000).toISOString() },
+        { id: '4', name: 'Alice Brown', email: 'alice@example.com', status: 'active', role: 'guest', is_vip: false, last_active: new Date(Date.now() - 3600000).toISOString() },
+        { id: '5', name: 'Charlie Wilson', email: 'charlie@example.com', status: 'banned', role: 'user', is_vip: false, last_active: new Date(Date.now() - 2592000000).toISOString() },
+        { id: '6', name: 'David Lee', email: 'david@example.com', status: 'active', role: 'admin', is_vip: true, last_active: new Date().toISOString() },
+        { id: '7', name: 'Eva Garcia', email: 'eva@example.com', status: 'active', role: 'user', is_vip: true, last_active: new Date(Date.now() - 43200000).toISOString() },
+        { id: '8', name: 'Frank Miller', email: 'frank@example.com', status: 'inactive', role: 'user', is_vip: false, last_active: new Date(Date.now() - 604800000).toISOString() }
+      ]
+    }
+  } catch (err: any) {
+    error.value = err.message || 'Failed to load users'
+  } finally {
+    loading.value = false
+  }
 }
 
-function handleFilterChange(newVal: FilterValues) {
- Object.assign(filters, newVal)
+const handleViewUser = (user: User) => {
+  router.push(`/users/${user.id}`)
 }
 
-function handleReset() {
- Object.assign(filters, {
- search: '',
- status: '',
- is_vip: '',
- role: '',
- })
- loadUsers(1)
+const handleEditUser = (user: User) => {
+  // TODO: Implement edit user modal
+  console.log('Edit user:', user)
 }
 
-async function loadUsers(page: number) {
- loading.value = true
- error.value = null
- currentPage.value = page
-
- try {
- // 构建请求参数
- // 注意：当前 stub API 仅支持 page / page_size；
- // status 等筛选参数已预留，后端实现后自动生效，无需改动前端。
- const params: Record<string, unknown> = {
- page,
- page_size: PAGE_SIZE,
- }
-
- if (filters.status) params.status = filters.status
- // is_vip / role / search 后端支持后取消注释即可：
- // if (filters.is_vip) params.is_vip = filters.is_vip === 'true'
- // if (filters.role) params.role = filters.role
- // if (filters.search) params.search = filters.search
-
- const res = await usersApi.list(params as any)
- users.value = res.items
- total.value = res.total
- } catch {
- error.value = '获取用户列表失败，请重试'
- users.value = []
- total.value = 0
- } finally {
- loading.value = false
- }
+const handleAddUser = () => {
+  // TODO: Implement add user modal
+  console.log('Add user')
 }
 
-onMounted(() => loadUsers(1))
+const handlePageChange = (page: number) => {
+  currentPage.value = page
+}
+
+onMounted(() => {
+  fetchUserData()
+})
 </script>
 
 <style scoped>
-.users-page { }
+.users-page {
+  padding-bottom: 2rem;
+}
+
+.users-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.table-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
 </style>

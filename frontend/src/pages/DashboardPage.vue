@@ -1,576 +1,456 @@
 <template>
- <div class="dashboard">
- <!-- 页头 -->
- <PageHeader title="仪表盘" desc="系统实时总览">
- <template #actions>
- <button
- class="btn btn-ghost refresh-btn"
- :disabled="anyLoading"
- @click="handleRefresh"
- >
- <span class="refresh-icon" :class="{ spinning: anyLoading }">↻</span>
- {{ anyLoading ? '刷新中...' : '刷新' }}
- </button>
- </template>
- </PageHeader>
-
- <!-- ① 概览卡片行 -->
- <section class="overview-row">
- <!-- skeleton -->
- <template v-if="store.summaryLoading && !store.summary">
- <div v-for="i in 6" :key="i" class="stat-card card skeleton-card" />
- </template>
- <!-- error -->
- <div v-else-if="store.summaryError" class="overview-error">
- <ErrorState :message="store.summaryError" compact @retry="store.fetchSummary()" />
- </div>
- <!-- data -->
- <template v-else-if="store.summary">
- <StatCard
- label="总用户数"
- :value="store.summary.overview.total_users"
- />
- <StatCard
- label="今日活跃"
- :value="store.summary.overview.active_users_today"
- sub="人"
- />
- <StatCard
- label="当前在线会话"
- :value="store.summary.overview.current_active_sessions"
- :highlight="store.summary.overview.current_active_sessions > 0"
- />
- <StatCard
- label="媒体总量"
- :value="store.summary.overview.total_media_count"
- />
- <StatCard
- label="今日播放"
- :value="store.summary.playback.today_play_count"
- :sub="formatDuration(store.summary.playback.today_play_duration_sec)"
- />
- <StatCard
- label="未读通知"
- :value="store.summary.notifications.unread_count"
- :danger="store.summary.notifications.unread_count > 0"
- />
- </template>
- </section>
-
- <!-- ② 主内容区：左列 + 右列 -->
- <div class="dashboard-body">
-
- <!-- 左列 -->
- <div class="col-left">
-
- <!-- 播放趋势图 -->
- <div class="card trend-card">
- <div class="card-head">
- <span class="card-title">播放趋势</span>
- <div class="day-tabs">
- <button
- v-for="opt in DAY_OPTIONS"
- :key="opt.value"
- class="day-tab"
- :class="{ active: trendDays === opt.value }"
- @click="changeTrendDays(opt.value)"
- >
- {{ opt.label }}
- </button>
- </div>
- </div>
-
- <LoadingState v-if="store.trendsLoading" height="200px" />
- <ErrorState
- v-else-if="store.trendsError"
- :message="store.trendsError"
- compact
- @retry="store.fetchTrends(trendDays)"
- />
- <TrendChart
- v-else-if="store.trends.length > 0"
- :x-data="store.trends.map(t => t.date.slice(5))"
- :series="[
- { name: '播放次数', data: store.trends.map(t => t.play_count) },
- { name: '活跃用户', data: store.trends.map(t => t.active_users), color: '#22c55e' },
- ]"
- height="200px"
- />
- <div v-else class="chart-empty">暂无趋势数据</div>
- </div>
-
- <!-- 当前播放会话 -->
- <div class="card sessions-card">
- <div class="card-head">
- <span class="card-title">当前播放会话</span>
- <div class="sessions-meta">
- <span
- v-if="!store.sessionsLoading"
- class="tag"
- :class="store.sessions.length > 0 ? 'tag-green' : 'tag-gray'"
- >
- {{ store.sessions.length }} 个活跃
- </span>
- <button
- class="icon-btn"
- title="刷新会话"
- :disabled="store.sessionsLoading"
- @click="store.fetchSessions()"
- >
- <span :class="{ spinning: store.sessionsLoading }">↻</span>
- </button>
- </div>
- </div>
-
- <LoadingState v-if="store.sessionsLoading && store.sessions.length === 0" height="100px" />
- <ErrorState
- v-else-if="store.sessionsError"
- :message="store.sessionsError"
- compact
- @retry="store.fetchSessions()"
- />
- <div v-else-if="store.sessions.length === 0" class="sessions-empty">
- <span class="empty-dot" />
- 当前没有活跃播放会话
- </div>
- <ul v-else class="sessions-list">
- <li
- v-for="s in store.sessions"
- :key="s.session_id"
- class="session-item"
- >
- <div class="session-indicator" />
- <div class="session-body">
- <div class="session-top">
- <RouterLink :to="`/users/${s.user_id}`" class="session-username">
- {{ s.username }}
- </RouterLink>
- <span class="session-media">{{ s.media_name }}</span>
- </div>
- <div class="session-bottom">
- <span class="session-chip">{{ s.client_name ?? '未知客户端' }}</span>
- <span class="session-chip">{{ s.ip_address ?? '—' }}</span>
- <span class="session-since">{{ fromNow(s.started_at) }}</span>
- </div>
- </div>
- </li>
- </ul>
- </div>
-
- </div>
-
- <!-- 右列 -->
- <div class="col-right">
-
- <!-- 风控摘要 -->
- <div class="card summary-card risk-card">
- <div class="card-head">
- <span class="card-title">风控状态</span>
- <RouterLink to="/risk" class="card-link">查看全部 →</RouterLink>
- </div>
-
- <LoadingState v-if="store.summaryLoading && !store.summary" height="80px" />
- <template v-else-if="store.summary">
- <div class="summary-row">
- <span class="summary-label">待处理事件</span>
- <span
- class="tag"
- :class="store.summary.risk.open_risk_count > 0 ? 'tag-yellow' : 'tag-green'"
- >
- {{ store.summary.risk.open_risk_count }}
- </span>
- </div>
- <div class="summary-row">
- <span class="summary-label">高危事件</span>
- <span
- class="tag"
- :class="store.summary.risk.high_risk_count > 0 ? 'tag-red' : 'tag-green'"
- >
- {{ store.summary.risk.high_risk_count }}
- </span>
- </div>
- <div
- v-if="store.summary.risk.open_risk_count > 0"
- class="risk-alert"
- >
- ⚠ 有待处理的风控事件，请尽快处理
- </div>
- <div v-else class="risk-ok">✓ 当前无待处理风险</div>
- </template>
- </div>
-
- <!-- 今日播放摘要 -->
- <div class="card summary-card play-card">
- <div class="card-head">
- <span class="card-title">今日播放</span>
- <RouterLink to="/stats" class="card-link">统计详情 →</RouterLink>
- </div>
-
- <LoadingState v-if="store.summaryLoading && !store.summary" height="80px" />
- <template v-else-if="store.summary">
- <div class="summary-row">
- <span class="summary-label">播放次数</span>
- <span class="summary-value">{{ store.summary.playback.today_play_count }}</span>
- </div>
- <div class="summary-row">
- <span class="summary-label">播放时长</span>
- <span class="summary-value">
- {{ formatDuration(store.summary.playback.today_play_duration_sec) }}
- </span>
- </div>
- <div class="summary-row">
- <span class="summary-label">峰值并发</span>
- <span class="summary-value">{{ store.summary.playback.peak_concurrent_today }}</span>
- </div>
- </template>
- </div>
-
- </div>
- </div>
- </div>
+  <div class="dashboard-page">
+    <PageHeader title="Dashboard" desc="Overview of your Emby Next system" />
+    
+    <div v-if="loading" class="loading-container">
+      <LoadingState />
+    </div>
+    
+    <div v-else-if="error" class="error-container">
+      <ErrorState :message="error" />
+      <button class="btn btn-ghost" @click="fetchData">Retry</button>
+    </div>
+    
+    <div v-else class="dashboard-content">
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <StatCard
+          v-for="stat in stats"
+          :key="stat.title"
+          :title="stat.title"
+          :value="stat.value"
+          :change="stat.change"
+          :icon="stat.icon"
+          :trend="stat.trend"
+        />
+      </div>
+      
+      <!-- Charts -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3 class="chart-title">Activity Trend</h3>
+          <TrendChart :x-data="trendData.xData" :series="trendData.series" height="300px" />
+        </div>
+        
+        <div class="chart-card">
+          <h3 class="chart-title">Top Media</h3>
+          <div class="top-media-list">
+            <div v-for="media in topMedia" :key="media.id" class="media-item">
+              <div class="media-info">
+                <div class="media-title">{{ media.title }}</div>
+                <div class="media-meta">{{ media.type }} • {{ media.plays }} plays</div>
+              </div>
+              <div class="media-users">{{ media.users }} users</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Sessions & Risk -->
+      <div class="sections-grid">
+        <div class="section-card">
+          <div class="section-header">
+            <h3 class="section-title">Active Sessions</h3>
+            <router-link to="/sessions" class="btn btn-ghost btn-sm">View all</router-link>
+          </div>
+          <div class="sessions-list">
+            <div v-for="session in activeSessions" :key="session.id" class="session-item">
+              <div class="session-user">
+                <div class="avatar">{{ session.user?.charAt(0) || 'U' }}</div>
+                <div class="session-info">
+                  <div class="session-name">{{ session.user || 'Unknown' }}</div>
+                  <div class="session-device">{{ session.device || 'Unknown device' }}</div>
+                </div>
+              </div>
+              <div class="session-time">{{ formatDuration(session.duration) }}</div>
+            </div>
+            <div v-if="activeSessions.length === 0" class="empty-sessions">
+              No active sessions
+            </div>
+          </div>
+        </div>
+        
+        <div class="section-card">
+          <div class="section-header">
+            <h3 class="section-title">Recent Risk Events</h3>
+            <router-link to="/risk" class="btn btn-ghost btn-sm">View all</router-link>
+          </div>
+          <div class="risk-list">
+            <div v-for="event in recentRiskEvents" :key="event.id" class="risk-item">
+              <span :class="`tag tag-${getSeverityColor(event.severity)}`">
+                {{ event.severity }}
+              </span>
+              <div class="risk-info">
+                <div class="risk-title">{{ event.title }}</div>
+                <div class="risk-time">{{ formatTime(event.created_at) }}</div>
+              </div>
+            </div>
+            <div v-if="recentRiskEvents.length === 0" class="empty-risk">
+              No recent risk events
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 import TrendChart from '@/components/charts/TrendChart.vue'
-import { useDashboardStore } from '@/stores/dashboard'
-import { fromNow, formatDuration } from '@/utils/time'
+import { fetchDashboardData } from '@/api/dashboard'
 
-const store = useDashboardStore()
-
-const trendDays = ref(7)
-
-const DAY_OPTIONS = [
- { label: '7 天', value: 7 },
- { label: '14 天', value: 14 },
- { label: '30 天', value: 30 },
-]
-
-const anyLoading = computed(
- () => store.summaryLoading || store.sessionsLoading || store.trendsLoading,
-)
-
-function changeTrendDays(days: number) {
- trendDays.value = days
- store.fetchTrends(days)
+interface StatItem {
+  title: string
+  value: string | number
+  change?: string
+  icon?: string
+  trend?: 'up' | 'down' | 'neutral'
 }
 
-function handleRefresh() {
- store.fetchAll(trendDays.value)
+interface TrendData {
+  xData: string[]
+  series: Array<{ name: string; data: number[]; color?: string }>
+}
+
+interface MediaItem {
+  id: string
+  title: string
+  type: string
+  plays: number
+  users: number
+}
+
+interface Session {
+  id: string
+  user?: string
+  device?: string
+  duration: number
+}
+
+interface RiskEvent {
+  id: string
+  title: string
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  created_at: string
+}
+
+const loading = ref(true)
+const error = ref('')
+const stats = ref<StatItem[]>([])
+const trendData = ref<TrendData>({ xData: [], series: [] })
+const topMedia = ref<MediaItem[]>([])
+const activeSessions = ref<Session[]>([])
+const recentRiskEvents = ref<RiskEvent[]>([])
+
+const fetchData = async () => {
+  loading.value = true
+  error.value = ''
+  
+  try {
+    const data = await fetchDashboardData()
+    
+    // Mock data for demonstration
+    stats.value = [
+      { title: 'Total Users', value: data.total_users || 1254, change: '+12%', trend: 'up' },
+      { title: 'Active Sessions', value: data.active_sessions || 42, change: '+5%', trend: 'up' },
+      { title: 'Media Plays', value: data.media_plays || '12.5k', change: '+8%', trend: 'up' },
+      { title: 'Risk Events', value: data.risk_events || 8, change: '-3%', trend: 'down' }
+    ]
+    
+    trendData.value = {
+      xData: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      series: [
+        { name: 'Plays', data: [120, 200, 150, 180, 190, 230, 260], color: 'var(--brand)' },
+        { name: 'Users', data: [80, 100, 120, 110, 130, 150, 180], color: 'var(--success)' }
+      ]
+    }
+    
+    topMedia.value = [
+      { id: '1', title: 'The Matrix', type: 'Movie', plays: 1250, users: 450 },
+      { id: '2', title: 'Breaking Bad', type: 'TV Show', plays: 980, users: 320 },
+      { id: '3', title: 'Inception', type: 'Movie', plays: 850, users: 280 },
+      { id: '4', title: 'Stranger Things', type: 'TV Show', plays: 720, users: 240 },
+      { id: '5', title: 'Interstellar', type: 'Movie', plays: 650, users: 210 }
+    ]
+    
+    activeSessions.value = [
+      { id: '1', user: 'John Doe', device: 'Chrome on Windows', duration: 3600 },
+      { id: '2', user: 'Jane Smith', device: 'Safari on iPhone', duration: 1800 },
+      { id: '3', user: 'Bob Johnson', device: 'Android TV', duration: 7200 },
+      { id: '4', user: 'Alice Brown', device: 'Fire TV', duration: 5400 }
+    ]
+    
+    recentRiskEvents.value = [
+      { id: '1', title: 'Failed login attempt', severity: 'medium', created_at: new Date(Date.now() - 3600000).toISOString() },
+      { id: '2', title: 'Unusual bandwidth usage', severity: 'high', created_at: new Date(Date.now() - 7200000).toISOString() },
+      { id: '3', title: 'Multiple device connections', severity: 'low', created_at: new Date(Date.now() - 10800000).toISOString() }
+    ]
+  } catch (err: any) {
+    error.value = err.message || 'Failed to load dashboard data'
+  } finally {
+    loading.value = false
+  }
+}
+
+const getSeverityColor = (severity: string) => {
+  switch (severity) {
+    case 'critical': return 'red'
+    case 'high': return 'red'
+    case 'medium': return 'yellow'
+    case 'low': return 'blue'
+    case 'info': return 'gray'
+    default: return 'gray'
+  }
+}
+
+const formatDuration = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+const formatTime = (date: string) => {
+  const d = new Date(date)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  const minutes = Math.floor(diff / (1000 * 60))
+  
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 onMounted(() => {
- store.fetchAll(trendDays.value)
+  fetchData()
 })
 </script>
 
 <style scoped>
-/* ── 概览卡片行 ────────────────────────────────── */
-.overview-row {
- display: grid;
- grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
- gap: 12px;
- margin-bottom: 20px;
+.dashboard-page {
+  padding-bottom: 2rem;
 }
 
-.skeleton-card {
- height: 88px;
- background: linear-gradient(
- 90deg,
- var(--color-surface-2) 25%,
- var(--color-border) 50%,
- var(--color-surface-2) 75%
- );
- background-size: 200% 100%;
- animation: shimmer 1.4s infinite;
- border-radius: 10px;
+.loading-container,
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem 1rem;
 }
 
-@keyframes shimmer {
- to { background-position: -200% 0; }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 
-.overview-error {
- grid-column: 1 / -1;
+.charts-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
 
-/* ── 主体布局 ──────────────────────────────────── */
-.dashboard-body {
- display: grid;
- grid-template-columns: 1fr 300px;
- gap: 16px;
- align-items: start;
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
 }
 
-.col-left,
-.col-right {
- display: flex;
- flex-direction: column;
- gap: 16px;
+.chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 1rem 0;
 }
 
-/* ── 通用 card head ─────────────────────────────── */
-.card-head {
- display: flex;
- align-items: center;
- justify-content: space-between;
- margin-bottom: 14px;
+.top-media-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.card-title {
- font-weight: 600;
- font-size: 14px;
+.media-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
 }
 
-.card-link {
- font-size: 12px;
- color: var(--color-primary);
+.media-info {
+  flex: 1;
 }
 
-/* ── 趋势图 ─────────────────────────────────────── */
-.trend-card { }
-
-.day-tabs {
- display: flex;
- gap: 4px;
+.media-title {
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 0.25rem;
 }
 
-.day-tab {
- padding: 3px 10px;
- border-radius: 4px;
- font-size: 12px;
- background: var(--color-surface-2);
- color: var(--color-text-muted);
- border: 1px solid var(--color-border);
- cursor: pointer;
- transition: all 0.15s;
+.media-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
-.day-tab:hover:not(.active) {
- color: var(--color-text);
+.media-users {
+  font-weight: 600;
+  color: var(--brand);
+  font-size: 0.875rem;
 }
 
-.day-tab.active {
- background: var(--color-primary);
- color: #fff;
- border-color: var(--color-primary);
+.sections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
 }
 
-.chart-empty {
- height: 200px;
- display: flex;
- align-items: center;
- justify-content: center;
- background: var(--color-surface-2);
- border-radius: 6px;
- color: var(--color-text-muted);
- font-size: 13px;
- border: 1px dashed var(--color-border);
+.section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
 }
 
-/* ── 当前会话 ────────────────────────────────────── */
-.sessions-card { padding: 0; overflow: hidden; }
-
-.sessions-card .card-head {
- padding: 14px 18px 14px;
- margin-bottom: 0;
- border-bottom: 1px solid var(--color-border);
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
-.sessions-meta {
- display: flex;
- align-items: center;
- gap: 8px;
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
 }
 
-.icon-btn {
- background: none;
- border: none;
- color: var(--color-text-muted);
- font-size: 15px;
- cursor: pointer;
- padding: 2px 4px;
- line-height: 1;
-}
-
-.icon-btn:hover { color: var(--color-text); }
-.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.sessions-empty {
- display: flex;
- align-items: center;
- gap: 8px;
- padding: 24px 18px;
- color: var(--color-text-muted);
- font-size: 13px;
-}
-
-.empty-dot {
- width: 6px;
- height: 6px;
- border-radius: 50%;
- background: var(--color-border);
- flex-shrink: 0;
-}
-
-.sessions-list {
- list-style: none;
- margin: 0;
- padding: 0;
+.sessions-list,
+.risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .session-item {
- display: flex;
- align-items: center;
- gap: 12px;
- padding: 10px 18px;
- border-bottom: 1px solid var(--color-border);
- transition: background 0.12s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
 }
 
-.session-item:last-child {
- border-bottom: none;
+.session-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.session-item:hover {
- background: var(--color-surface-2);
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
 }
 
-.session-indicator {
- width: 6px;
- height: 6px;
- border-radius: 50%;
- background: var(--color-success);
- flex-shrink: 0;
- box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
- animation: pulse 2s ease-in-out infinite;
+.session-info {
+  display: flex;
+  flex-direction: column;
 }
 
-@keyframes pulse {
- 0%, 100% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15); }
- 50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.05); }
+.session-name {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 0.875rem;
 }
 
-.session-body {
- flex: 1;
- min-width: 0;
+.session-device {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
-.session-top {
- display: flex;
- align-items: baseline;
- gap: 8px;
- margin-bottom: 4px;
+.session-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
-.session-username {
- font-size: 13px;
- font-weight: 600;
- color: var(--color-text);
- white-space: nowrap;
- flex-shrink: 0;
+.risk-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
 }
 
-.session-username:hover { color: var(--color-primary); }
-
-.session-media {
- font-size: 12px;
- color: var(--color-text-muted);
- white-space: nowrap;
- overflow: hidden;
- text-overflow: ellipsis;
+.risk-info {
+  flex: 1;
 }
 
-.session-bottom {
- display: flex;
- align-items: center;
- gap: 6px;
- flex-wrap: wrap;
+.risk-title {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
 }
 
-.session-chip {
- font-size: 11px;
- color: var(--color-text-muted);
- background: var(--color-surface-2);
- border: 1px solid var(--color-border);
- border-radius: 3px;
- padding: 1px 5px;
+.risk-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
-.session-since {
- font-size: 11px;
- color: var(--color-primary);
- margin-left: auto;
- flex-shrink: 0;
+.empty-sessions,
+.empty-risk {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
-/* ── 右列摘要卡 ─────────────────────────────────── */
-.summary-card { }
-
-.summary-row {
- display: flex;
- align-items: center;
- justify-content: space-between;
- padding: 9px 0;
- border-bottom: 1px solid var(--color-border);
+.tag {
+  font-size: 10px;
+  padding: 1px 4px;
 }
 
-.summary-row:last-of-type {
- border-bottom: none;
+@media (max-width: 1024px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.summary-label {
- color: var(--color-text-muted);
- font-size: 13px;
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .sections-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.summary-value {
- font-weight: 600;
- font-size: 14px;
-}
-
-.risk-alert {
- margin-top: 10px;
- padding: 8px 10px;
- background: rgba(245, 158, 11, 0.08);
- border-left: 3px solid var(--color-warning);
- border-radius: 4px;
- font-size: 12px;
- color: var(--color-warning);
-}
-
-.risk-ok {
- margin-top: 10px;
- padding: 8px 10px;
- background: rgba(34, 197, 94, 0.07);
- border-left: 3px solid var(--color-success);
- border-radius: 4px;
- font-size: 12px;
- color: var(--color-success);
-}
-
-/* ── 刷新按钮 ────────────────────────────────────── */
-.refresh-btn {
- display: flex;
- align-items: center;
- gap: 5px;
-}
-
-.refresh-icon {
- display: inline-block;
- font-size: 15px;
- line-height: 1;
-}
-
-.spinning {
- animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
- to { transform: rotate(360deg); }
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

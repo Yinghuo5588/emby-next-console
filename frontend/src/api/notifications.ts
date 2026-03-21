@@ -1,27 +1,44 @@
-import { get, post } from './client'
+import apiClient, { type ApiResponse } from './client'
 
-export type NotificationLevel = 'info' | 'warning' | 'error'
-
-export interface NotificationItem {
- notification_id: string
- type: string
- title: string
- message: string
- level: NotificationLevel
- is_read: boolean
- action_url: string | null
- created_at: string
+export interface Notification {
+  id: string
+  level: 'info' | 'warning' | 'error' | 'success'
+  title: string
+  body: string
+  read: boolean
+  action_url?: string
+  action_text?: string
+  created_at: string
 }
 
-export interface NotificationsResponse {
- items: NotificationItem[]
- total: number
- unread_count: number
+export interface NotificationListParams {
+  page?: number
+  pageSize?: number
+  unread_only?: boolean
 }
 
 export const notificationsApi = {
- list: (page = 1, page_size = 20) => get<NotificationsResponse>('/notifications', { page, page_size }),
- unreadCount: () => get<{ unread_count: number }>('/notifications/unread-count'),
- markRead: (id: string) => post(`/notifications/${id}/read`),
- markAllRead: () => post('/notifications/read-all'),
+  // List notifications
+  async list(params: NotificationListParams = {}): Promise<ApiResponse<Notification[]>> {
+    const response = await apiClient.get<ApiResponse<Notification[]>>('/notifications', { params })
+    return response.data
+  },
+
+  // Get unread count
+  async unreadCount(): Promise<ApiResponse<{ count: number }>> {
+    const response = await apiClient.get<ApiResponse<{ count: number }>>('/notifications/unread-count')
+    return response.data
+  },
+
+  // Mark notification as read
+  async markRead(id: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.post<ApiResponse<void>>(`/notifications/${id}/read`)
+    return response.data
+  },
+
+  // Mark all notifications as read
+  async markAllRead(): Promise<ApiResponse<void>> {
+    const response = await apiClient.post<ApiResponse<void>>('/notifications/read-all')
+    return response.data
+  },
 }

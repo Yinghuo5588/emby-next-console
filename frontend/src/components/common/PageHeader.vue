@@ -1,50 +1,86 @@
 <template>
- <div class="page-header">
- <div class="ph-left">
- <h1 class="ph-title">{{ title }}</h1>
- <p v-if="desc" class="ph-desc">{{ desc }}</p>
- </div>
- <div v-if="$slots.actions" class="ph-actions">
- <slot name="actions" />
- </div>
- </div>
+  <div class="page-header">
+    <div class="header-content">
+      <div class="header-text">
+        <h1 class="title">{{ title }}</h1>
+        <p v-if="desc" class="desc">{{ desc }}</p>
+      </div>
+      <div v-if="$slots.actions" class="header-actions">
+        <slot name="actions" />
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 defineProps<{
- title: string
- desc?: string
+  title: string
+  desc?: string
 }>()
 </script>
 
 <style scoped>
 .page-header {
- display: flex;
- align-items: flex-start;
- justify-content: space-between;
- margin-bottom: 24px;
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
-.ph-left {
- flex: 1;
- min-width: 0;
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
-.ph-title {
- font-size: 20px;
- font-weight: 700;
- color: var(--color-text);
- margin-bottom: 4px;
+.header-text {
+  flex: 1;
 }
 
-.ph-desc {
- font-size: 13px;
- color: var(--color-text-muted);
+.title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.2;
 }
 
-.ph-actions {
- display: flex;
- gap: 8px;
- flex-shrink: 0;
+.desc {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+  .page-header {
+    padding: 1.25rem;
+    border-radius: 12px;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .title {
+    font-size: 1.5rem;
+  }
+  
+  .header-actions {
+    justify-content: flex-start;
+  }
 }
 </style>

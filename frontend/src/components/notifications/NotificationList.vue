@@ -1,134 +1,80 @@
 <template>
- <div class="notif-list">
- <LoadingState v-if="loading && items.length === 0" height="300px" />
-
- <ErrorState
- v-else-if="error"
- :message="error"
- height="200px"
- @retry="emit('retry')"
- />
-
- <template v-else>
- <!-- 空状态 -->
- <div v-if="items.length === 0" class="list-empty">
- <div class="empty-icon">◎</div>
- <div class="empty-title">暂无通知</div>
- <div class="empty-desc">系统通知、风控提醒等会出现在这里</div>
- </div>
-
- <!-- 通知卡片流 -->
- <TransitionGroup v-else name="notif" tag="div" class="card-flow">
- <NotificationCard
- v-for="item in items"
- :key="item.notification_id"
- :item="item"
- :marking="markingId === item.notification_id"
- @mark-read="emit('mark-read', $event)"
- />
- </TransitionGroup>
-
- <!-- 加载更多（有 hasMore 时显示） -->
- <div v-if="hasMore" class="load-more">
- <button
- class="btn btn-ghost load-more-btn"
- :disabled="loadingMore"
- @click="emit('load-more')"
- >
- {{ loadingMore ? '加载中...' : '加载更多' }}
- </button>
- </div>
- </template>
- </div>
+  <div class="notification-list">
+    <LoadingState v-if="loading" />
+    <ErrorState v-else-if="error" :message="error" />
+    <EmptyState v-else-if="!notifications || notifications.length === 0" message="No notifications" />
+    
+    <div v-else>
+      <div class="list-container">
+        <NotificationCard
+          v-for="notification in notifications"
+          :key="notification.id"
+          :notification="notification"
+          @mark-read="$emit('mark-read', notification)"
+          @view="$emit('view', notification)"
+        />
+      </div>
+      
+      <div v-if="hasMore" class="load-more">
+        <button class="btn btn-ghost" @click="$emit('load-more')" :disabled="loadingMore">
+          {{ loadingMore ? 'Loading...' : 'Load more' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
+import NotificationCard from './NotificationCard.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
-import NotificationCard from './NotificationCard.vue'
-import type { NotificationItem } from '@/api/notifications'
+import EmptyState from '@/components/common/EmptyState.vue'
 
-defineProps<{
- items: NotificationItem[]
- loading: boolean
- error: string | null
- markingId: string | null
- hasMore?: boolean
- loadingMore?: boolean
+interface Notification {
+  id: string
+  title: string
+  body: string
+  level: 'info' | 'warning' | 'error' | 'success'
+  read: boolean
+  created_at: string
+  metadata?: Record<string, any>
+}
+
+const props = defineProps<{
+  notifications: Notification[]
+  loading: boolean
+  error?: string
+  hasMore: boolean
+  loadingMore: boolean
 }>()
 
 const emit = defineEmits<{
- retry: []
- 'mark-read': [id: string]
- 'load-more': []
+  'mark-read': [notification: Notification]
+  'view': [notification: Notification]
+  'load-more': []
 }>()
 </script>
 
 <style scoped>
-.notif-list { }
-
-.list-empty {
- display: flex;
- flex-direction: column;
- align-items: center;
- padding: 64px 24px;
- text-align: center;
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.empty-icon {
- font-size: 36px;
- color: var(--color-border);
- margin-bottom: 14px;
+.list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.empty-title {
- font-size: 15px;
- font-weight: 500;
- color: var(--color-text-muted);
- margin-bottom: 6px;
-}
-
-.empty-desc {
- font-size: 13px;
- color: var(--color-text-muted);
- opacity: 0.7;
-}
-
-/* 卡片流 */
-.card-flow {
- display: flex;
- flex-direction: column;
- gap: 10px;
-}
-
-/* 加载更多 */
 .load-more {
- display: flex;
- justify-content: center;
- margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
 }
 
-.load-more-btn {
- min-width: 120px;
- justify-content: center;
-}
-
-/* 卡片进出动画 */
-.notif-enter-active {
- transition: opacity 0.25s, transform 0.25s;
-}
-
-.notif-leave-active {
- transition: opacity 0.2s, transform 0.2s;
-}
-
-.notif-enter-from {
- opacity: 0;
- transform: translateY(-6px);
-}
-
-.notif-leave-to {
- opacity: 0;
- transform: translateX(10px);
+.load-more .btn {
+  min-width: 120px;
 }
 </style>

@@ -1,209 +1,186 @@
 <template>
- <div class="notif-card" :class="{ unread: !item.is_read }">
- <!-- 未读指示条 -->
- <div class="unread-bar" />
-
- <div class="card-body">
- <!-- 顶行：level 标签 + 标题 + 时间 -->
- <div class="card-head">
- <span class="tag level-tag" :class="levelClass(item.level)">
- {{ levelLabel(item.level) }}
- </span>
- <span class="notif-title" :class="{ 'title-unread': !item.is_read }">
- {{ item.title }}
- </span>
- <span class="notif-time">{{ fromNow(item.created_at) }}</span>
- </div>
-
- <!-- 正文摘要 -->
- <p class="notif-body">{{ item.message }}</p>
-
- <!-- 底行：详情链接 + 标记已读 -->
- <div class="card-foot">
- <a
- v-if="item.action_url"
- :href="item.action_url"
- class="action-link"
- target="_self"
- >
- 查看详情 →
- </a>
- <div v-else class="spacer" />
-
- <button
- v-if="!item.is_read"
- class="btn btn-read"
- :disabled="marking"
- @click="emit('mark-read', item.notification_id)"
- >
- {{ marking ? '...' : '标为已读' }}
- </button>
- <span v-else class="read-badge">✓ 已读</span>
- </div>
- </div>
- </div>
+  <div class="notification-card" :class="{ unread: !notification.read }">
+    <div class="notification-header">
+      <span :class="`badge badge-${getLevelColor(notification.level)}`">
+        {{ notification.level }}
+      </span>
+      <div class="time">{{ formatTime(notification.created_at) }}</div>
+    </div>
+    
+    <div class="notification-body">
+      <h4 class="title">{{ notification.title }}</h4>
+      <p class="body">{{ notification.body }}</p>
+    </div>
+    
+    <div class="notification-footer">
+      <button 
+        v-if="!notification.read" 
+        class="btn btn-ghost btn-sm" 
+        @click="$emit('mark-read', notification)"
+      >
+        Mark as read
+      </button>
+      <button 
+        class="btn btn-ghost btn-sm" 
+        @click="$emit('view', notification)"
+      >
+        View details
+      </button>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import type { NotificationItem } from '@/api/notifications'
-import { fromNow } from '@/utils/time'
+interface Notification {
+  id: string
+  title: string
+  body: string
+  level: 'info' | 'warning' | 'error' | 'success'
+  read: boolean
+  created_at: string
+  metadata?: Record<string, any>
+}
 
-defineProps<{
- item: NotificationItem
- marking?: boolean
+const props = defineProps<{
+  notification: Notification
 }>()
 
 const emit = defineEmits<{
- 'mark-read': [id: string]
+  'mark-read': [notification: Notification]
+  'view': [notification: Notification]
 }>()
 
-function levelClass(level: string) {
- return {
- info: 'tag-gray',
- warning: 'tag-yellow',
- error: 'tag-red',
- }[level] ?? 'tag-gray'
+const getLevelColor = (level: string) => {
+  switch (level) {
+    case 'error': return 'red'
+    case 'warning': return 'yellow'
+    case 'success': return 'green'
+    case 'info': return 'blue'
+    default: return 'gray'
+  }
 }
 
-function levelLabel(level: string) {
- return { info: '通知', warning: '警告', error: '错误' }[level] ?? level
+const formatTime = (date: string) => {
+  const d = new Date(date)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  const minutes = Math.floor(diff / (1000 * 60))
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days < 7) return `${days}d ago`
+  return d.toLocaleDateString()
 }
 </script>
 
 <style scoped>
-.notif-card {
- display: flex;
- background: var(--color-surface);
- border: 1px solid var(--color-border);
- border-radius: 10px;
- overflow: hidden;
- transition: border-color 0.15s, box-shadow 0.15s;
+.notification-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  transition: all 0.2s;
 }
 
-.notif-card:hover {
- border-color: rgba(99, 102, 241, 0.3);
- box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+.notification-card.unread {
+  background: var(--surface-strong);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand-light);
 }
 
-/* 未读左侧彩色条 */
-.unread-bar {
- width: 3px;
- background: transparent;
- flex-shrink: 0;
- transition: background 0.2s;
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
 }
 
-.notif-card.unread .unread-bar {
- background: var(--color-primary);
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.card-body {
- flex: 1;
- padding: 14px 18px;
- min-width: 0;
- display: flex;
- flex-direction: column;
- gap: 8px;
+.badge-red {
+  background: var(--danger-light);
+  color: var(--danger);
 }
 
-/* 顶行 */
-.card-head {
- display: flex;
- align-items: center;
- gap: 10px;
- flex-wrap: wrap;
+.badge-yellow {
+  background: var(--warning-light);
+  color: var(--warning);
 }
 
-.level-tag {
- font-size: 11px;
- padding: 2px 7px;
- flex-shrink: 0;
+.badge-green {
+  background: var(--success-light);
+  color: var(--success);
 }
 
-.notif-title {
- font-size: 14px;
- font-weight: 500;
- color: var(--color-text-muted);
- flex: 1;
- white-space: nowrap;
- overflow: hidden;
- text-overflow: ellipsis;
- min-width: 0;
- transition: color 0.15s;
+.badge-blue {
+  background: var(--brand-light);
+  color: var(--brand);
 }
 
-.title-unread {
- color: var(--color-text);
+.badge-gray {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
 }
 
-.notif-time {
- font-size: 12px;
- color: var(--color-text-muted);
- flex-shrink: 0;
- white-space: nowrap;
+.time {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-/* 正文 */
-.notif-body {
- font-size: 13px;
- color: var(--color-text-muted);
- line-height: 1.6;
- margin: 0;
- /* 最多显示 2 行 */
- display: -webkit-box;
- -webkit-line-clamp: 2;
- -webkit-box-orient: vertical;
- overflow: hidden;
+.notification-body {
+  margin-bottom: 1rem;
 }
 
-/* 底行 */
-.card-foot {
- display: flex;
- align-items: center;
- justify-content: space-between;
- gap: 12px;
- margin-top: 2px;
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
 }
 
-.action-link {
- font-size: 12px;
- color: var(--color-primary);
- flex-shrink: 0;
+.body {
+  font-size: 0.875rem;
+  color: var(--text-soft);
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.action-link:hover {
- color: var(--color-primary-hover);
+.notification-footer {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.spacer {
- flex: 1;
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
-.btn-read {
- padding: 3px 10px;
- border-radius: 5px;
- font-size: 12px;
- background: var(--color-surface-2);
- color: var(--color-text-muted);
- border: 1px solid var(--color-border);
- cursor: pointer;
- transition: all 0.15s;
- flex-shrink: 0;
-}
-
-.btn-read:hover:not(:disabled) {
- color: var(--color-text);
- border-color: var(--color-text-muted);
-}
-
-.btn-read:disabled {
- opacity: 0.4;
- cursor: not-allowed;
-}
-
-.read-badge {
- font-size: 12px;
- color: var(--color-text-muted);
- opacity: 0.6;
+@media (max-width: 768px) {
+  .notification-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .notification-footer {
+    flex-direction: column;
+  }
 }
 </style>

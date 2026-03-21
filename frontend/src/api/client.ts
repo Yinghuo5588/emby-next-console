@@ -1,44 +1,59 @@
-import axios, { type AxiosInstance } from 'axios'
-import type { ApiResponse } from '@/types/api'
+import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { useRouter } from 'vue-router'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+export interface ApiResponse<T = any> {
+  success: boolean
+  message: string
+  data: T
+  meta?: {
+    total?: number
+    page?: number
+    pageSize?: number
+    totalPages?: number
+  }
+}
 
-export const http: AxiosInstance = axios.create({
- baseURL: `${BASE_URL}/api/v1`,
- timeout: 15000,
- headers: { 'Content-Type': 'application/json' },
+// Create axios instance
+const apiClient: AxiosInstance = axios.create({
+  baseURL: '/api/v1',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 })
 
-// 请求拦截：注入 token
-http.interceptors.request.use((config) => {
- const token = localStorage.getItem('access_token')
- if (token) config.headers.Authorization = `Bearer ${token}`
- return config
-})
-
-// 响应拦截：处理 401
-http.interceptors.response.use(
- (res) => res,
- (err) => {
- if (err.response?.status === 401) {
- localStorage.removeItem('access_token')
- window.location.href = '/login'
- }
- return Promise.reject(err)
- }
+// Request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
 )
 
-export async function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
- const res = await http.get<ApiResponse<T>>(url, { params })
- return res.data.data as T
-}
+// Response interceptor to handle 401
+apiClient.interceptors.response.use(
+  (response: AxiosResponse<ApiResponse>) => {
+    // You can transform response data here if needed
+    return response
+  },
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear token and redirect to login
+      localStorage.removeItem('token')
+      // Use router to redirect if in browser context
+      if (typeof window !== 'undefined') {
+        const router = useRouter()
+        router.push('/login')
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 
-export async function post<T>(url: string, body?: unknown): Promise<T> {
- const res = await http.post<ApiResponse<T>>(url, body)
- return res.data.data as T
-}
-
-export async function patch<T>(url: string, body?: unknown): Promise<T> {
- const res = await http.patch<ApiResponse<T>>(url, body)
- return res.data.data as T
-}
+export default apiClient

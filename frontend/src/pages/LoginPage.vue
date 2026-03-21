@@ -1,105 +1,196 @@
 <template>
- <div class="login-page">
- <div class="login-box card">
- <h1 class="login-title">Emby Console</h1>
- <p class="login-sub">管理员登录</p>
- <form @submit.prevent="handleLogin">
- <div class="field">
- <label>用户名</label>
- <input v-model="form.username" type="text" placeholder="username" autocomplete="username" />
- </div>
- <div class="field">
- <label>密码</label>
- <input v-model="form.password" type="password" placeholder="password" autocomplete="current-password" />
- </div>
- <p v-if="error" class="error-msg">{{ error }}</p>
- <button type="submit" class="btn btn-primary submit-btn" :disabled="loading">
- {{ loading ? '登录中...' : '登录' }}
- </button>
- </form>
- </div>
- </div>
+  <div class="login-page">
+    <div class="login-container">
+      <div class="login-header">
+        <div class="logo">
+          <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="var(--brand)"/>
+            <path d="M12 10L20 16L12 22V10Z" fill="white"/>
+          </svg>
+          <h1>Emby Next</h1>
+        </div>
+        <p class="subtitle">Admin Console</p>
+      </div>
+      
+      <form class="login-form" @submit.prevent="handleLogin">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input
+            id="username"
+            v-model="form.username"
+            type="text"
+            placeholder="Enter username"
+            required
+            :disabled="loading"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            id="password"
+            v-model="form.password"
+            type="password"
+            placeholder="Enter password"
+            required
+            :disabled="loading"
+          />
+        </div>
+        
+        <div v-if="error" class="error-message">
+          {{ error }}
+        </div>
+        
+        <button type="submit" class="btn btn-primary" :disabled="loading">
+          <span v-if="loading">Logging in...</span>
+          <span v-else>Login</span>
+        </button>
+      </form>
+      
+      <div class="login-footer">
+        <p>© 2024 Emby Next Console. All rights reserved.</p>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-const auth = useAuthStore()
 const router = useRouter()
-const form = reactive({ username: '', password: '' })
+const authStore = useAuthStore()
+
+const form = ref({
+  username: '',
+  password: ''
+})
+
 const loading = ref(false)
 const error = ref('')
 
-async function handleLogin() {
- if (!form.username || !form.password) return
- loading.value = true
- error.value = ''
- try {
- await auth.login(form.username, form.password)
- router.push('/dashboard')
- } catch {
- error.value = '用户名或密码错误'
- } finally {
- loading.value = false
- }
+const handleLogin = async () => {
+  if (!form.value.username || !form.value.password) {
+    error.value = 'Please enter username and password'
+    return
+  }
+  
+  loading.value = true
+  error.value = ''
+  
+  try {
+    await authStore.login(form.value.username, form.value.password)
+    router.push('/')
+  } catch (err: any) {
+    error.value = err.message || 'Login failed'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <style scoped>
 .login-page {
- min-height: 100vh;
- display: flex;
- align-items: center;
- justify-content: center;
- background: var(--color-bg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--bg);
 }
-.login-box {
- width: 360px;
- padding: 36px;
+
+.login-container {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-lg);
 }
-.login-title {
- font-size: 22px;
- font-weight: 700;
- color: var(--color-primary);
- margin-bottom: 4px;
- text-align: center;
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
 }
-.login-sub {
- color: var(--color-text-muted);
- margin-bottom: 28px;
- font-size: 13px;
- text-align: center;
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
 }
-.field { margin-bottom: 16px; }
-.field label {
- display: block;
- margin-bottom: 6px;
- font-size: 13px;
- color: var(--color-text-muted);
+
+.logo h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
 }
-.field input {
- width: 100%;
- padding: 9px 12px;
- background: var(--color-surface-2);
- border: 1px solid var(--color-border);
- border-radius: 6px;
- color: var(--color-text);
- font-size: 14px;
- outline: none;
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin: 0;
 }
-.field input:focus { border-color: var(--color-primary); }
-.submit-btn {
- width: 100%;
- justify-content: center;
- padding: 10px;
- margin-top: 8px;
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
-.error-msg {
- color: var(--color-danger);
- font-size: 13px;
- margin-bottom: 10px;
- text-align: center;
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.form-group input {
+  width: 100%;
+}
+
+.error-message {
+  background: var(--danger-light);
+  color: var(--danger);
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.login-footer {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.login-footer p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    padding: 1.5rem;
+  }
+  
+  .logo {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .logo h1 {
+    font-size: 1.5rem;
+  }
 }
 </style>

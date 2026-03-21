@@ -1,36 +1,119 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { authApi } from '@/api/auth'
-import type { MeResponse } from '@/api/auth'
+import { authApi, type User } from '@/api/auth'
+import { useRouter } from 'vue-router'
 
 export const useAuthStore = defineStore('auth', () => {
- const token = ref<string | null>(localStorage.getItem('access_token'))
- const user = ref<MeResponse | null>(null)
+  const router = useRouter()
+  
+  // State
+  const user = ref<User | null>(null)
+  const token = ref<string | null>(localStorage.getItem('token'))
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
 
- const isLoggedIn = computed(() => !!token.value)
- const isAdmin = computed(() => user.value?.role === 'admin')
+  // Computed
+  const isAuthenticated = computed(() => !!token.value && !!user.value)
 
- async function login(username: string, password: string) {
- const res = await authApi.login({ username, password })
- token.value = res.access_token
- localStorage.setItem('access_token', res.access_token)
- await fetchMe()
- }
+  // Actions
+  const login = async (username: string, password: string) => {
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      const response = await authApi.login({ username, password })
+      
+      if (response.success) {
+        token.value = response.data.token
+        user.value = response.data.user
+        
+        // Store token
+        localStorage.setItem('token', response.data.token)
+        
+        // Clear any previous errors
+        error.value = null
+        
+        return { success: true }
+      } else {
+        error.value = response.message
+        return { success: false, message: response.message }
+      }
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Login failed'
+      return { success: false, message: error.value }
+    } finally {
+      isLoading.value = false
+    }
+  }
 
- async function fetchMe() {
- try {
- user.value = await authApi.me()
- } catch {
- user.value = null
- }
- }
+  const fetchUser = async () => {
+    if (!token.value) return { success: false, message: 'No token' }
+    
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      const response = await authApi.me()
+      
+      if (response.success) {
+        user.value = response.data
+        return { success: true }
+      } else {
+        error.value = response.message
+        return { success: false, message: response.message }
+      }
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to fetch user'
+      return { success: false, message: error.value }
+    } finally {
+      isLoading.value = false
+    }
+  }
 
- async function logout() {
- await authApi.logout().catch(() => {})
- token.value = null
- user.value = null
- localStorage.removeItem('access_token')
- }
+  const logout = async () => {
+    isLoading.value = true
+    
+    try {
+      // Call logout API if we have a token
+      if (token.value) {
+        await authApi.logout()
+      }
+    } catch (err) {
+      // Silently fail logout API call
+      console.error('Logout API call failed:', err)
+    } finally {
+      // Clear local state regardless of API result
+      token.value = null
+      user.value = null
+      localStorage.removeItem('token')
+      isLoading.value = false
+      
+      // Redirect to login
+      router.push('/login')
+    }
+  }
 
- return { token, user, isLoggedIn, isAdmin, login, fetchMe, logout }
+  // Initialize user if token exists
+  const init = async () => {
+    if (token.value && !user.value) {
+      await fetchUser()
+    }
+  }
+
+  return {
+    // State
+    user,
+    token,
+    isLoading,
+    error,
+    
+    // Computed
+    isAuthenticated,
+    
+    // Actions
+    login,
+    fetchUser,
+    logout,
+    init,
+  }
 })

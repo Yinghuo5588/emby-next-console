@@ -1,43 +1,63 @@
 <template>
- <div class="loading-state" :style="{ height }">
- <div class="spinner" />
- <p v-if="text" class="loading-text">{{ text }}</p>
- </div>
+  <div class="loading-state" :class="{ compact }" :style="{ height: height }">
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <div v-if="!compact" class="loading-text">Loading...</div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 defineProps<{
- height?: string
- text?: string
+  height?: string
+  compact?: boolean
 }>()
 </script>
 
 <style scoped>
 .loading-state {
- display: flex;
- flex-direction: column;
- align-items: center;
- justify-content: center;
- background: var(--color-surface-2);
- border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 200px;
+}
+
+.loading-state.compact {
+  min-height: 100px;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
 
 .spinner {
- width: 32px;
- height: 32px;
- border: 3px solid var(--color-border);
- border-top-color: var(--color-primary);
- border-radius: 50%;
- animation: spin 0.8s linear infinite;
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
- to { transform: rotate(360deg); }
+.loading-state.compact .spinner {
+  width: 32px;
+  height: 32px;
+  border-width: 2px;
 }
 
 .loading-text {
- margin-top: 10px;
- color: var(--color-text-muted);
- font-size: 13px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

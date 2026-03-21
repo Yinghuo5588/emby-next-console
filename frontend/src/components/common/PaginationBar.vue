@@ -1,150 +1,258 @@
 <template>
- <div class="pagination-bar">
- <span class="page-info">
- 共 <strong>{{ total }}</strong> 条，第
- <strong>{{ currentPage }}</strong> /
- <strong>{{ totalPages }}</strong> 页
- </span>
-
- <div class="page-btns">
- <button
- class="btn btn-ghost pg-btn"
- :disabled="currentPage <= 1 || disabled"
- @click="emit('change', currentPage - 1)"
- >
- ‹ 上一页
- </button>
-
- <!-- 页码按钮 -->
- <template v-for="p in visiblePages" :key="p">
- <!-- 省略号 -->
- <span v-if="p === -1" class="pg-ellipsis">…</span>
- <button
- v-else
- class="btn pg-num"
- :class="{ 'pg-active': p === currentPage }"
- :disabled="disabled"
- @click="emit('change', p)"
- >
- {{ p }}
- </button>
- </template>
-
- <button
- class="btn btn-ghost pg-btn"
- :disabled="currentPage >= totalPages || disabled"
- @click="emit('change', currentPage + 1)"
- >
- 下一页 ›
- </button>
- </div>
- </div>
+  <div class="pagination-bar" :class="{ disabled }">
+    <div class="pagination-info">
+      Showing {{ startItem }}-{{ endItem }} of {{ total }} items
+    </div>
+    
+    <div class="pagination-controls">
+      <button 
+        class="pagination-button prev-button" 
+        :disabled="disabled || currentPage === 1"
+        @click="$emit('page-change', currentPage - 1)"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Previous</span>
+      </button>
+      
+      <div class="page-numbers">
+        <template v-for="page in visiblePages" :key="page">
+          <button 
+            v-if="page === 'ellipsis'"
+            class="page-button ellipsis"
+            disabled
+          >
+            ...
+          </button>
+          <button 
+            v-else
+            class="page-button"
+            :class="{ active: page === currentPage }"
+            :disabled="disabled"
+            @click="$emit('page-change', page)"
+          >
+            {{ page }}
+          </button>
+        </template>
+      </div>
+      
+      <button 
+        class="pagination-button next-button" 
+        :disabled="disabled || currentPage === totalPages"
+        @click="$emit('page-change', currentPage + 1)"
+      >
+        <span>Next</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 
 const props = defineProps<{
- total: number
- currentPage: number
- pageSize: number
- disabled?: boolean
+  total: number
+  currentPage: number
+  pageSize: number
+  disabled?: boolean
 }>()
 
-const emit = defineEmits<{ change: [page: number] }>()
+defineEmits<{
+  'page-change': [page: number]
+}>()
 
-const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
+const totalPages = computed(() => Math.ceil(props.total / props.pageSize))
+const startItem = computed(() => Math.min((props.currentPage - 1) * props.pageSize + 1, props.total))
+const endItem = computed(() => Math.min(props.currentPage * props.pageSize, props.total))
 
-/**
- * 生成带省略号的页码序列。
- * -1 表示省略号占位。
- */
-const visiblePages = computed<number[]>(() => {
- const total = totalPages.value
- const cur = props.currentPage
-
- if (total <= 7) {
- return Array.from({ length: total }, (_, i) => i + 1)
- }
-
- const pages: number[] = []
-
- // 始终显示首页
- pages.push(1)
-
- const left = Math.max(2, cur - 1)
- const right = Math.min(total - 1, cur + 1)
-
- if (left > 2) pages.push(-1) // 左省略
- for (let i = left; i <= right; i++) pages.push(i)
- if (right < total - 1) pages.push(-1) // 右省略
-
- // 始终显示末页
- pages.push(total)
-
- return pages
+const visiblePages = computed(() => {
+  const pages: (number | 'ellipsis')[] = []
+  const maxVisible = 5
+  
+  if (totalPages.value <= maxVisible) {
+    // Show all pages
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i)
+    }
+  } else {
+    // Always show first page
+    pages.push(1)
+    
+    // Calculate start and end of middle pages
+    let start = Math.max(2, props.currentPage - 1)
+    let end = Math.min(totalPages.value - 1, props.currentPage + 1)
+    
+    // Adjust if we're near the start
+    if (props.currentPage <= 3) {
+      end = 4
+    }
+    
+    // Adjust if we're near the end
+    if (props.currentPage >= totalPages.value - 2) {
+      start = totalPages.value - 3
+    }
+    
+    // Add ellipsis after first page if needed
+    if (start > 2) {
+      pages.push('ellipsis')
+    }
+    
+    // Add middle pages
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    
+    // Add ellipsis before last page if needed
+    if (end < totalPages.value - 1) {
+      pages.push('ellipsis')
+    }
+    
+    // Always show last page
+    if (totalPages.value > 1) {
+      pages.push(totalPages.value)
+    }
+  }
+  
+  return pages
 })
 </script>
 
 <style scoped>
 .pagination-bar {
- display: flex;
- align-items: center;
- justify-content: space-between;
- padding: 12px 18px;
- border-top: 1px solid var(--color-border);
- flex-wrap: wrap;
- gap: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
 }
 
-.page-info {
- font-size: 12px;
- color: var(--color-text-muted);
+.pagination-bar.disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
-.page-info strong {
- color: var(--color-text);
- font-weight: 600;
+.pagination-info {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
-.page-btns {
- display: flex;
- align-items: center;
- gap: 4px;
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.pg-btn {
- padding: 4px 10px;
- font-size: 12px;
+.pagination-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.625rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+  justify-content: center;
 }
 
-.pg-num {
- min-width: 32px;
- padding: 4px 6px;
- font-size: 13px;
- background: var(--color-surface-2);
- border: 1px solid var(--color-border);
- border-radius: 4px;
- color: var(--color-text-muted);
- transition: all 0.15s;
+.pagination-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--brand);
+  color: var(--brand);
 }
 
-.pg-num:hover:not(:disabled):not(.pg-active) {
- color: var(--color-text);
- border-color: var(--color-text-muted);
+.pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.pg-active {
- background: var(--color-primary) !important;
- color: #fff !important;
- border-color: var(--color-primary) !important;
+.page-numbers {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.pg-ellipsis {
- padding: 0 4px;
- color: var(--color-text-muted);
- font-size: 13px;
- line-height: 1;
- user-select: none;
+.page-button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--brand);
+}
+
+.page-button.active {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+}
+
+.page-button.ellipsis {
+  border: none;
+  background: transparent;
+  cursor: default;
+  width: 32px;
+}
+
+.page-button.ellipsis:hover {
+  background: transparent;
+  border: none;
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+  .pagination-bar {
+    padding: 1.25rem;
+    border-radius: 12px;
+    gap: 1rem;
+  }
+  
+  .pagination-controls {
+    gap: 0.75rem;
+  }
+  
+  .pagination-button {
+    min-width: 80px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .page-button {
+    width: 36px;
+    height: 36px;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-numbers {
+    display: none;
+  }
 }
 </style>

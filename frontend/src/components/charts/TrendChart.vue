@@ -1,87 +1,50 @@
 <template>
- <div class="trend-chart" ref="chartEl" :style="{ height }" />
+  <div ref="chartEl" :style="{ height, width: '100%' }" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from 'vue'
-import * as echarts from 'echarts'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import * as echarts from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 
-interface Series {
- name: string
- data: number[]
- color?: string
-}
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const props = withDefaults(defineProps<{
- xData: string[]
- series: Series[]
- height?: string
+  xData: string[]
+  series: { name: string; data: number[]; color?: string }[]
+  height?: string
 }>(), { height: '220px' })
 
-const chartEl = ref<HTMLElement>()
+const COLORS = ['#007aff', '#34c759', '#ff9500', '#5856d6']
+const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
+let ro: ResizeObserver | null = null
 
-function initChart() {
- if (!chartEl.value) return
- chart = echarts.init(chartEl.value)
- updateOptions()
+function buildOption() {
+  return {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', backgroundColor: 'var(--surface)', borderColor: 'var(--border)', textStyle: { color: 'var(--text)', fontSize: 12 } },
+    legend: { right: 0, top: 0, textStyle: { color: 'var(--text-muted)', fontSize: 12 }, itemWidth: 12, itemHeight: 6 },
+    grid: { left: 0, right: 8, top: 32, bottom: 0, containLabel: true },
+    xAxis: { type: 'category', data: props.xData, boundaryGap: false, axisLine: { lineStyle: { color: 'var(--border)' } }, axisTick: { show: false }, axisLabel: { color: 'var(--text-muted)', fontSize: 11 } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'var(--border)', type: 'dashed' } }, axisLabel: { color: 'var(--text-muted)', fontSize: 11 }, minInterval: 1 },
+    series: props.series.map((s, i) => {
+      const color = s.color ?? COLORS[i % COLORS.length]
+      return { name: s.name, type: 'line', data: s.data, smooth: 0.3, symbol: 'circle', symbolSize: 4, lineStyle: { color, width: 2 }, itemStyle: { color }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: color + '30' }, { offset: 1, color: color + '00' }]) } }
+    }),
+  }
 }
-
-function updateOptions() {
- if (!chart) return
- const option: echarts.EChartsOption = {
- backgroundColor: 'transparent',
- tooltip: { trigger: 'axis' },
- legend: {
- data: props.series.map(s => s.name),
- textStyle: { color: '#8892a4' },
- bottom: 0,
- },
- grid: {
- left: 36,
- right: 16,
- top: 16,
- bottom: 36,
- containLabel: true,
- },
- xAxis: {
- type: 'category',
- data: props.xData,
- axisLine: { lineStyle: { color: '#2e3246' } },
- axisLabel: { color: '#8892a4', fontSize: 11 },
- },
- yAxis: {
- type: 'value',
- splitLine: { lineStyle: { color: '#2e3246' } },
- axisLabel: { color: '#8892a4', fontSize: 11 },
- },
- series: props.series.map(s => ({
- name: s.name,
- type: 'line',
- data: s.data,
- smooth: true,
- symbol: 'circle',
- symbolSize: 4,
- itemStyle: { color: s.color || '#6366f1' },
- })),
- }
- chart.setOption(option)
-}
-
-watch(() => [props.xData, props.series], updateOptions, { deep: true })
 
 onMounted(() => {
- initChart()
- window.addEventListener('resize', () => chart?.resize())
+  if (!chartEl.value) return
+  chart = echarts.init(chartEl.value)
+  chart.setOption(buildOption())
+  ro = new ResizeObserver(() => chart?.resize())
+  ro.observe(chartEl.value)
 })
 
-onUnmounted(() => {
- chart?.dispose()
-})
+onBeforeUnmount(() => { ro?.disconnect(); chart?.dispose() })
+watch(() => [props.xData, props.series], () => chart?.setOption(buildOption(), { notMerge: false }), { deep: true })
 </script>
-
-<style scoped>
-.trend-chart {
- width: 100%;
-}
-</style>

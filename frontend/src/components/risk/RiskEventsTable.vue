@@ -1,319 +1,274 @@
 <template>
- <div class="events-table-wrap card">
- <!-- 首次加载全覆盖 -->
- <div v-if="loading && items.length === 0" class="table-state">
- <LoadingState height="300px" />
- </div>
-
- <!-- error -->
- <div v-else-if="error" class="table-state">
- <ErrorState :message="error" @retry="emit('retry')" />
- </div>
-
- <template v-else>
- <!-- 刷新蒙层 -->
- <div v-if="loading" class="refresh-mask" />
-
- <table>
- <thead>
- <tr>
- <th style="width: 36%;">事件标题</th>
- <th>用户</th>
- <th>类型</th>
- <th>等级</th>
- <th>状态</th>
- <th>检测时间</th>
- <th style="width: 120px;">操作</th>
- </tr>
- </thead>
- <tbody>
- <tr v-if="items.length === 0">
- <td colspan="7">
- <div class="table-empty">暂无匹配事件</div>
- </td>
- </tr>
-
- <tr
- v-for="ev in items"
- :key="ev.event_id"
- class="event-row"
- :class="{ 'row-high': ev.severity === 'high' && ev.status === 'open' }"
- >
- <!-- 事件标题 -->
- <td>
- <div class="event-title-cell">
- <span
- v-if="ev.severity === 'high' && ev.status === 'open'"
- class="high-dot"
- title="高危"
- />
- <div>
- <div class="event-title">{{ ev.title }}</div>
- <div v-if="ev.description" class="event-desc">{{ ev.description }}</div>
- </div>
- </div>
- </td>
-
- <!-- 用户 -->
- <td>
- <RouterLink
- v-if="ev.user_id"
- :to="`/users/${ev.user_id}`"
- class="user-link"
- >
- {{ ev.username || ev.user_id }}
- </RouterLink>
- <span v-else class="muted">—</span>
- </td>
-
- <!-- 类型 -->
- <td>
- <span class="tag tag-gray event-type">{{ ev.event_type }}</span>
- </td>
-
- <!-- 等级 -->
- <td>
- <span class="tag" :class="severityClass(ev.severity)">
- {{ severityLabel(ev.severity) }}
- </span>
- </td>
-
- <!-- 状态 -->
- <td>
- <span class="tag" :class="statusClass(ev.status)">
- {{ statusLabel(ev.status) }}
- </span>
- </td>
-
- <!-- 检测时间 -->
- <td class="muted time-cell">{{ formatDateTime(ev.detected_at) }}</td>
-
- <!-- 操作 -->
- <td>
- <div v-if="ev.status === 'open'" class="action-btns">
- <button
- class="btn btn-resolve"
- :disabled="actioningId === ev.event_id"
- @click="emit('action', ev.event_id, 'resolve')"
- >
- {{ actioningId === ev.event_id ? '...' : '解决' }}
- </button>
- <button
- class="btn btn-ignore"
- :disabled="actioningId === ev.event_id"
- @click="emit('action', ev.event_id, 'ignore')"
- >
- 忽略
- </button>
- </div>
- <span v-else class="muted handled-text">已处理</span>
- </td>
- </tr>
- </tbody>
- </table>
- </template>
- </div>
+  <div class="risk-events-table">
+    <LoadingState v-if="loading" />
+    <ErrorState v-else-if="error" :message="error" />
+    <EmptyState v-else-if="!items || items.length === 0" message="No risk events found" />
+    
+    <div v-else class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>User</th>
+            <th>IP Address</th>
+            <th>Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="event in items" :key="event.id">
+            <td>
+              <div class="event-cell">
+                <div class="event-title">{{ event.title }}</div>
+                <div class="event-desc">{{ event.description }}</div>
+              </div>
+            </td>
+            <td>
+              <span :class="`tag tag-${getSeverityColor(event.severity)}`">
+                {{ event.severity }}
+              </span>
+            </td>
+            <td>
+              <span :class="`tag tag-${getStatusColor(event.status)}`">
+                {{ event.status }}
+              </span>
+            </td>
+            <td>
+              <div v-if="event.user" class="user-cell">
+                <div class="avatar">
+                  {{ event.user.name?.charAt(0) || 'U' }}
+                </div>
+                <div class="user-info">
+                  <div class="name">{{ event.user.name || 'Unknown' }}</div>
+                  <div class="email">{{ event.user.email || 'No email' }}</div>
+                </div>
+              </div>
+              <span v-else class="tag tag-gray">System</span>
+            </td>
+            <td>
+              <code class="ip-address">{{ event.ip_address || 'N/A' }}</code>
+            </td>
+            <td>
+              <div class="time-cell">
+                {{ formatTime(event.created_at) }}
+              </div>
+            </td>
+            <td>
+              <div class="actions">
+                <button 
+                  v-if="event.status === 'open'" 
+                  class="btn btn-ghost btn-sm" 
+                  @click="$emit('investigate', event)"
+                >
+                  Investigate
+                </button>
+                <button 
+                  v-if="event.status === 'investigating'" 
+                  class="btn btn-ghost btn-sm" 
+                  @click="$emit('resolve', event)"
+                >
+                  Resolve
+                </button>
+                <button 
+                  v-if="event.status !== 'dismissed'" 
+                  class="btn btn-ghost btn-sm" 
+                  @click="$emit('dismiss', event)"
+                >
+                  Dismiss
+                </button>
+                <button 
+                  class="btn btn-ghost btn-sm" 
+                  @click="$emit('view', event)"
+                >
+                  Details
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
-import type { RiskEventItem } from '@/api/risk'
+import EmptyState from '@/components/common/EmptyState.vue'
 
-defineProps<{
- items: RiskEventItem[]
- loading: boolean
- error: string | null
- actioningId: string | null
+interface User {
+  id: string
+  name?: string
+  email?: string
+}
+
+interface RiskEvent {
+  id: string
+  title: string
+  description: string
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  status: 'open' | 'investigating' | 'resolved' | 'dismissed'
+  user?: User
+  ip_address?: string
+  created_at: string
+}
+
+const props = defineProps<{
+  items: RiskEvent[]
+  loading: boolean
+  error?: string
 }>()
 
 const emit = defineEmits<{
- retry: []
- action: [eventId: string, action: string]
+  view: [event: RiskEvent]
+  investigate: [event: RiskEvent]
+  resolve: [event: RiskEvent]
+  dismiss: [event: RiskEvent]
 }>()
 
-function severityClass(s: string) {
- return { high: 'tag-red', medium: 'tag-yellow', low: 'tag-green' }[s] ?? 'tag-gray'
+const getSeverityColor = (severity: string) => {
+  switch (severity) {
+    case 'critical': return 'red'
+    case 'high': return 'red'
+    case 'medium': return 'yellow'
+    case 'low': return 'blue'
+    case 'info': return 'gray'
+    default: return 'gray'
+  }
 }
 
-function severityLabel(s: string) {
- return { high: '高危', medium: '中危', low: '低危' }[s] ?? s
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'open': return 'red'
+    case 'investigating': return 'yellow'
+    case 'resolved': return 'green'
+    case 'dismissed': return 'gray'
+    default: return 'gray'
+  }
 }
 
-function statusClass(s: string) {
- return { open: 'tag-yellow', resolved: 'tag-green', ignored: 'tag-gray' }[s] ?? 'tag-gray'
-}
-
-function statusLabel(s: string) {
- return { open: '待处理', resolved: '已解决', ignored: '已忽略' }[s] ?? s
-}
-
-function formatDateTime(iso: string): string {
- return new Date(iso).toLocaleString('zh-CN', {
- month: '2-digit',
- day: '2-digit',
- hour: '2-digit',
- minute: '2-digit',
- })
+const formatTime = (date: string) => {
+  const d = new Date(date)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  const minutes = Math.floor(diff / (1000 * 60))
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  return d.toLocaleDateString()
 }
 </script>
 
 <style scoped>
-.events-table-wrap {
- padding: 0;
- position: relative;
- overflow: hidden;
+.risk-events-table {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
 }
 
-.table-state {
- min-height: 300px;
- display: flex;
- align-items: center;
- justify-content: center;
+.table-container {
+  overflow-x: auto;
 }
 
-.refresh-mask {
- position: absolute;
- inset: 0;
- background: rgba(15, 17, 23, 0.3);
- z-index: 1;
- pointer-events: none;
-}
-
-.table-empty {
- padding: 48px;
- text-align: center;
- color: var(--color-text-muted);
- font-size: 13px;
-}
-
-/* 高危行背景 */
-.row-high td {
- background: rgba(239, 68, 68, 0.04);
-}
-
-.row-high:hover td {
- background: rgba(239, 68, 68, 0.08) !important;
-}
-
-/* 事件标题列 */
-.event-title-cell {
- display: flex;
- align-items: flex-start;
- gap: 8px;
-}
-
-.high-dot {
- width: 7px;
- height: 7px;
- border-radius: 50%;
- background: var(--color-danger);
- flex-shrink: 0;
- margin-top: 5px;
- box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
- animation: pulse-red 2s ease-in-out infinite;
-}
-
-@keyframes pulse-red {
- 0%, 100% { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
- 50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.06); }
+.event-cell {
+  max-width: 300px;
 }
 
 .event-title {
- font-size: 13px;
- font-weight: 500;
- line-height: 1.4;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 0.25rem;
 }
 
 .event-desc {
- font-size: 12px;
- color: var(--color-text-muted);
- margin-top: 2px;
- white-space: nowrap;
- overflow: hidden;
- text-overflow: ellipsis;
- max-width: 340px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.event-type {
- font-size: 11px;
- white-space: nowrap;
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-/* 用户链接 */
-.user-link {
- font-size: 13px;
- color: var(--color-text);
- font-weight: 500;
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 12px;
 }
 
-.user-link:hover {
- color: var(--color-primary);
+.user-info {
+  display: flex;
+  flex-direction: column;
 }
 
-/* 时间 */
+.name {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.email {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ip-address {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 .time-cell {
- font-size: 12px;
- white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-.muted {
- color: var(--color-text-muted);
- font-size: 13px;
+.actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
 }
 
-/* 操作按钮 */
-.action-btns {
- display: flex;
- gap: 6px;
- align-items: center;
+.btn-sm {
+  padding: 2px 6px;
+  font-size: 11px;
 }
 
-.btn-resolve {
- padding: 4px 10px;
- border-radius: 5px;
- font-size: 12px;
- font-weight: 500;
- background: rgba(34, 197, 94, 0.12);
- color: var(--color-success);
- border: 1px solid rgba(34, 197, 94, 0.3);
- transition: all 0.15s;
- cursor: pointer;
+.tag {
+  font-size: 10px;
+  padding: 1px 4px;
 }
 
-.btn-resolve:hover:not(:disabled) {
- background: rgba(34, 197, 94, 0.22);
-}
-
-.btn-ignore {
- padding: 4px 10px;
- border-radius: 5px;
- font-size: 12px;
- background: var(--color-surface-2);
- color: var(--color-text-muted);
- border: 1px solid var(--color-border);
- transition: all 0.15s;
- cursor: pointer;
-}
-
-.btn-ignore:hover:not(:disabled) {
- color: var(--color-text);
- border-color: var(--color-text-muted);
-}
-
-.btn-resolve:disabled,
-.btn-ignore:disabled {
- opacity: 0.4;
- cursor: not-allowed;
-}
-
-.handled-text {
- font-size: 12px;
- font-style: italic;
-}
-
-/* 通用行 hover */
-.event-row:hover td {
- background: var(--color-surface-2);
+@media (max-width: 768px) {
+  table {
+    min-width: 1000px;
+  }
+  
+  .actions {
+    flex-direction: column;
+  }
 }
 </style>
