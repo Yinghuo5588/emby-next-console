@@ -1,24 +1,18 @@
 <template>
-  <div class="notification-list">
-    <LoadingState v-if="loading" />
+  <div>
+    <LoadingState v-if="loading" height="120px" />
     <ErrorState v-else-if="error" :message="error" />
-    <EmptyState v-else-if="!notifications || notifications.length === 0" message="No notifications" />
-    
-    <div v-else>
-      <div class="list-container">
-        <NotificationCard
-          v-for="notification in notifications"
-          :key="notification.id"
-          :notification="notification"
-          @mark-read="$emit('mark-read', notification)"
-          @view="$emit('view', notification)"
-        />
-      </div>
-      
+    <EmptyState v-else-if="!items || items.length === 0" title="暂无通知" desc="系统正常运行中" />
+
+    <div v-else class="notif-list">
+      <NotificationCard
+        v-for="n in items"
+        :key="n.notification_id"
+        :notification="n"
+        @mark-read="(id) => $emit('markRead', id)"
+      />
       <div v-if="hasMore" class="load-more">
-        <button class="btn btn-ghost" @click="$emit('load-more')" :disabled="loadingMore">
-          {{ loadingMore ? 'Loading...' : 'Load more' }}
-        </button>
+        <button class="btn btn-ghost" :disabled="loadingMore" @click="$emit('loadMore')">{{ loadingMore ? '加载中...' : '加载更多' }}</button>
       </div>
     </div>
   </div>
@@ -30,51 +24,18 @@ import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
-interface Notification {
-  id: string
-  title: string
-  body: string
-  level: 'info' | 'warning' | 'error' | 'success'
-  read: boolean
-  created_at: string
-  metadata?: Record<string, any>
-}
-
-const props = defineProps<{
-  notifications: Notification[]
+defineProps<{
+  items: any[]
   loading: boolean
-  error?: string
+  error?: string | null
   hasMore: boolean
   loadingMore: boolean
 }>()
 
-const emit = defineEmits<{
-  'mark-read': [notification: Notification]
-  'view': [notification: Notification]
-  'load-more': []
-}>()
+defineEmits<{ markRead: [id: string]; loadMore: [] }>()
 </script>
 
 <style scoped>
-.notification-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.list-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.load-more {
-  display: flex;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.load-more .btn {
-  min-width: 120px;
-}
+.notif-list { display: flex; flex-direction: column; gap: 8px; }
+.load-more { display: flex; justify-content: center; padding: 12px; }
 </style>
