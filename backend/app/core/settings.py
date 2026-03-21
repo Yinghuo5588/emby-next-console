@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "emby-next-api"
     APP_ENV: str = "development"
     DEBUG: bool = False
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = "change-me-to-a-long-random-string-at-least-32-chars"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
     # Database
