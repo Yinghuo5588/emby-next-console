@@ -48,12 +48,12 @@ def kick_session(session_id: str) -> bool:
     if not host or not key:
         return False
     try:
-        import requests
-        res = requests.post(
-            f"{host}/emby/Sessions/{session_id}/Playing/Stop",
-            headers={"X-Emby-Token": key},
-            timeout=5,
-        )
+        import httpx
+        with httpx.Client(timeout=5) as client:
+            res = client.post(
+                f"{host}/emby/Sessions/{session_id}/Playing/Stop",
+                headers={"X-Emby-Token": key},
+            )
         return res.status_code in (200, 204)
     except Exception as e:
         logger.error(f"踢会话失败: {e}")
@@ -67,19 +67,19 @@ def ban_user(emby_user_id: str) -> bool:
     if not host or not key:
         return False
     try:
-        import requests
-        res = requests.get(f"{host}/emby/Users/{emby_user_id}", headers={"X-Emby-Token": key}, timeout=5)
-        if res.status_code != 200:
-            return False
-        user_data = res.json()
-        policy = user_data.get("Policy", {})
-        policy["IsDisabled"] = True
-        res = requests.post(
-            f"{host}/emby/Users/{emby_user_id}/Policy",
-            headers={"X-Emby-Token": key},
-            json=policy,
-            timeout=5,
-        )
+        import httpx
+        with httpx.Client(timeout=5) as client:
+            res = client.get(f"{host}/emby/Users/{emby_user_id}", headers={"X-Emby-Token": key})
+            if res.status_code != 200:
+                return False
+            user_data = res.json()
+            policy = user_data.get("Policy", {})
+            policy["IsDisabled"] = True
+            res = client.post(
+                f"{host}/emby/Users/{emby_user_id}/Policy",
+                headers={"X-Emby-Token": key},
+                json=policy,
+            )
         return res.status_code in (200, 204)
     except Exception as e:
         logger.error(f"禁用用户失败: {e}")
