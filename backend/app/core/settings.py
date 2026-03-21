@@ -1,0 +1,35 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    # App
+    APP_NAME: str = "emby-next-api"
+    APP_ENV: str = "development"
+    DEBUG: bool = False
+    SECRET_KEY: str = "change-me-in-production"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/emby_next"
+
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # CORS - 支持逗号分隔（推荐）或 JSON 数组格式
+    CORS_ORIGINS: str | list[str] = "http://localhost:5173"
+
+    def get_cors_origins(self) -> list[str]:
+        if isinstance(self.CORS_ORIGINS, list):
+            return self.CORS_ORIGINS
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

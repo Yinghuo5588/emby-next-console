@@ -1,0 +1,63 @@
+# ⚠️ 使用前先替换 Yinghuo5588 为你的 GitHub 用户名
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: emby-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: emby_next
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: emby-redis
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/Yinghuo5588/emby-next-console-backend:latest
+    container_name: emby-backend
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      SECRET_KEY: "change-me-in-production-please"
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/emby_next"
+      REDIS_URL: "redis://redis:6379/0"
+      CORS_ORIGINS: "http://localhost:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 2
+      "
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/Yinghuo5588/emby-next-console-frontend:latest
+    container_name: emby-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
