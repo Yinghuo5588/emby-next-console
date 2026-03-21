@@ -43,6 +43,10 @@ function emitSearch() {
 
 <style scoped>
 .filter-bar { display: flex; gap: 8px; padding: 12px 16px; flex-wrap: wrap; align-items: center; }
-.search-input { flex: 1; min-width: 160px; }
-select { min-width: 100px; }
+.search-input { flex: 1; min-width: 120px; }
+select { min-width: 80px; flex-shrink: 0; }
+@media (max-width: 768px) {
+  .filter-bar { flex-direction: column; }
+  .search-input, select, .btn { width: 100%; }
+}
 </style>
