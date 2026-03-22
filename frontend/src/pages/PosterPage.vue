@@ -7,7 +7,8 @@
     </PageHeader>
 
     <n-tabs v-model:value="tab" type="segment" size="small" style="margin-bottom: 16px;">
-      <n-tab-pane name="generated" tab="📸 已生成">
+      <n-tab-pane name="generated">
+        <template #tab><IosIcon name="film" :size="16" /> 已生成</template>
         <LoadingState v-if="posterLoading" compact />
         <n-empty v-else-if="posters.length === 0" description="点击生成按钮创建你的第一张海报" />
         <div v-else class="poster-grid">
@@ -18,7 +19,8 @@
         </div>
       </n-tab-pane>
 
-      <n-tab-pane name="templates" tab="🎨 模板">
+      <n-tab-pane name="templates">
+        <template #tab><IosIcon name="palette" :size="16" /> 模板</template>
         <n-button type="primary" size="small" @click="showCreateTemplate = true" style="margin-bottom:12px">+ 新建模板</n-button>
         <n-empty v-if="templates.length === 0" description="暂无模板" />
         <div v-else class="tpl-grid">
@@ -67,6 +69,7 @@
 import { ref, onMounted } from 'vue'
 import { NTabs, NTabPane, NCard, NButton, NModal, NForm, NFormItem, NInput, NInputNumber, NSelect, NEmpty } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import { posterApi } from '@/api/poster'
 import type { PosterTemplate, GeneratedPoster } from '@/api/poster'
