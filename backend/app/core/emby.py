@@ -50,11 +50,12 @@ class EmbyAdapter:
     def _headers() -> dict[str, str]:
         return {"X-Emby-Token": settings.EMBY_API_KEY}
 
-    async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    async def _request(self, method: str, path: str, auth: bool = True, **kwargs: Any) -> httpx.Response:
         client = await self._get_client()
         url = self._build_url(path)
         kwargs.setdefault("headers", {})
-        kwargs["headers"].update(self._headers())
+        if auth:
+            kwargs["headers"].update(self._headers())
         # 移除可能残留的 api_key params（改用 header 鉴权）
         params = kwargs.get("params")
         if params and "api_key" in params:
@@ -170,6 +171,24 @@ class EmbyAdapter:
             return False, f"HTTP {resp.status_code}"
         except Exception as e:
             return False, str(e)
+
+    async def auth_with_password(self, username: str, password: str) -> dict | None:
+        """Emby 用户名密码登录认证"""
+        try:
+            resp = await self._request(
+                "POST",
+                "/Users/AuthenticateByName",
+                json={"Username": username, "Pw": password},
+                auth=False,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except Exception:
+            return None
+
+    def get_user_image_url(self, user_id: str) -> str:
+        """获取用户头像 URL"""
+        return f"{self._host}/emby/Users/{user_id}/Images/Primary"
 
 
 # ── 全局单例 ──────────────────────────────────────────────────
