@@ -1,63 +1,105 @@
-# Emby Next Console — 全局架构设计 v2
+# Emby Next Console — 全局架构设计 v2.1
 
-> 对标 Emby Pulse 优点，去其缺点，做更优方案
-
----
-
-## 一、整体功能模块划分（12 大模块）
-
-```
-Emby Next Console
-├── 1. Dashboard        概览仪表盘（实时状态一眼看清）
-├── 2. Users            用户管理（邀请/创建/配置/权限）
-├── 3. Analytics         数据分析（观看数据+设备数据+热度排行+质量分析）
-├── 4. Risk             风控天眼（并发越界/客户端拦截/实时监控）
-├── 5. Calendar          追剧日历（上映时间线+观影计划）
-├── 6. Media             媒体库（缺集管理/去重引擎/质量评分）
-├── 7. Tasks             任务中心（计划任务/后台作业/执行日志）
-├── 8. Tickets           工单大厅（用户求片/问题反馈/审批流程）
-├── 9. Points            积分引擎（签到/消费/排行/商城）
-├── 10. Notifications    通知中心（双通道推送/场景总控/机器人交互）
-├── 11. Poster           海报工坊（智能生成观影海报）
-└── 12. Settings         系统设置（Emby连接/基础配置/权限模板/Compose只管基础项）
-```
+> 双站点架构：管理后台 + 用户门户
 
 ---
 
-## 二、各模块详细设计
+## 〇、架构总览
 
-### 1. Dashboard — 概览仪表盘
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Nginx / Caddy 反代                     │
+├────────────────────────┬────────────────────────────────┤
+│   /admin               │   / (根路径)                    │
+│   管理后台 (Admin)       │   用户门户 (User Portal)        │
+│                        │                                │
+│   登录: 本地管理员账号    │   登录: Emby 账号(用户名+密码)   │
+│   JWT 鉴权              │   JWT 鉴权(含 Emby Token 桥接)  │
+│   权限: admin 角色       │   权限: 普通用户                │
+│                        │                                │
+│   功能:                 │   功能:                        │
+│   - 用户管理/邀请/权限    │   - 个人资料/改密码(→Emby同步)  │
+│   - 数据分析/风控        │   - 观看历史/统计               │
+│   - 媒体管理/去重        │   - 追剧日历                   │
+│   - 任务中心/工单管理     │   - 提交工单/求片              │
+│   - 系统设置/通知模板     │   - 签到积分/商城              │
+│   - 通知通道配置         │   - 通知偏好/海报生成           │
+└────────────────────────┴────────────────────────────────┘
+                        │
+                    FastAPI 后端
+                    (统一 API 服务)
+                        │
+            ┌───────────┼───────────┐
+            │           │           │
+        PostgreSQL    Redis     Emby API
+```
 
-**目标：** 一眼看清系统状态，30 秒内知道有没有问题
+**关键设计决策：**
+- 同一个 FastAPI 后端，通过路由前缀和权限中间件区分 Admin/Portal
+- 前端两个独立 Vue App，分别打包到 `/admin` 和 `/` 路径
+- 用户密码修改：调用 Emby API 直接同步，不在本地存储密码
+- 管理员账号：本地 JWT 鉴权，不走 Emby
 
-| 卡片 | 数据来源 | 刷新频率 |
-|------|----------|----------|
-| 在线用户数 | Emby Sessions API | 30s |
-| 活跃播放数 | Emby Sessions API | 30s |
+---
+
+## 一、整体功能模块划分（13 大模块）
+
+### 管理后台模块（10 个）
+
+| # | 模块 | 说明 |
+|---|------|------|
+| 1 | Dashboard | 概览仪表盘 |
+| 2 | Users | 用户管理（邀请/创建/权限/详情） |
+| 3 | Analytics | 数据分析（观看数据/设备/排行/质量） |
+| 4 | Risk | 风控天眼 |
+| 5 | Calendar | 追剧日历（管理员全局视图） |
+| 6 | Media | 媒体库（去重/缺集） |
+| 7 | Tasks | 任务中心 |
+| 8 | Tickets | 工单大厅（管理端） |
+| 9 | Notifications | 通知中心（通道配置/模板编辑/场景总控） |
+| 10 | Settings | 系统设置 |
+
+### 用户门户模块（5 个）
+
+| # | 模块 | 说明 |
+|---|------|------|
+| 1 | Home | 门户首页（推荐/继续观看/最新入库） |
+| 2 | Profile | 个人中心（资料/密码/偏好/头像） |
+| 3 | MyStats | 我的观影（历史/统计/生物钟/偏好） |
+| 4 | Calendar | 追剧日历（我的追踪/想看/已看） |
+| 5 | Tickets | 工单/求片（提交/查看/评论） |
+| 6 | Points | 积分（签到/余额/排行/商城） |
+
+---
+
+## 二、管理后台详细设计
+
+### 1. Dashboard
+
+| 卡片 | 数据来源 | 刷新 |
+|------|----------|------|
+| 在线用户数 | Emby Sessions | 30s |
+| 活跃播放数 | Emby Sessions | 30s |
 | 待处理工单 | Tickets DB | 5min |
-| 待处理风控事件 | RiskEvent DB | 5min |
+| 待处理风控 | RiskEvent DB | 5min |
 | 今日新增用户 | Users API | 10min |
-| 系统健康状态 | Health API | 5min |
+| 系统健康 | Health API | 5min |
 
-**额外组件：**
-- **实时播放列表**：当前播放会话，带进度条、设备信息（已实现，保留）
-- **今日趋势迷你图**：24h 播放量折线
-- **最近通知**：最近 5 条未读通知
+额外组件：
+- 实时播放列表（带进度条、设备信息）
+- 今日趋势迷你图（24h 播放量折线）
+- 最近 5 条未读通知
 
-**不放在这里：** 详细统计、排行榜、历史分析 → 全部放 Analytics
-
----
-
-### 2. Users — 用户管理（对标 Emby Pulse，重点模块）
+### 2. Users — 用户管理
 
 #### 2.1 邀请系统
 
-| 功能 | 字段/说明 |
-|------|-----------|
-| 生成邀请码 | 邀请码(自动生成/自定义)、账号有效期(天/永久)、生成数量(1~批量)、权限继承源(选择模板用户，全量克隆库权限+策略)、并发限制(可选)、单次/多次使用 |
-| 邀请管理 | 列表：邀请码、创建时间、过期时间、使用状态(已用/未用/过期)、使用者信息、初始时长、操作(复制链接/禁用/删除) |
-| 邀请链接格式 | `https://domain/register?code=XXXX` → 自动填入邀请码，注册后自动继承模板权限 |
-| 邀请统计 | 总发出数/已使用数/过期数/使用率 |
+| 功能 | 字段 |
+|------|------|
+| 生成邀请码 | 邀请码(自动生成/自定义)、有效期、生成数量、权限继承源(模板用户)、并发限制、使用次数限制 |
+| 邀请管理 | 列表：码、创建时间、过期时间、使用状态(已用/未用/过期)、使用者信息 |
+| 邀请链接 | `https://domain/register?code=XXXX` → 注册后自动继承模板权限 |
+| 统计 | 总发出/已使用/过期/使用率 |
 
 #### 2.2 手动创建用户
 
@@ -65,271 +107,313 @@ Emby Next Console
 |------|------|------|
 | 用户名 | ✅ | 唯一标识 |
 | 用户备注 | ❌ | 管理员备注 |
-| 初始密码 | ❌ | 不填则自动生成随机密码 |
+| 初始密码 | ❌ | 不填自动生成 |
 | 账号到期时间 | ❌ | 空 = 永久 |
-| 专属并发限制 | ❌ | 覆盖全局默认值 |
-| 权限同步模板 | ❌ | 选择一个模板用户，继承其库权限+策略 |
+| 专属并发限制 | ❌ | 覆盖全局 |
+| 权限模板 | ❌ | 继承库权限+策略 |
 
-#### 2.3 用户详情页
+#### 2.3 用户详情页（5 Tab）
 
-**基础资料 Tab：**
-- 头像(从 Emby 同步)、用户名、显示名、邮箱、状态(active/disabled/expired)
-- 账号创建时间、最后活跃时间、到期时间
-- 修改备注、重置密码(管理员)
+**基础资料：** 头像、用户名、显示名、邮箱、状态、创建/最后活跃/到期时间
+**库权限：** 媒体库 checkbox 列表、权限模板套用、变更记录
+**高级策略：** 并发限制、码率限制、转码权限、客户端黑白名单
+**观看数据：** 最近观看历史、累计时长、类型偏好、设备分布
+**操作区：** 禁用/启用、删除、强制下线、发通知
 
-**库权限 Tab：**
-- 媒体库列表(checkbox)，每个库可单独授权/取消
-- 权限模板选择 → 一键套用
-- 变更记录(谁改的、什么时候、改了什么)
+#### 2.4 权限模板管理（独立页面）
 
-**高级策略 Tab：**
-- 专属并发限制(覆盖全局)
-- 最大码率限制
-- 是否允许转码
-- 客户端白名单/黑名单(用户级别)
-- 上传/下载带宽限制(可选)
+| 功能 | 说明 |
+|------|------|
+| 创建模板 | 名称、描述、库权限选择、Policy 配置、Configuration 配置 |
+| 编辑模板 | 修改后同步更新所有引用该模板的用户(可选) |
+| 模板列表 | 模板名、关联用户数、创建时间 |
+| 导入导出 | JSON 格式导入导出模板 |
 
-**观看数据 Tab：**
-- 观看历史列表(最近 50 条)
-- 累计观看时长
-- 观影偏好(类型分布)
-- 设备使用分布
-
-**操作区：**
-- 禁用/启用账号
-- 删除账号(确认弹窗)
-- 强制下线(踢出所有会话)
-- 发送通知(单独给该用户推送消息)
-
----
-
-### 3. Analytics — 数据分析（对标 Emby Pulse 的数据统计）
-
-分三个子区域：
+### 3. Analytics — 数据分析
 
 #### 3.1 用户数据
 
 | 图表 | 说明 |
 |------|------|
-| 观看历史 | 全站/筛选用户，流水式列表(时间、用户、影片、设备、时长、进度) |
-| 观影频率统计 | 按日/周/月聚合的观看次数柱状图 |
-| 24H 观影生物钟 | 0-24h 每小时观看量热力图(发现用户活跃时段) |
-| 偏好天平 | 类型偏好雷达图(电影 vs 电视剧、各类型占比) |
-| 设备分布 | 饼图：设备类型(iOS/Android/TV/Web) + 客户端软件(Emby/Plex/Infuse等) |
-| 软件版本分布 | 各客户端版本占比 |
+| 观看历史 | 全站/筛选用户，流水列表(时间、用户、影片、设备、时长) |
+| 观影频率 | 日/周/月柱状图 |
+| 24H 生物钟 | 0-24h 热力图 |
+| 偏好天平 | 类型雷达图 |
+| 设备分布 | 设备类型+客户端软件饼图 |
 
-#### 3.2 全服播放排行
+#### 3.2 全服排行
 
-| 维度 | 说明 |
-|------|------|
-| 热度排行 | 播放次数 Top N(可筛选：电影/电视剧/音乐/全类型) |
-| 时长排行 | 累计观看时长 Top N |
-| 用户播放量排行 | 每个用户的总播放次数/时长 |
-| 近期热门 | 最近 7/30 天新增播放最多 |
-| 多维度筛选 | 按媒体类型、时间范围、全站/单用户交叉筛选 |
+热度排行 / 时长排行 / 用户排行 / 近期热门 → 支持多维度筛选
 
 #### 3.3 质量分析
 
-| 图表 | 说明 |
-|------|------|
-| 分辨率分布 | 4K/1080p/720p/SD 各占比 |
-| 编码格式分布 | H.265/H.264/AV1 等 |
-| 码率分布 | 各码率区间的媒体数量 |
-| 音轨分布 | TrueHD/Atmos/DTS/AAC 等 |
-| 文件大小排行 | 最大的 N 个文件 |
+分辨率分布 / 编码分布 / 码率分布 / 音轨分布 / 文件大小排行
 
-**Emby Pulse 缺点改进：**
-- 他可能把所有图表堆在一个长页面 → 我们用 Tab 分区 + 可折叠
-- 支持自定义时间范围(不只有预设 7/30/90)
-- 图表支持导出为图片/PDF
+**UI 设计原则：** Tab 分区 + 可折叠，不堆砌长页面。图表加载有渐入动画。能用图表不用纯表格。
 
----
+### 4. Risk — 风控天眼
 
-### 4. Risk — 风控天眼（已有，补充完善）
-
-**已有功能：**
-- 并发越界检测 + 处理
-- 客户端黑名单管理
-- 事件列表 + 筛选
-
-**需要补充：**
-- 实时并发雷达面板(当前所有会话的并发状态，类似雷达扫描)
-- 历史事件趋势图(每天产生多少事件)
-- 规则引擎配置(自定义阈值，不需要改 compose)
-- IP 黑名单管理
-- 自动处置规则(超过 N 次自动封禁 X 小时)
-
----
+已有：并发越界检测、客户端黑名单、事件列表
+需补充：实时并发雷达面板、历史事件趋势图、规则引擎配置(自定义阈值)、IP 黑名单、自动处置规则
 
 ### 5. Calendar — 追剧日历
 
-| 功能 | 说明 |
-|------|------|
-| 月视图日历 | 显示当日上映的电影/剧集 |
-| 数据来源 | Emby 媒体库 + TMDB API(获取上映日期) |
-| 标记已看 | 用户可以标记"已看"/"想看" |
-| 追踪列表 | 用户自定义追踪的剧集，显示最新一集状态 |
-| 管理员视图 | 全站热门追踪排行(哪些剧被最多人追) |
-| 日历导出 | iCal 格式，导入到手机日历 |
-
----
+月视图 / TMDB 数据来源 / 标记已看/想看 / 追踪列表 / iCal 导出
 
 ### 6. Media — 媒体库管理
 
 #### 6.1 缺集管理
 
-| 功能 | 说明 |
-|------|------|
-| 扫描比对 | 本地库剧集 vs TMDB 标准季/集 |
-| 缺集列表 | 哪部剧缺了哪一季哪一集，严重程度标注 |
-| 批量导出 | 导出缺集清单(CSV/TXT) |
+本地库 vs TMDB 比对 → 缺集列表 → 批量导出
 
 #### 6.2 去重引擎
 
-| 功能 | 说明 |
-|------|------|
-| TMDB 分组 | 同一影片的多个版本自动归组 |
-| 质量评分 | 综合分辨率/编码/码率/音轨 评分排序 |
-| 去重策略配置 | 自定义保留规则(保留最高质量/最小体积/最新版本) |
-| 预览+确认 | 去重前预览将删除哪些，确认后批量执行 |
-| 安全机制 | 默认移到回收站，7天后永久删除 |
+TMDB 分组 → 质量评分 → 策略配置 → **预览+确认** → 回收站(7天永久删除)
 
-**Emby Pulse 缺点改进：**
-- 去重不应该全自动 → 必须预览+确认，安全第一
-- 保留策略要可自定义，不只有"保留最高质量"
-
----
+**安全：** 不自动删，必须预览确认。策略可自定义。
 
 ### 7. Tasks — 任务中心
 
-| 功能 | 说明 |
-|------|------|
-| Emby 计划任务 | 读取 Emby 的 ScheduledTasks，展示/触发 |
-| 自定义任务 | 去重扫描、缺集检测、数据同步等 |
-| 任务队列 | 后台任务队列(用 Celery/ARQ，不阻塞主进程) |
-| 执行日志 | 每次执行的详细日志(开始时间、结束时间、状态、输出) |
-| 定时调度 | Cron 表达式配置执行频率 |
-| 手动触发 | 一键触发任何任务 |
-
----
+Emby 计划任务 / 自定义任务 / 任务队列(ARQ) / 执行日志 / Cron 定时 / 手动触发
 
 ### 8. Tickets — 工单大厅
 
-| 功能 | 说明 |
-|------|------|
-| 用户求片 | 用户提交影片请求(名称+链接+备注) |
-| 问题反馈 | 使用问题、建议等 |
-| 工单状态 | 待处理 → 处理中 → 已完成/已拒绝 |
-| 评论沟通 | 管理员和用户在工单内对话 |
-| 优先级 | 低/中/高/紧急 |
-| 统计 | 待处理数、平均处理时长、完成率 |
+用户求片+问题反馈 / 工单状态流转 / 评论沟通 / 优先级 / 统计
 
----
+### 9. Notifications — 通知中心（重点）
 
-### 9. Points — 积分引擎
+#### 9.1 通道配置
 
-| 功能 | 说明 |
-|------|------|
-| 签到系统 | 每日签到得积分，连续签到加成 |
-| 积分规则 | 自定义：观看时长换积分、邀请注册得积分等 |
-| 积分商城 | 兑换 VIP 时长、下载权限等 |
-| 积分排行 | 全站积分榜 |
-| 积分流水 | 每笔积分变动的明细 |
+| 通道 | 配置项 |
+|------|--------|
+| 飞书 | Webhook URL、签名校验(可选) |
+| Telegram | Bot Token、Chat ID |
+| 企业微信 | Webhook URL |
+| Bark | Device Key、Server URL |
+| Email | SMTP 服务器、端口、用户名、密码、发件人 |
+| 站内信 | 默认开启，无需配置 |
 
----
+每个通道：启用/禁用、连接测试、发送记录
 
-### 10. Notifications — 通知中心（对标 Emby Pulse）
+#### 9.2 消息模板编辑器
 
-#### 10.1 推送通道
+```
+模板管理
+├── 系统预设模板（不可删除，可修改）
+│   ├── 新用户注册通知
+│   ├── 账号到期提醒
+│   ├── 并发越界告警
+│   ├── 新工单通知
+│   ├── 工单状态变更
+│   ├── 签到提醒
+│   ├── 系统异常告警
+│   └── 新影片入库通知
+│
+├── 自定义模板（用户创建）
+│   ├── 模板名称
+│   ├── 模板内容（支持变量插值）
+│   └── 适用场景
+│
+└── 模板编辑器
+    ├── 富文本编辑（支持 Markdown）
+    ├── 变量插入面板（点击插入 {variable}）
+    ├── 实时预览（填入示例数据）
+    └── 多语言支持（同一场景可设不同语言模板）
+```
 
-| 通道 | 支持 |
-|------|------|
-| 飞书机器人 | ✅ Webhook |
-| Telegram Bot | ✅ Bot API |
-| 企业微信 | ✅ Webhook |
-| Bark | ✅ Push API |
-| Email | ✅ SMTP |
-| 站内信 | ✅ 系统内通知 |
+**模板变量系统：**
 
-#### 10.2 推送场景总控
+| 变量 | 说明 | 示例值 |
+|------|------|--------|
+| `{username}` | 用户名 | zhangsan |
+| `{display_name}` | 显示名 | 张三 |
+| `{invite_code}` | 邀请码 | ABC123 |
+| `{expire_date}` | 到期时间 | 2026-04-22 |
+| `{ticket_title}` | 工单标题 | 请求添加XXX电影 |
+| `{ticket_status}` | 工单状态 | 已完成 |
+| `{points_balance}` | 积分余额 | 1500 |
+| `{checkin_streak}` | 连续签到天数 | 7天 |
+| `{system_status}` | 系统状态 | 正常 |
+| `{error_message}` | 错误信息 | Redis连接超时 |
+| `{media_title}` | 媒体标题 | 流浪地球3 |
+| `{concurrent_count}` | 当前并发数 | 3 |
+| `{concurrent_limit}` | 并发限额 | 2 |
+| `{ip_address}` | IP 地址 | 192.168.1.1 |
+| `{client_name}` | 客户端名称 | Emby for iOS |
+| `{current_time}` | 当前时间 | 2026-03-22 08:30 |
+| `{site_name}` | 站点名称 | 我的影视库 |
 
-| 场景 | 默认 |
-|------|------|
-| 新用户注册 | 管理员通知 |
-| 账号即将到期 | 用户通知(提前N天) |
-| 并发越界 | 管理员通知 |
-| 新工单 | 管理员通知 |
-| 工单状态变更 | 用户通知 |
-| 签到提醒 | 用户通知(可选) |
-| 系统异常 | 管理员紧急通知 |
-| 新影片入库 | 所有用户通知(可选) |
+**通道×场景×模板 = 矩阵配置：**
 
-**每个场景可单独配置：** 启用/禁用 + 选择推送通道
+```
+场景: "新用户注册"
+├── 飞书: ✅ 启用 → 使用模板 "新用户注册-飞书版" 
+│   └── 🎉 新用户 {username} 注册成功，来自邀请码 {invite_code}
+├── Telegram: ✅ 启用 → 使用模板 "New User Notification"
+│   └── 🎉 New user {username} registered via invite {invite_code}
+├── Email: ❌ 禁用
+├── 站内信: ✅ 启用 → 使用模板 "注册通知-站内"
+│   └── 欢迎 {username}！你的账号将于 {expire_date} 到期。
+└── Bark: ❌ 禁用
+```
 
-#### 10.3 机器人指令交互
+#### 9.3 发送记录
 
-- 用户可通过机器人查询：今日签到、积分余额、账号到期时间、当前播放状态
-- 管理员可通过机器人：查看在线人数、处理工单、禁用用户
+- 每次推送的详细记录：时间、场景、通道、内容、发送状态
+- 支持按场景/通道/时间筛选
+- 失败重试机制
 
----
+### 10. Settings — 系统设置
 
-### 11. Poster — 海报工坊
-
-| 功能 | 说明 |
-|------|------|
-| 个人海报 | 根据用户观影数据生成专属海报 |
-| 时间切片 | 选择分析范围(本月/本年/全部) |
-| 数据来源 | 可选择统计哪些观看记录 |
-| 模板系统 | 多种海报模板(简约/炫彩/复古) |
-| 导出 | 下载为 PNG，可分享到社交媒体 |
-
----
-
-### 12. Settings — 系统设置
-
-**原则：** Compose 只管最基础的环境变量(EMBY_HOST, EMBY_API_KEY, DB_URL, REDIS_URL)。其余全部在 Web UI 配置。
+**原则：** Compose 只管 EMBA_HOST/EMBY_API_KEY/DB_URL/REDIS_URL，其余全部在 Web UI
 
 | 分组 | 配置项 |
 |------|--------|
 | Emby 连接 | 服务器地址、API Key、连接测试 |
-| 基础设置 | 站点名称、Logo、注册开关、默认语言 |
-| 默认策略 | 全局默认并发限制、默认码率限制、默认账号有效期 |
-| 权限模板 | 创建/编辑权限模板(库权限+策略打包成模板) |
-| 安全设置 | JWT 密钥、Token 过期时间、登录失败锁定 |
+| 基础设置 | 站点名称、Logo、注册开关、语言 |
+| 默认策略 | 全局并发限制、默认码率、默认账号有效期 |
+| 权限模板 | CRUD（见 2.4） |
+| 安全设置 | JWT 密钥、Token 过期、登录锁定 |
 | 备份恢复 | 导出/导入配置、导出用户数据 |
-| 关于 | 版本号、更新日志、项目信息 |
+| 关于 | 版本号、更新日志 |
 
 ---
 
-## 三、数据库新增模型
+## 三、用户门户详细设计
+
+### 1. Home — 门户首页
+
+| 区域 | 说明 |
+|------|------|
+| 继续观看 | 最近未看完的影片（调 Emby API） |
+| 最新入库 | 最近添加的媒体 |
+| 热门推荐 | 全站播放排行 |
+| 个人数据卡片 | 本月观看时长、签到天数、积分余额 |
+| 公告栏 | 管理员发布的公告 |
+
+### 2. Profile — 个人中心
+
+| 功能 | 说明 |
+|------|------|
+| 基础资料 | 头像(从Emby同步)、用户名、显示名、邮箱 |
+| 修改密码 | 输入旧密码+新密码 → 调用 Emby API 更新 |
+| 账号信息 | 注册时间、到期时间、VIP 状态、并发限制 |
+| 通知偏好 | 选择接收哪些场景的通知、选择推送到哪些通道 |
+| 设备管理 | 查看已登录设备、远程登出 |
+
+**密码修改流程：**
+```
+用户输入旧密码+新密码 → 后端调用 Emby API 验证旧密码 
+→ 调用 Emby API 更新密码 → 返回成功
+```
+
+### 3. MyStats — 我的观影
+
+| 图表 | 说明 |
+|------|------|
+| 观看历史 | 我的观看记录，带封面缩略图 |
+| 月度统计 | 本月看了多少、总时长 |
+| 24H 生物钟 | 我的观影时段分布 |
+| 类型偏好 | 我的观影类型雷达图 |
+| 设备使用 | 我用什么设备看 |
+
+### 4. Calendar — 追剧日历
+
+我的追踪列表 / 想看/已看标记 / 月视图
+
+### 5. Tickets — 求片/反馈
+
+提交新工单 / 查看工单状态 / 在工单内评论沟通
+
+### 6. Points — 积分
+
+每日签到(连续加成) / 余额 / 流水 / 排行 / 商城兑换
+
+---
+
+## 四、后端路由结构
+
+```
+# 管理后台 API (需要 admin 角色)
+/api/admin/dashboard/*
+/api/admin/users/*
+/api/admin/users/:id/permissions
+/api/admin/users/:id/override
+/api/admin/invites/*
+/api/admin/templates/*
+/api/admin/analytics/*
+/api/admin/risk/*
+/api/admin/media/*
+/api/admin/calendar/admin-view
+/api/admin/tasks/*
+/api/admin/tickets/*
+/api/admin/notifications/channels
+/api/admin/notifications/templates
+/api/admin/notifications/rules
+/api/admin/notifications/logs
+/api/admin/settings/*
+
+# 用户门户 API (需要登录)
+/api/portal/profile
+/api/portal/profile/password
+/api/portal/profile/devices
+/api/portal/profile/notifications
+/api/portal/stats/me
+/api/portal/calendar/*
+/api/portal/tickets/*
+/api/portal/points/*
+/api/portal/points/checkin
+/api/portal/home/*
+
+# 公开 API (不需要登录)
+/api/auth/login
+/api/auth/register?code=XXX
+/api/public/info
+```
+
+---
+
+## 五、数据库模型（完整版）
 
 ```python
-# 用户管理增强
+# ===== 用户与权限 =====
+class AdminUser(Model):
+    """本地管理员账号"""
+    username: str
+    password_hash: str
+    role: str  # super_admin/admin/viewer
+    created_at: datetime
+
 class InviteCode(Model):
-    code: str          # 邀请码
-    template_user_id: str  # 权限继承源
-    max_uses: int      # 最大使用次数
-    used_count: int    # 已使用次数
+    code: str
+    template_user_id: str      # 权限继承源 Emby User ID
+    permission_template_id: str | None  # 或使用权限模板
+    max_uses: int
+    used_count: int
     expires_at: datetime
     concurrent_limit: int | None
     created_by: str
     created_at: datetime
-    status: str        # active/used/expired/disabled
+    status: str                # active/used/expired/disabled
 
 class InviteUsage(Model):
     invite_id: str
-    user_id: str
+    emby_user_id: str
     used_at: datetime
 
 class PermissionTemplate(Model):
-    name: str          # 模板名
+    name: str
     description: str
-    library_access: list[str]  # 允许的库 ID
-    policy_json: dict  # Emby Policy
-    configuration_json: dict  # Emby Configuration
+    library_access: list[str]
+    policy_json: dict
+    configuration_json: dict
+    is_default: bool
+    created_at: datetime
+    updated_at: datetime
 
 class UserOverride(Model):
-    user_id: str       # Emby User ID
+    """用户级覆盖配置"""
+    emby_user_id: str          # 唯一
     concurrent_limit: int | None
     max_bitrate: int | None
     allow_transcode: bool | None
@@ -337,24 +421,25 @@ class UserOverride(Model):
     note: str
     expires_at: datetime | None
 
-# 追剧日历
+# ===== 追剧日历 =====
 class CalendarEntry(Model):
     user_id: str
     tmdb_id: int
-    media_type: str    # movie/tv
+    media_type: str
     title: str
     release_date: date
-    status: str        # want_to_watch/watched/watching
+    poster_url: str | None
+    status: str                # want_to_watch/watching/watched
     created_at: datetime
 
-# 工单系统
+# ===== 工单系统 =====
 class Ticket(Model):
-    user_id: str
+    user_id: str               # Emby User ID
     title: str
     description: str
-    category: str      # request/issue/suggestion
-    priority: str      # low/medium/high/urgent
-    status: str        # open/in_progress/completed/rejected
+    category: str              # request/issue/suggestion
+    priority: str
+    status: str                # open/in_progress/completed/rejected
     assigned_to: str | None
     created_at: datetime
     updated_at: datetime
@@ -362,29 +447,30 @@ class Ticket(Model):
 class TicketComment(Model):
     ticket_id: str
     user_id: str
+    is_admin: bool
     content: str
     created_at: datetime
 
-# 积分系统
+# ===== 积分系统 =====
 class PointsAccount(Model):
-    user_id: str
+    emby_user_id: str          # 唯一
     balance: int
     total_earned: int
     total_spent: int
 
 class PointsTransaction(Model):
-    user_id: str
-    amount: int        # 正=赚，负=花
+    emby_user_id: str
+    amount: int
     reason: str
     created_at: datetime
 
 class DailyCheckin(Model):
-    user_id: str
+    emby_user_id: str
     checkin_date: date
-    streak: int        # 连续天数
+    streak: int
     points_earned: int
 
-# 媒体管理
+# ===== 媒体管理 =====
 class MediaItem(Model):
     emby_item_id: str
     tmdb_id: int | None
@@ -407,85 +493,159 @@ class MissingEpisode(Model):
     tmdb_title: str
     scanned_at: datetime
 
-# 去重策略
 class DedupStrategy(Model):
     name: str
-    description: str
-    keep_rule: str      # highest_quality/smallest/newest
-    auto_delete: bool   # False = 只标记不删除
+    keep_rule: str
+    auto_delete: bool
     is_active: bool
+
+# ===== 通知系统 =====
+class NotificationChannel(Model):
+    """通知通道配置"""
+    name: str                  # 飞书/Telegram/企微/Bark/Email
+    channel_type: str
+    config_json: dict          # Webhook URL, Token 等
+    is_enabled: bool
+    last_test_at: datetime | None
+    last_test_ok: bool
+
+class NotificationTemplate(Model):
+    """消息模板"""
+    name: str
+    scenario: str              # new_user/ticket_new/expire_warning 等
+    channel_type: str          # all = 通用, 或指定通道
+    content: str               # 含 {variable} 的模板文本
+    is_system: bool            # 系统预设不可删除
     created_at: datetime
 
-# 海报模板
+class NotificationRule(Model):
+    """场景×通道×模板 矩阵"""
+    scenario: str
+    channel_id: str
+    template_id: str
+    is_enabled: bool
+    recipient_type: str        # admin/user/all
+    recipient_id: str | None   # 指定用户(可选)
+
+class NotificationLog(Model):
+    """发送记录"""
+    rule_id: str | None
+    scenario: str
+    channel_type: str
+    recipient: str
+    content: str
+    status: str                # sent/failed
+    error: str | None
+    sent_at: datetime
+
+# ===== 海报 =====
 class PosterTemplate(Model):
     name: str
     thumbnail_url: str
-    template_json: dict  # 布局配置
+    template_json: dict
     is_active: bool
+
+class GeneratedPoster(Model):
+    user_id: str
+    template_id: str
+    time_range: str
+    image_url: str
+    created_at: datetime
+
+# ===== 公告 =====
+class Announcement(Model):
+    title: str
+    content: str
+    created_by: str
+    is_active: bool
+    created_at: datetime
 ```
 
 ---
 
-## 四、前端路由结构
+## 六、前端路由结构
+
+### 管理后台 (/admin/*)
 
 ```
-/dashboard              概览仪表盘
-/users                  用户列表
-/users/:id              用户详情
-/users/invites          邀请管理
-/users/invite/create    创建邀请
-/analytics              数据分析(默认: 用户数据)
-/analytics/users        用户数据
-/analytics/media        媒体排行
-/analytics/quality      质量分析
-/calendar               追剧日历
-/media                  媒体库
-/media/duplicates       去重管理
-/media/missing          缺集管理
-/risk                   风控天眼
-/tasks                  任务中心
-/tickets                工单大厅
-/tickets/:id            工单详情
-/points                 积分系统
-/notifications          通知中心
-/poster                 海报工坊
-/settings               系统设置(多 Tab)
+/admin                    → 重定向到 /admin/dashboard
+/admin/dashboard          概览仪表盘
+/admin/users              用户列表
+/admin/users/invites      邀请管理
+/admin/users/invites/create 创建邀请
+/admin/users/templates    权限模板
+/admin/users/:id          用户详情
+/admin/analytics          数据分析(默认: 用户数据)
+/admin/analytics/users    用户数据
+/admin/analytics/media    媒体排行
+/admin/analytics/quality  质量分析
+/admin/calendar           追剧日历
+/admin/media              媒体库
+/admin/media/duplicates   去重管理
+/admin/media/missing      缺集管理
+/admin/risk               风控天眼
+/admin/tasks              任务中心
+/admin/tickets            工单大厅
+/admin/tickets/:id        工单详情
+/admin/notifications      通知中心
+/admin/notifications/channels   通道配置
+/admin/notifications/templates  模板编辑
+/admin/notifications/rules      场景矩阵
+/admin/notifications/logs       发送记录
+/admin/settings           系统设置
+```
+
+### 用户门户 (/*)
+
+```
+/                         门户首页
+/profile                  个人中心
+/profile/password         修改密码
+/profile/devices          设备管理
+/profile/notifications    通知偏好
+/stats                    我的观影统计
+/calendar                 追剧日历
+/tickets                  我的工单
+/tickets/:id              工单详情
+/points                   积分中心
+/points/checkin           签到
 ```
 
 ---
 
-## 五、前端 TabBar 适配
+## 七、前端 TabBar 适配
 
-现有 5 个 tab + "更多"面板。需要扩展：
+### 管理后台 Mobile TabBar
 
 ```
-Tab Bar (移动端 5 tab):
 ├── 概览 (Dashboard)
 ├── 用户 (Users)
-├── 分析 (Analytics)   ← 原"统计"改名
-├── 媒体 (Media)       ← 新增，替代原"风控"
-└── 更多 (More)
+├── 分析 (Analytics)
+├── 媒体 (Media)
+└── 更多 (More Panel)
     ├── 风控天眼
     ├── 追剧日历
     ├── 任务中心
     ├── 工单大厅
-    ├── 积分系统
-    ├── 海报工坊
     ├── 通知中心
     ├── 系统设置
     ├── 切换主题
     └── 退出登录
+```
 
-Sidebar (桌面端):
+### 管理后台 Desktop Sidebar（可折叠）
+
+```
 ├── 概览
-├── 用户管理
+├── 用户管理 ▸
 │   ├── 用户列表
-│   └── 邀请管理
-├── 数据分析
+│   ├── 邀请管理
+│   └── 权限模板
+├── 数据分析 ▸
 │   ├── 用户数据
 │   ├── 媒体排行
 │   └── 质量分析
-├── 媒体库
+├── 媒体库 ▸
 │   ├── 媒体管理
 │   ├── 去重管理
 │   └── 缺集管理
@@ -493,66 +653,88 @@ Sidebar (桌面端):
 ├── 风控天眼
 ├── 任务中心
 ├── 工单大厅
-├── 积分系统
-├── 海报工坊
-├── 通知中心
+├── 通知中心 ▸
+│   ├── 通道配置
+│   ├── 模板编辑
+│   ├── 场景矩阵
+│   └── 发送记录
 └── 系统设置
+```
+
+### 用户门户 TabBar
+
+```
+├── 首页 (Home)
+├── 日历 (Calendar)
+├── 积分 (Points)
+├── 工单 (Tickets)
+└── 我的 (Profile)
 ```
 
 ---
 
-## 六、开发优先级排序（Phase 规划）
+## 八、开发 Phase 规划（修订版）
 
-### Phase 1: 用户管理增强（最核心）
+### Phase 1: 用户管理增强（核心中的核心）
 - [ ] 邀请码系统（生成/管理/注册流程）
 - [ ] 权限模板 CRUD
 - [ ] 手动创建用户
-- [ ] 用户详情增强（库权限编辑 + 高级策略配置）
+- [ ] 用户详情增强（库权限编辑+高级策略）
 - [ ] 用户级并发限制
 
-### Phase 2: Analytics 重构
-- [ ] 观看历史页面（全站 + 按用户筛选）
-- [ ] 24H 观影生物钟热力图
-- [ ] 设备/软件分布图
-- [ ] 多维度排行（热度/时长/用户）
+### Phase 2: 用户门户骨架
+- [ ] 独立前端 App（/ 路径）
+- [ ] Emby 账号登录（验证 Emby 密码）
+- [ ] 个人中心（资料/密码修改→Emby 同步）
+- [ ] 我的观影数据
+- [ ] 公告栏
+
+### Phase 3: Analytics 重构
+- [ ] 观看历史（全站+按用户筛选）
+- [ ] 24H 生物钟热力图
+- [ ] 设备/软件分布
+- [ ] 多维度排行
 - [ ] 质量分析
 
-### Phase 3: 媒体管理
-- [ ] 缺集扫描 + TMDB 比对
-- [ ] 去重引擎（TMDB 分组 + 质量评分 + 策略配置）
-- [ ] 媒体库浏览页面
+### Phase 4: 媒体管理
+- [ ] 缺集扫描+TMDB 比对
+- [ ] 去重引擎（TMDB 分组+质量评分+策略配置+预览确认）
+- [ ] 媒体库浏览
 
-### Phase 4: 社区功能
-- [ ] 追剧日历（TMDB 日历数据 + 月视图）
+### Phase 5: 社区功能
+- [ ] 追剧日历（TMDB+月视图）
 - [ ] 工单大厅（求片/反馈）
-- [ ] 积分引擎（签到 + 流水 + 商城）
+- [ ] 积分引擎（签到+流水+商城）
 
-### Phase 5: 通知与自动化
-- [ ] 多通道推送配置（飞书/Telegram/企微/Bark）
-- [ ] 推送场景总控
-- [ ] 机器人指令交互
-- [ ] 任务中心（自定义任务 + 定时调度）
+### Phase 6: 通知系统
+- [ ] 多通道配置（飞书/Telegram/企微/Bark/Email）
+- [ ] 消息模板编辑器（变量系统+实时预览）
+- [ ] 场景×通道矩阵配置
+- [ ] 发送记录+失败重试
 
-### Phase 6: 高级功能
-- [ ] 海报工坊（模板 + 数据生成）
-- [ ] 系统设置完善（权限模板管理/备份恢复）
+### Phase 7: 自动化与高级
+- [ ] 任务中心（自定义任务+Cron+ARQ 队列）
+- [ ] 机器人指令交互（Telegram/飞书 Bot）
+- [ ] 海报工坊
 - [ ] WebSocket 实时推送
+- [ ] 系统设置完善（备份恢复）
 
 ---
 
-## 七、Emby Pulse 缺点分析与我们的改进
+## 九、Emby Pulse 对比总结
 
-| Emby Pulse 缺点 | 我们的改进 |
-|-----------------|-----------|
-| 去重可能误删 | 必须预览+确认，默认进回收站，7天后才永久删除 |
-| 设置项散布在 compose | Compose 只管基础环境变量，所有配置在 Web UI |
-| 数据统计一个长页面 | Tab 分区 + 可折叠，不堆砌 |
-| 通知通道不够灵活 | 场景×通道矩阵，每个场景可单独配置推到哪些通道 |
-| 缺少工单系统 | 独立工单大厅，用户求片+问题反馈 |
-| 缺少积分体系 | 完整积分引擎，可兑换 VIP/权限 |
-| 邀请码功能单一 | 支持批量生成、权限模板继承、使用限制 |
-| 没有质量分析 | 分辨率/编码/码率/音轨全面分析 |
+| 对比维度 | Emby Pulse | 我们的方案 |
+|----------|-----------|-----------|
+| 登录体系 | 可能也是本地 | ✅ 双站点：管理员本地 + 用户 Emby 账号 |
+| 用户门户 | 无/简单 | ✅ 独立门户，用户可改密码/看数据/签到 |
+| 去重 | 可能自动 | ✅ 必须预览+确认，安全第一 |
+| 通知模板 | 可能固定 | ✅ 完全自定义模板+变量系统+通道矩阵 |
+| 工单系统 | 有 | ✅ 有，且区分管理端和用户端 |
+| 积分系统 | 有 | ✅ 有，含签到+商城+排行 |
+| Compose 配置 | 散布 | ✅ Compose 只管基础，其余全在 Web UI |
+| 数据可视化 | 好看 | ✅ 对标，图表优先+动画过渡+移动端适配 |
+| 界面设计 | 好看 | ✅ iOS glassmorphism 风格，浅色/深色主题 |
 
 ---
 
-**下一步：** 等图图看完 Emby Pulse 后反馈 → 整合调整 → 按 Phase 开始开发
+**下一步：** 整合图图的反馈 → 定稿 → 按 Phase 开发
