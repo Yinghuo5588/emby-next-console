@@ -51,8 +51,8 @@
               <option value="welcome">欢迎</option>
             </select>
           </label>
-          <label>标题模板<input v-model="form.title_template" placeholder="如：🎬 {{series_name}} 更新啦！" /></label>
-          <label>正文模板<textarea v-model="form.body_template" rows="4" placeholder="如：{{username}}，你追的《{{series_name}}》更新了第 {{episode_number}} 集..." /></label>
+          <label>标题模板<input v-model="form.title_template" placeholder="如：用变量名如 series_name" /></label>
+          <label>正文模板<textarea v-model="form.body_template" rows="4" placeholder="如：username, series_name, episode_number" /></label>
           <label>变量（逗号分隔）<input v-model="form.variablesStr" placeholder="如：username, series_name, episode_number" /></label>
           <label class="check-label"><input type="checkbox" v-model="form.is_default" /> 设为默认模板</label>
           <button class="btn btn-primary" style="margin-top: 8px;" @click="saveTemplate">
