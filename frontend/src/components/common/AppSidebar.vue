@@ -1,11 +1,12 @@
 <template>
   <n-layout-sider
+    v-if="isDesktop"
     bordered
     collapse-mode="width"
-    :collapsed-width="0"
+    :collapsed-width="64"
     :width="240"
-    :collapsed="!isDesktop"
-    show-trigger="bar"
+    :collapsed="collapsed"
+    show-trigger="arrow-circle"
     @collapse="collapsed = true"
     @expand="collapsed = false"
     class="app-sider"
@@ -16,12 +17,12 @@
           <rect width="32" height="32" rx="8" fill="var(--brand)"/>
           <path d="M12 10L20 16L12 22V10Z" fill="white"/>
         </svg>
-        <span class="logo-text">Emby Next</span>
+        <span v-if="!collapsed" class="logo-text">Emby Next</span>
       </div>
     </div>
 
     <n-menu
-      :collapsed="!isDesktop"
+      :collapsed="collapsed"
       :collapsed-width="64"
       :collapsed-icon-size="22"
       :options="menuOptions"
@@ -29,16 +30,14 @@
       @update:value="handleMenuChange"
     />
 
-    <template #footer>
-      <div class="sider-footer">
-        <n-button quaternary block size="small" @click="toggleTheme">
-          {{ uiStore.isDark ? '☀️ Light' : '🌙 Dark' }}
-        </n-button>
-        <n-button quaternary block size="small" type="error" @click="handleLogout">
-          Logout
-        </n-button>
-      </div>
-    </template>
+    <div class="sider-footer">
+      <n-button quaternary block :size="collapsed ? 'tiny' : 'small'" @click="toggleTheme">
+        {{ uiStore.isDark ? '☀️' : '🌙' }}{{ collapsed ? '' : (uiStore.isDark ? ' Light' : ' Dark') }}
+      </n-button>
+      <n-button quaternary block :size="collapsed ? 'tiny' : 'small'" type="error" @click="handleLogout">
+        {{ collapsed ? '→' : 'Logout' }}
+      </n-button>
+    </div>
   </n-layout-sider>
 </template>
 
@@ -69,7 +68,6 @@ const collapsed = ref(false)
 const isDesktop = computed(() => width.value >= 768)
 const activeKey = computed(() => {
   const path = route.path
-  // Match child routes to parent
   if (path.startsWith('/users/invites')) return '/users/invites'
   if (path.startsWith('/users/templates')) return '/users/templates'
   if (path.startsWith('/users')) return '/users'
@@ -102,41 +100,15 @@ const menuOptions: MenuOption[] = [
   { label: 'Settings', key: '/settings', icon: renderIcon(SettingsIcon) },
 ]
 
-function handleMenuChange(key: string) {
-  router.push(key)
-}
-
-function toggleTheme() {
-  uiStore.toggleTheme()
-}
-
-async function handleLogout() {
-  await authStore.logout()
-}
+function handleMenuChange(key: string) { router.push(key) }
+function toggleTheme() { uiStore.toggleTheme() }
+async function handleLogout() { await authStore.logout() }
 </script>
 
 <style scoped>
-.app-sider {
-  background: var(--surface) !important;
-}
-.sider-header {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-}
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.logo-text {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text);
-}
-.sider-footer {
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
+.app-sider { background: var(--surface) !important; }
+.sider-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+.logo { display: flex; align-items: center; gap: 0.5rem; }
+.logo-text { font-size: 1.1rem; font-weight: 600; color: var(--text); white-space: nowrap; }
+.sider-footer { padding: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; }
 </style>
