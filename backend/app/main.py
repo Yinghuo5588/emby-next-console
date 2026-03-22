@@ -18,6 +18,8 @@ from app.modules.stats.api import router as stats_router, analytics_router
 from app.modules.users.api import router as users_router, admin_router as users_admin_router
 from app.modules.risk.api import router as risk_router
 from app.modules.notifications.api import router as notifications_router
+from app.modules.tasks.api import router as tasks_router
+from app.modules.poster.api import router as poster_router
 from app.modules.system.api import router as system_router
 from app.modules.webhook.api import router as webhook_router
 from app.modules.invites.api import router as invites_router
@@ -62,6 +64,8 @@ app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(users_admin_router, prefix=API_PREFIX)
 app.include_router(risk_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
+app.include_router(tasks_router, prefix=API_PREFIX)
+app.include_router(poster_router, prefix=API_PREFIX)
 app.include_router(system_router, prefix=API_PREFIX)
 app.include_router(webhook_router, prefix=API_PREFIX)
 app.include_router(invites_router, prefix=API_PREFIX)

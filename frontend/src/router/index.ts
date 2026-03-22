@@ -43,6 +43,8 @@ const router = createRouter({
         { path: 'risk', name: 'Risk', component: () => import('@/pages/RiskPage.vue'), meta: { title: '风控', icon: 'risk' } },
         { path: 'notifications', name: 'Notifications', component: () => import('@/pages/NotificationsPage.vue'), meta: { title: '通知' } },
         { path: 'settings', name: 'Settings', component: () => import('@/pages/SettingsPage.vue'), meta: { title: '设置' } },
+        { path: 'tasks', name: 'Tasks', component: () => import('@/pages/TasksPage.vue'), meta: { title: '任务中心' } },
+        { path: 'poster', name: 'Poster', component: () => import('@/pages/PosterPage.vue'), meta: { title: '海报工坊' } },
       ],
     },
   ],

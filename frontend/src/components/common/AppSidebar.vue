@@ -38,6 +38,9 @@
         </router-link>
       </template>
     </nav>
+        <router-link to="/admin/tasks" class="nav-item"><span class="nav-icon">📋</span><span>任务中心</span></router-link>
+    <router-link to="/admin/poster" class="nav-item"><span class="nav-icon">🖼️</span><span>海报工坊</span></router-link>
+  </nav>
     
     <div class="sidebar-footer">
       <button class="theme-toggle" @click="toggleTheme">
