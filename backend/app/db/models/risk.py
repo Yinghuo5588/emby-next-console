@@ -55,3 +55,17 @@ class RiskEvent(Base, TimestampMixin):
         Index("ix_risk_events_severity", "severity"),
         Index("ix_risk_events_detected_at", "detected_at"),
     )
+
+
+class RiskActionLog(Base, TimestampMixin):
+    """风控执法日志"""
+    __tablename__ = "risk_action_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)  # kick/ban/unban
+    target: Mapped[str] = mapped_column(String(256), nullable=False)  # session_id or user_id
+    reason: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+    __table_args__ = (
+        Index("ix_risk_action_logs_created_at", "created_at"),
+    )
