@@ -1,9 +1,13 @@
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.models.user import User
 from app.core.emby import emby
 from app.core.security import create_access_token
 from datetime import timedelta
+
+logger = logging.getLogger("app.portal")
 
 
 class PortalService:
@@ -19,7 +23,11 @@ class PortalService:
 
         emby_user_id = auth_result.get("User", {}).get("Id")
         if not emby_user_id:
-            raise ValueError("Emby 认证失败")
+            emby_name = auth_result.get("User", {}).get("Name", "?")
+            logger.warning(f"Emby auth ok but no User.Id for {username}, name={emby_name}, keys={list(auth_result.keys())}")
+            raise ValueError("Emby 认证失败：未获取到用户 ID")
+
+        logger.info(f"Emby auth success: {username} -> {emby_user_id}")
 
         # 2. 查找本地用户记录
         result = await self.db.execute(
@@ -29,14 +37,20 @@ class PortalService:
 
         # 3. 如果本地没有记录，同步创建
         if not user:
-            user = User(
-                emby_user_id=emby_user_id,
-                username=username,
-                role="user",  # 默认用户角色
-            )
-            self.db.add(user)
-            await self.db.commit()
-            await self.db.refresh(user)
+            try:
+                user = User(
+                    emby_user_id=emby_user_id,
+                    username=username,
+                    role="user",  # 默认用户角色
+                )
+                self.db.add(user)
+                await self.db.commit()
+                await self.db.refresh(user)
+                logger.info(f"Created local user for {username} (emby_id={emby_user_id})")
+            except Exception as e:
+                logger.error(f"Failed to create local user for {username}: {e}")
+                await self.db.rollback()
+                raise ValueError(f"创建本地用户失败: {e}")
 
         # 4. 生成 portal token（使用 emby_user_id 作为 sub）
         token = create_access_token(
