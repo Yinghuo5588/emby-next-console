@@ -15,16 +15,26 @@
       <div class="card stat-mini"><div class="sm-val">{{ stats.tracked_series }}</div><div class="sm-label">追踪剧集</div></div>
     </div>
 
-    <!-- 月份导航 -->
-    <div class="month-nav">
-      <button class="btn btn-ghost" @click="prevMonth">◀</button>
-      <span class="month-label">{{ year }}年{{ month }}月</span>
-      <button class="btn btn-ghost" @click="nextMonth">▶</button>
+    <!-- 视图切换 + 导航 -->
+    <div class="view-bar">
+      <div class="view-tabs">
+        <button class="btn btn-sm" :class="{ 'btn-primary': view === 'month' }" @click="view = 'month'">📅 月视图</button>
+        <button class="btn btn-sm" :class="{ 'btn-primary': view === 'week' }" @click="view = 'week'">📊 周视图</button>
+      </div>
+      <div class="month-nav">
+        <button class="btn btn-ghost" @click="prevPeriod">◀</button>
+        <span class="month-label" v-if="view === 'month'">{{ year }}年{{ month }}月</span>
+        <span class="month-label" v-else>第 {{ week }} 周 ({{ weekLabel }})</span>
+        <button class="btn btn-ghost" @click="nextPeriod">▶</button>
+      </div>
     </div>
 
-    <!-- 日历网格 -->
+    <!-- 月视图 -->
     <LoadingState v-if="loading" height="200px" />
-    <CalendarGrid v-else :year="year" :month="month" :entries="entries" @select-day="onSelectDay" />
+    <template v-else>
+      <CalendarGrid v-if="view === 'month'" :year="year" :month="month" :entries="entries" @select-day="onSelectDay" />
+      <WeekWaterfall v-else-if="view === 'week'" :waterfall="weekData" />
+    </template>
 
     <!-- 日期详情弹窗 -->
     <DayDetail v-if="selectedDay" :date="selectedDay" :entries="selectedEntries" @close="selectedDay = null" />
@@ -36,30 +46,55 @@ import { ref, onMounted, watch } from 'vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import CalendarGrid from '@/components/calendar/CalendarGrid.vue'
+import WeekWaterfall from '@/components/calendar/WeekWaterfall.vue'
 import DayDetail from '@/components/calendar/DayDetail.vue'
 import { calendarApi } from '@/api/calendar'
-import type { CalendarEntry, CalendarStats } from '@/api/calendar'
+import type { CalendarEntry, CalendarStats, WeekWaterfallItem } from '@/api/calendar'
 
 const today = new Date()
 const year = ref(today.getFullYear())
 const month = ref(today.getMonth() + 1)
+const week = ref(1)
+const view = ref<'month' | 'week'>('month')
 
 const loading = ref(true)
 const syncing = ref(false)
 const entries = ref<Record<string, CalendarEntry[]>>({})
+const weekData = ref<WeekWaterfallItem[]>([])
 const stats = ref<CalendarStats | null>(null)
 
 const selectedDay = ref<string | null>(null)
 const selectedEntries = ref<CalendarEntry[]>([])
 
-function prevMonth() {
-  if (month.value === 1) { year.value--; month.value = 12 }
-  else month.value--
+const weekLabel = ref('')
+
+function prevPeriod() {
+  if (view.value === 'month') {
+    if (month.value === 1) { year.value--; month.value = 12 }
+    else month.value--
+  } else {
+    if (week.value > 1) { week.value-- }
+    else {
+      // Go to previous month's last week
+      if (month.value === 1) { year.value--; month.value = 12 }
+      else month.value--
+      week.value = 4
+    }
+  }
 }
 
-function nextMonth() {
-  if (month.value === 12) { year.value++; month.value = 1 }
-  else month.value++
+function nextPeriod() {
+  if (view.value === 'month') {
+    if (month.value === 12) { year.value++; month.value = 1 }
+    else month.value++
+  } else {
+    if (week.value < 5) { week.value++ }
+    else {
+      if (month.value === 12) { year.value++; month.value = 1 }
+      else month.value++
+      week.value = 1
+    }
+  }
 }
 
 function onSelectDay(date: string, dayEntries: CalendarEntry[]) {
@@ -75,6 +110,17 @@ async function loadMonth() {
   } finally { loading.value = false }
 }
 
+async function loadWeek() {
+  loading.value = true
+  try {
+    const res = await calendarApi.week(year.value, month.value, week.value)
+    weekData.value = res.data?.waterfall ?? []
+    if (res.data) {
+      weekLabel.value = `${res.data.week_start} ~ ${res.data.week_end}`
+    }
+  } finally { loading.value = false }
+}
+
 async function loadStats() {
   try {
     const res = await calendarApi.stats()
@@ -86,11 +132,22 @@ async function doSync() {
   syncing.value = true
   try {
     await calendarApi.sync()
-    await Promise.all([loadMonth(), loadStats()])
+    await Promise.all([view.value === 'month' ? loadMonth() : loadWeek(), loadStats()])
   } finally { syncing.value = false }
 }
 
-watch([year, month], loadMonth)
+watch([year, month], () => {
+  if (view.value === 'month') loadMonth()
+})
+
+watch([year, month, week], () => {
+  if (view.value === 'week') loadWeek()
+})
+
+watch(view, (v) => {
+  if (v === 'month') loadMonth()
+  else loadWeek()
+})
 
 onMounted(() => {
   loadMonth()
@@ -103,6 +160,10 @@ onMounted(() => {
 .stat-mini { text-align: center; padding: 12px; }
 .sm-val { font-size: 24px; font-weight: 700; color: var(--primary); }
 .sm-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-.month-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 16px; }
-.month-label { font-size: 18px; font-weight: 700; }
+.view-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+.view-tabs { display: flex; gap: 4px; }
+.view-tabs .btn { font-size: 12px; padding: 4px 12px; }
+.view-tabs .btn:not(.btn-primary) { background: var(--bg-secondary); color: var(--text-muted); }
+.month-nav { display: flex; align-items: center; gap: 16px; }
+.month-label { font-size: 16px; font-weight: 700; min-width: 120px; text-align: center; }
 </style>
