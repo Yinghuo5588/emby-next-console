@@ -11,10 +11,32 @@
     </div>
     
     <nav class="sidebar-nav">
-      <router-link v-for="item in navItems" :key="item.to" :to="item.to" class="nav-item" active-class="active">
-        <component :is="item.icon" class="nav-icon" />
-        <span class="nav-text">{{ item.label }}</span>
-      </router-link>
+      <template v-for="item in navItems" :key="item.to">
+        <div v-if="item.children" class="nav-group">
+          <div class="nav-group-header" @click="toggleSubMenu(item.to)">
+            <component :is="item.icon" class="nav-icon" />
+            <span class="nav-text">{{ item.label }}</span>
+            <svg class="nav-arrow" :class="{ 'nav-arrow-open': openSubMenu === item.to }" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div v-if="openSubMenu === item.to" class="nav-submenu">
+            <router-link 
+              v-for="child in item.children" 
+              :key="child.to" 
+              :to="child.to" 
+              class="nav-subitem"
+              active-class="active"
+            >
+              <span class="nav-subtext">{{ child.label }}</span>
+            </router-link>
+          </div>
+        </div>
+        <router-link v-else :to="item.to" class="nav-item" active-class="active">
+          <component :is="item.icon" class="nav-icon" />
+          <span class="nav-text">{{ item.label }}</span>
+        </router-link>
+      </template>
     </nav>
     
     <div class="sidebar-footer">
@@ -56,10 +78,24 @@ const { width } = useWindowSize()
 
 const isDark = ref(false)
 const isDesktop = computed(() => width.value >= 768)
+const openSubMenu = ref<string | null>('/users')
+
+const toggleSubMenu = (menuKey: string) => {
+  openSubMenu.value = openSubMenu.value === menuKey ? null : menuKey
+}
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: DashboardIcon },
-  { to: '/users', label: 'Users', icon: UsersIcon },
+  { 
+    to: '/users', 
+    label: '用户管理', 
+    icon: UsersIcon,
+    children: [
+      { to: '/users', label: '用户列表' },
+      { to: '/users/invites', label: '邀请管理' },
+      { to: '/users/templates', label: '权限模板' }
+    ]
+  },
   { to: '/stats', label: 'Stats', icon: StatsIcon },
   { to: '/risk', label: 'Risk', icon: RiskIcon },
   { to: '/notifications', label: 'Notifications', icon: NotificationsIcon },
@@ -152,6 +188,67 @@ const handleLogout = () => {
 
 .nav-text {
   font-size: 0.95rem;
+}
+
+.nav-group {
+  margin-bottom: 0.25rem;
+}
+
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-group-header:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.nav-arrow {
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.nav-arrow-open {
+  transform: rotate(180deg);
+}
+
+.nav-submenu {
+  margin-left: 2.5rem;
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav-subitem {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.nav-subitem:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.nav-subitem.active {
+  background: var(--brand-light);
+  color: var(--brand);
+  font-weight: 500;
+}
+
+.nav-subtext {
+  display: block;
 }
 
 .sidebar-footer {
