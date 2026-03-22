@@ -23,8 +23,8 @@ def upgrade():
         sa.Column('policy_json', postgresql.JSONB(), nullable=True),
         sa.Column('configuration_json', postgresql.JSONB(), nullable=True),
         sa.Column('is_default', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
     )
     op.create_index('ix_permission_templates_name', 'permission_templates', ['name'])
@@ -41,8 +41,8 @@ def upgrade():
         sa.Column('concurrent_limit', sa.Integer(), nullable=True),
         sa.Column('created_by', sa.BigInteger(), nullable=False),
         sa.Column('status', sa.String(32), nullable=False, server_default='active'),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['permission_template_id'], ['permission_templates.id'], ondelete='SET NULL'),
         sa.ForeignKeyConstraint(['created_by'], ['users.id'], ondelete='CASCADE'),
@@ -72,7 +72,7 @@ def upgrade():
         sa.Column('client_blacklist', postgresql.JSONB(), nullable=True),
         sa.Column('note', sa.Text(), nullable=True),
         sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
     )
     op.create_index('ix_user_overrides_emby_user_id', 'user_overrides', ['emby_user_id'])
