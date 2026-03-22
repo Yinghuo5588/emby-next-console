@@ -6,6 +6,7 @@ from app.shared.responses import ApiResponse
 from . import service
 
 router = APIRouter(prefix="/stats", tags=["stats"])
+analytics_router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 @router.get("/overview")
@@ -65,3 +66,14 @@ async def quality(days: int = Query(30, ge=1, le=365), _: str = Depends(get_curr
 @router.get("/badges")
 async def badges(user_id: str | None = None, _: str = Depends(get_current_user_id)):
     return ApiResponse.ok(data=await service.get_badges(user_id))
+
+
+# Analytics — 别名路由，前端可能用 /analytics/ 前缀
+@analytics_router.get("/clock-heatmap")
+async def analytics_heatmap(days: int = Query(30, ge=1, le=365), _: str = Depends(get_current_user_id)):
+    return ApiResponse.ok(data=await service.get_clock_heatmap(days))
+
+
+@analytics_router.get("/device-dist")
+async def analytics_device(days: int = Query(30, ge=1, le=365), _: str = Depends(get_current_user_id)):
+    return ApiResponse.ok(data=await service.get_device_distribution(days))
