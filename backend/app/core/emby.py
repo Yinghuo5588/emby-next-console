@@ -110,11 +110,19 @@ class EmbyAdapter:
     async def get_views(self) -> list[dict]:
         """获取媒体库视图列表"""
         resp = await self._request("GET", "/Library/VirtualFolders")
-        return resp if isinstance(resp, list) else resp.get("Items", [])
+        resp.raise_for_status()
+        data = resp.json()
+        return data if isinstance(data, list) else data.get("Items", [])
 
     async def get_items(self, **params: Any) -> dict:
         """通用 Items 查询（分页、筛选等）"""
         resp = await self.get("/Items", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_item(self, item_id: str) -> dict:
+        """获取单个媒体项目详情"""
+        resp = await self.get(f"/Items/{item_id}")
         resp.raise_for_status()
         return resp.json()
 
