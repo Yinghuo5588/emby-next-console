@@ -14,7 +14,7 @@ from app.db.session import AsyncSessionFactory
 
 from app.modules.auth.api import router as auth_router
 from app.modules.dashboard.api import router as dashboard_router
-from app.modules.stats.api import router as stats_router
+from app.modules.stats.api import router as stats_router, analytics_router
 from app.modules.users.api import router as users_router, admin_router as users_admin_router
 from app.modules.risk.api import router as risk_router
 from app.modules.notifications.api import router as notifications_router
@@ -55,6 +55,7 @@ API_PREFIX = "/api/v1"
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 app.include_router(stats_router, prefix=API_PREFIX)
+app.include_router(analytics_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(users_admin_router, prefix=API_PREFIX)
 app.include_router(risk_router, prefix=API_PREFIX)
