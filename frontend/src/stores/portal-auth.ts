@@ -14,9 +14,6 @@ export const usePortalAuthStore = defineStore('portal-auth', () => {
       token.value = res.data.token
       user.value = res.data.user
       localStorage.setItem('portal_token', res.data.token)
-      // 设置 axios 默认 header
-      const { default: apiClient } = await import('@/api/client')
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`
     }
     return res
   }
@@ -37,13 +34,6 @@ export const usePortalAuthStore = defineStore('portal-auth', () => {
     token.value = ''
     user.value = null
     localStorage.removeItem('portal_token')
-  }
-
-  // 初始化时设置 axios header
-  if (token.value) {
-    import('@/api/client').then(({ default: apiClient }) => {
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-    })
   }
 
   return { token, user, isLoggedIn, login, loadUser, logout }
