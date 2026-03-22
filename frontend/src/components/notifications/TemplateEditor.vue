@@ -28,7 +28,7 @@
           <div class="tpl-title-preview muted">{{ t.title_template }}</div>
           <div class="tpl-body-preview muted">{{ t.body_template }}</div>
           <div v-if="t.variables?.length" class="tpl-vars">
-            <span class="tag tag-gray tag-sm" v-for="v in t.variables" :key="v">{{ '{{ ' + v + ' }}' }}</span>
+            <span class="tag tag-gray tag-sm" v-for="v in t.variables" :key="v">{{ formatVar(v) }}</span>
           </div>
         </div>
       </div>
@@ -104,6 +104,8 @@ async function removeTpl(id: number) {
   await notificationsExtApi.deleteTemplate(id)
   await loadTemplates()
 }
+
+function formatVar(v: string) { return '{{' + v + '}}' }
 
 async function loadTemplates() {
   loading.value = true
