@@ -69,6 +69,7 @@ import { useWindowSize } from '@vueuse/core'
 import DashboardIcon from './icons/DashboardIcon.vue'
 import UsersIcon from './icons/UsersIcon.vue'
 import StatsIcon from './icons/StatsIcon.vue'
+import MediaIcon from './icons/MediaIcon.vue'
 import RiskIcon from './icons/RiskIcon.vue'
 import NotificationsIcon from './icons/NotificationsIcon.vue'
 import SettingsIcon from './icons/SettingsIcon.vue'
@@ -97,6 +98,7 @@ const navItems = [
     ]
   },
   { to: '/stats', label: '数据分析', icon: StatsIcon },
+  { to: '/media', label: '媒体管理', icon: MediaIcon },
   { to: '/risk', label: 'Risk', icon: RiskIcon },
   { to: '/notifications', label: 'Notifications', icon: NotificationsIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
