@@ -222,11 +222,38 @@ class StatsService:
 
     async def get_genre_preference(self, days: int = 30, user_id: Optional[str] = None) -> List[GenrePreferenceItem]:
         try:
-            # Since genres field doesn't exist in playback_events table,
-            # we'll return empty list for now
-            # In a real implementation, this would need to join with media metadata table
-            logger.warning("Genre preference analysis not implemented - genres field not available in playback_events")
-            return []
+            # 从 Emby API 获取各类型的播放量
+            from app.core.emby import emby
+            # 获取有播放记录的媒体 ID
+            items_r = await emby_data.get_media_playback_rank(100)
+            if not items_r:
+                return []
+            
+            # 对前 50 个热门媒体查询 Emby 获取 genres
+            genre_counts: dict[str, int] = {}
+            for item in items_r[:50]:
+                item_name = item.get("item_name", "")
+                if not item_name:
+                    continue
+                try:
+                    # 搜索媒体获取 genres
+                    resp = await emby.get("/Items", params={"searchTerm": item_name, "limit": 1})
+                    data = resp.json()
+                    items_list = data.get("Items", [])
+                    if items_list:
+                        genres = items_list[0].get("Genres", [])
+                        for g in genres:
+                            genre_counts[g] = genre_counts.get(g, 0) + item.get("play_count", 1)
+                except Exception:
+                    continue
+            
+            # 排序并返回
+            sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:15]
+            total = sum(v for _, v in sorted_genres) or 1
+            return [
+                GenrePreferenceItem(genre=g, count=c, percentage=round(c / total * 100, 1))
+                for g, c in sorted_genres
+            ]
         except Exception as e:
             logger.error("获取类型偏好失败: %s", e)
             return []
@@ -324,29 +351,45 @@ class StatsService:
 
     async def get_quality_analysis(self, days: int = 30) -> QualityAnalysisResponse:
         try:
-            # Since resolution and transcoding info is not available in playback_events table,
-            # we'll return placeholder data
-            # In a real implementation, this would need additional fields or join with Emby API
-            logger.warning("Quality analysis not fully implemented - resolution and transcoding data not available")
+            from app.core.emby import emby
+            # 从 Emby 获取最近播放的会话来分析转码率
+            try:
+                sessions = await emby.get_sessions(active_only=False)
+                total_sessions = len(sessions)
+                transcode_count = sum(1 for s in sessions if s.get("PlayState", {}).get("PlayMethod") == "Transcode")
+                transcoding_rate = round(transcode_count / max(total_sessions, 1) * 100, 1)
+            except Exception:
+                transcoding_rate = 0.0
             
-            # Placeholder resolution distribution
-            resolution_dist = [
-                {"resolution": "1080p", "count": 0},
-                {"resolution": "720p", "count": 0},
-                {"resolution": "480p", "count": 0},
-                {"resolution": "4K", "count": 0}
-            ]
+            # 从 Emby API 获取媒体分辨率分布
+            resolution_counts: dict[str, int] = {}
+            try:
+                resp = await emby.get("/Items", params={"includeItemTypes": "Movie,Episode", "limit": 200, "fields": "MediaSources"})
+                data = resp.json()
+                for item in data.get("Items", []):
+                    for src in item.get("MediaSources", []):
+                        for stream in src.get("MediaStreams", []):
+                            if stream.get("Type") == "Video":
+                                h = stream.get("Height", 0)
+                                if h >= 2160:
+                                    res = "4K"
+                                elif h >= 1080:
+                                    res = "1080p"
+                                elif h >= 720:
+                                    res = "720p"
+                                else:
+                                    res = "480p"
+                                resolution_counts[res] = resolution_counts.get(res, 0) + 1
+                                break
+            except Exception:
+                pass
             
-            # Placeholder transcoding rate (0% for now)
-            transcoding_rate = 0.0
+            if not resolution_counts:
+                resolution_counts = {"1080p": 0, "720p": 0, "480p": 0, "4K": 0}
             
-            return QualityAnalysisResponse(
-                resolution_dist=resolution_dist,
-                transcoding_rate=transcoding_rate
-            )
+            resolution_dist = [{"resolution": k, "count": v} for k, v in sorted(resolution_counts.items(), key=lambda x: x[1], reverse=True)]
+            
+            return QualityAnalysisResponse(resolution_dist=resolution_dist, transcoding_rate=transcoding_rate)
         except Exception as e:
             logger.error("获取质量分析失败: %s", e)
-            return QualityAnalysisResponse(
-                resolution_dist=[],
-                transcoding_rate=0.0
-            )
+            return QualityAnalysisResponse(resolution_dist=[], transcoding_rate=0.0)
