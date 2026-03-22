@@ -141,5 +141,5 @@ async def analytics_user_rank(
 
 
 @analytics_router.get("/quality")
-async def analytics_quality(days: int = Query(30, ge=1, le=365), _: str = Depends(get_current_user_id)):
-    return ApiResponse.ok(data=await service.get_quality_analysis(days))
+async def analytics_quality(days: int = Query(30, ge=1, le=365), force: bool = Query(False), _: str = Depends(get_current_user_id)):
+    return ApiResponse.ok(data=await service.get_quality_analysis(days, force_refresh=force))
