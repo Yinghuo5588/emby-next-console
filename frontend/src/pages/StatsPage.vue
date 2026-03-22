@@ -8,23 +8,28 @@
 
     <n-tabs v-model:value="activeTab" type="segment" size="small" style="margin-bottom: 16px;">
       <!-- 总览 -->
-      <n-tab-pane name="overview" tab="📊 总览">
-        <div class="grid-2">
-          <n-card title="🕐 观影生物钟" size="small">
-            <HeatmapChart v-if="heatmapData" :data="heatmapData" height="220px" />
+      <n-tab-pane name="overview">
+        <template #tab><IosIcon name="chart" :size="16" /> 总览</template>
+        <div class="section-grid">
+          <n-card size="small">
+            <template #header><CardTitle icon="clock" title="观影生物钟" /></template>
+            <HeatmapChart v-if="heatmapData" :data="heatmapData" height="200px" />
             <n-empty v-else description="暂无数据" />
           </n-card>
-          <n-card title="📱 设备分布" size="small">
-            <PieChart v-if="devices.length" :data="devices.map(d => ({ name: d.device, value: d.count }))" height="260px" />
+          <n-card size="small">
+            <template #header><CardTitle icon="device" title="设备分布" /></template>
+            <PieChart v-if="devices.length" :data="devices.map(d => ({ name: d.device, value: d.count }))" height="240px" />
             <n-empty v-else description="暂无数据" />
           </n-card>
         </div>
-        <div class="grid-2" style="margin-top: 16px">
-          <n-card title="📈 播放趋势" size="small">
-            <AreaChart v-if="trendX.length" :x-data="trendX" :series="[{ name: '播放次数', data: trendY }]" height="220px" />
+        <div class="section-grid" style="margin-top: 16px">
+          <n-card size="small">
+            <template #header><CardTitle icon="chart" title="播放趋势" /></template>
+            <AreaChart v-if="trendX.length" :x-data="trendX" :series="[{ name: '播放次数', data: trendY }]" height="200px" />
             <n-empty v-else description="暂无数据" />
           </n-card>
-          <n-card title="🎨 类型偏好" size="small">
+          <n-card size="small">
+            <template #header><CardTitle icon="palette" title="类型偏好" /></template>
             <div v-if="genres.length" class="genre-grid">
               <n-tag v-for="g in genres" :key="g.genre" size="small" round>{{ g.genre }} {{ g.percentage }}%</n-tag>
             </div>
@@ -34,25 +39,30 @@
       </n-tab-pane>
 
       <!-- 排行 -->
-      <n-tab-pane name="ranking" tab="🏆 排行">
-        <div class="grid-2">
-          <n-card title="🔥 热度排行" size="small">
-            <BarChart v-if="hotRank.length" :y-data="hotRank.map(h => h.item_name)" :data="hotRank.map(h => h.play_count)" horizontal height="320px" color="#FF3B30" />
+      <n-tab-pane name="ranking">
+        <template #tab><IosIcon name="trophy" :size="16" /> 排行</template>
+        <div class="section-grid">
+          <n-card size="small">
+            <template #header><CardTitle icon="fire" title="热度排行" icon-color="#FF3B30" /></template>
+            <BarChart v-if="hotRank.length" :y-data="hotRank.map(h => h.item_name)" :data="hotRank.map(h => h.play_count)" horizontal height="300px" color="#FF3B30" />
             <n-empty v-else description="暂无数据" />
           </n-card>
-          <n-card title="⏱️ 时长排行" size="small">
-            <BarChart v-if="durationRank.length" :y-data="durationRank.map(d => d.item_name)" :data="durationRank.map(d => Math.round(d.total_duration_min / 60))" horizontal height="320px" color="#FF9500" />
+          <n-card size="small">
+            <template #header><CardTitle icon="clock" title="时长排行" icon-color="#FF9500" /></template>
+            <BarChart v-if="durationRank.length" :y-data="durationRank.map(d => d.item_name)" :data="durationRank.map(d => Math.round(d.total_duration_min / 60))" horizontal height="300px" color="#FF9500" />
             <n-empty v-else description="暂无数据" />
           </n-card>
         </div>
-        <n-card title="👥 用户排行" size="small" style="margin-top: 16px;">
+        <n-card size="small" style="margin-top: 16px">
+          <template #header><CardTitle icon="users" title="用户排行" /></template>
           <n-empty v-if="!userRank.length" description="暂无数据" />
           <n-data-table v-else :columns="userColumns" :data="userRank" size="small" :bordered="false" />
         </n-card>
       </n-tab-pane>
 
       <!-- 历史 -->
-      <n-tab-pane name="history" tab="📋 历史">
+      <n-tab-pane name="history">
+        <template #tab><IosIcon name="check" :size="16" /> 历史</template>
         <n-card size="small" style="padding: 0; overflow: auto;">
           <LoadingState v-if="historyLoading" compact />
           <n-empty v-else-if="!historyItems.length" description="暂无观看记录" />
@@ -61,23 +71,27 @@
       </n-tab-pane>
 
       <!-- 质量 -->
-      <n-tab-pane name="quality" tab="🎬 质量">
-        <div class="quality-summary">
+      <n-tab-pane name="quality">
+        <template #tab><IosIcon name="film" :size="16" /> 质量</template>
+        <div class="stat-cards">
           <StatCard label="电影总数" :value="quality?.total_count || 0" />
           <StatCard label="转码率" :value="(quality?.transcoding_rate || 0) + '%'" :highlight="(quality?.transcoding_rate || 0) > 50" />
           <StatCard label="扫描时间" :value="quality?.scan_time?.slice(5, 16) || '-'" />
         </div>
-        <div class="grid-3">
-          <n-card title="📐 分辨率分布" size="small">
-            <PieChart v-if="resolutionData.length" :data="resolutionData" height="220px" />
+        <div class="section-grid-3">
+          <n-card size="small">
+            <template #header><CardTitle icon="ratio" title="分辨率分布" /></template>
+            <PieChart v-if="resolutionData.length" :data="resolutionData" height="200px" />
             <n-empty v-else description="暂无数据" />
           </n-card>
-          <n-card title="🎞️ 编码分布" size="small">
-            <PieChart v-if="codecData.length" :data="codecData" height="220px" />
+          <n-card size="small">
+            <template #header><CardTitle icon="film" title="编码分布" /></template>
+            <PieChart v-if="codecData.length" :data="codecData" height="200px" />
             <n-empty v-else description="暂无数据" />
           </n-card>
-          <n-card title="🌈 HDR 分布" size="small">
-            <PieChart v-if="hdrData.length" :data="hdrData" height="220px" />
+          <n-card size="small">
+            <template #header><CardTitle icon="eye" title="HDR 分布" /></template>
+            <PieChart v-if="hdrData.length" :data="hdrData" height="200px" />
             <n-empty v-else description="暂无数据" />
           </n-card>
         </div>
@@ -91,6 +105,8 @@ import { ref, computed, onMounted, h } from 'vue'
 import type { DataTableColumns } from 'naive-ui'
 import { NTabs, NTabPane, NCard, NTag, NSelect, NEmpty, NDataTable } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
+import CardTitle from '@/components/common/CardTitle.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import HeatmapChart from '@/components/charts/HeatmapChart.vue'
@@ -120,7 +136,6 @@ const daysOptions = [
   { label: '近 90 天', value: 90 },
 ]
 
-// Quality pie data
 const resLabels: Record<string, string> = { '4k': '4K UHD', '1080p': '1080p FHD', '720p': '720p HD', 'sd': 'SD 标清' }
 const codecLabels: Record<string, string> = { hevc: 'HEVC (H.265)', h264: 'H.264 (AVC)', av1: 'AV1', other: '其他' }
 const hdrLabels: Record<string, string> = { dolby_vision: 'Dolby Vision', hdr10: 'HDR10', sdr: 'SDR' }
@@ -129,7 +144,6 @@ const resolutionData = computed(() => quality.value?.resolution ? Object.entries
 const codecData = computed(() => quality.value?.codec ? Object.entries(quality.value.codec).map(([k, v]) => ({ name: codecLabels[k] || k, value: v })) : [])
 const hdrData = computed(() => quality.value?.hdr ? Object.entries(quality.value.hdr).map(([k, v]) => ({ name: hdrLabels[k] || k, value: v })) : [])
 
-// Table columns
 const userColumns: DataTableColumns = [
   { title: '排名', key: 'rank', width: 60, render: (_r: any, i: number) => h(NTag, { type: i < 3 ? 'info' : 'default', size: 'tiny', round: true }, { default: () => i + 1 }) },
   { title: '用户', key: 'username' },
@@ -178,8 +192,8 @@ onMounted(() => { refreshAll(); loadHistory() })
 </script>
 
 <style scoped>
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.quality-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
-.genre-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.section-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.section-grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.genre-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
 </style>
