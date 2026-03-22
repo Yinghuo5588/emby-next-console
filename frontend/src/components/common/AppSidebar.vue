@@ -96,7 +96,7 @@ const navItems = [
       { to: '/users/templates', label: '权限模板' }
     ]
   },
-  { to: '/stats', label: 'Stats', icon: StatsIcon },
+  { to: '/stats', label: '数据分析', icon: StatsIcon },
   { to: '/risk', label: 'Risk', icon: RiskIcon },
   { to: '/notifications', label: 'Notifications', icon: NotificationsIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
