@@ -92,4 +92,9 @@ export const analyticsApi = {
     const res = await apiClient.get('/admin/analytics/quality', { params: { days } })
     return res.data
   },
+
+  async playTrend(days = 30): Promise<ApiResponse<{ date: string; play_count: number; dur: number }[]>> {
+    const res = await apiClient.get('/stats/trends', { params: { days } })
+    return res.data
+  },
 }
