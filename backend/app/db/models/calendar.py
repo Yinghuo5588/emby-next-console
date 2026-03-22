@@ -17,6 +17,7 @@ class CalendarEntry(Base):
     air_date = Column(Date, index=True)
     backdrop_url = Column(String(512))
     overview = Column(Text)
+    has_file = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
