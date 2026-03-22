@@ -38,6 +38,7 @@ const router = createRouter({
         { path: 'users/invites/create', name: 'CreateInvite', component: () => import('@/pages/CreateInvitePage.vue'), meta: { title: '创建邀请' } },
         { path: 'users/templates', name: 'Templates', component: () => import('@/pages/TemplatesPage.vue'), meta: { title: '权限模板' } },
         { path: 'stats', name: 'Stats', component: () => import('@/pages/StatsPage.vue'), meta: { title: '数据分析', icon: 'stats' } },
+        { path: 'media', name: 'Media', component: () => import('@/pages/MediaPage.vue'), meta: { title: '媒体管理', icon: 'media' } },
         { path: 'risk', name: 'Risk', component: () => import('@/pages/RiskPage.vue'), meta: { title: '风控', icon: 'risk' } },
         { path: 'notifications', name: 'Notifications', component: () => import('@/pages/NotificationsPage.vue'), meta: { title: '通知' } },
         { path: 'settings', name: 'Settings', component: () => import('@/pages/SettingsPage.vue'), meta: { title: '设置' } },
