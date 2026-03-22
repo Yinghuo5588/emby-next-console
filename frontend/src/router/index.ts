@@ -10,6 +10,22 @@ const router = createRouter({
         { path: '', component: () => import('@/pages/LoginPage.vue') },
       ],
     },
+    // Portal 路由
+    {
+      path: '/portal/login',
+      name: 'PortalLogin',
+      component: () => import('@/pages/portal/LoginPage.vue'),
+      meta: { title: '门户登录' },
+    },
+    {
+      path: '/portal',
+      component: () => import('@/pages/portal/PortalLayout.vue'),
+      children: [
+        { path: '', name: 'PortalHome', component: () => import('@/pages/portal/HomePage.vue'), meta: { title: '门户首页' } },
+        { path: 'stats', name: 'PortalStats', component: () => import('@/pages/portal/StatsPage.vue'), meta: { title: '观看统计' } },
+        { path: 'profile', name: 'PortalProfile', component: () => import('@/pages/portal/ProfilePage.vue'), meta: { title: '个人信息' } },
+      ],
+    },
     {
       path: '/',
       component: () => import('@/layouts/DefaultLayout.vue'),
@@ -32,9 +48,17 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
-  if (to.path !== '/login' && !token) {
+  const portalToken = localStorage.getItem('portal_token')
+  
+  // 管理员路由检查
+  if (to.path.startsWith('/') && to.path !== '/login' && !token) {
     next('/login')
-  } else {
+  } 
+  // Portal 路由检查
+  else if (to.path.startsWith('/portal') && to.path !== '/portal/login' && !portalToken) {
+    next('/portal/login')
+  }
+  else {
     next()
   }
 })
