@@ -97,6 +97,40 @@ function nextPeriod() {
   }
 }
 
+function onSelectEntry(entry: CalendarEntry) {
+  // Show entry detail
+  selectedDay.value = entry.air_date
+  selectedEntries.value = [entry]
+}
+
+function prevWeek() {
+  if (week.value > 1) week.value--
+  else {
+    if (month.value === 1) { year.value--; month.value = 12 }
+    else month.value--
+    week.value = 4
+  }
+}
+
+function nextWeek() {
+  if (week.value < 5) week.value++
+  else {
+    if (month.value === 12) { year.value++; month.value = 1 }
+    else month.value++
+    week.value = 1
+  }
+}
+
+function goToday() {
+  const now = new Date()
+  year.value = now.getFullYear()
+  month.value = now.getMonth() + 1
+  // Calculate week of month
+  const firstDay = new Date(year.value, month.value - 1, 1)
+  const dayOfMonth = now.getDate()
+  week.value = Math.ceil((dayOfMonth + firstDay.getDay()) / 7)
+}
+
 function onSelectDay(date: string, dayEntries: CalendarEntry[]) {
   selectedDay.value = date
   selectedEntries.value = dayEntries
