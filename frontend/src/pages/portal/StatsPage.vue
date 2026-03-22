@@ -1,36 +1,43 @@
 <template>
   <div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:16px">📊 观看统计</div>
+    <div class="page-title">
+      <IosIcon name="chart" :size="22" color="var(--brand)" />
+      <span>观看统计</span>
+    </div>
 
     <LoadingState v-if="loading" compact />
     <template v-else-if="stats">
 
-      <!-- 热度生物钟 -->
-      <n-card v-if="hasClock" title="🕐 观影生物钟" size="small" style="margin-bottom:16px">
+      <!-- 生物钟 -->
+      <n-card v-if="hasClock" size="small" style="margin-bottom: 16px">
+        <template #header><CardTitle icon="clock" title="观影生物钟" /></template>
         <HeatmapChart :data="stats.clock" height="200px" />
       </n-card>
 
       <!-- 播放趋势 -->
-      <n-card v-if="stats.trend?.length" title="📈 播放趋势" size="small" style="margin-bottom:16px">
-        <AreaChart :x-data="trendX" :series="[{ name: '播放次数', data: trendY }]" height="220px" />
+      <n-card v-if="stats.trend?.length" size="small" style="margin-bottom: 16px">
+        <template #header><CardTitle icon="chart" title="播放趋势" /></template>
+        <AreaChart :x-data="trendX" :series="[{ name: '播放次数', data: trendY }]" height="200px" />
       </n-card>
 
-      <!-- 设备分布 + 热门内容 -->
+      <!-- 双列：设备 + 热门 -->
       <div class="grid-2">
-        <n-card v-if="stats.devices?.length" title="📱 设备分布" size="small">
-          <PieChart :data="stats.devices.map(d => ({ name: d.device, value: d.count }))" height="260px" />
+        <n-card v-if="stats.devices?.length" size="small">
+          <template #header><CardTitle icon="device" title="设备分布" /></template>
+          <PieChart :data="stats.devices.map(d => ({ name: d.device, value: d.count }))" height="240px" />
         </n-card>
-
-        <n-card v-if="stats.top_media?.length" title="🔥 热门内容" size="small">
-          <BarChart :y-data="topNames" :data="topCounts" horizontal height="260px" color="#FF3B30" />
+        <n-card v-if="stats.top_media?.length" size="small">
+          <template #header><CardTitle icon="fire" title="热门内容" icon-color="#FF3B30" /></template>
+          <BarChart :y-data="topNames" :data="topCounts" horizontal height="240px" color="#FF3B30" />
         </n-card>
       </div>
 
       <!-- 最近观看 -->
-      <n-card v-if="stats.recent?.length" title="🕐 最近观看" size="small" style="margin-top:16px">
+      <n-card v-if="stats.recent?.length" size="small" style="margin-top: 16px">
+        <template #header><CardTitle icon="clock" title="最近观看" /></template>
         <div v-for="(r, i) in stats.recent.slice(0, 8)" :key="i" class="recent-row">
-          <div style="font-weight:500">{{ r.clean_name }}</div>
-          <div style="font-size:12px;color:var(--text-muted)">{{ r.device }} · {{ formatMin(r.play_duration) }} · {{ timeAgo(r.date_created) }}</div>
+          <div style="font-weight: 500">{{ r.clean_name }}</div>
+          <div style="font-size: 12px; color: var(--text-muted)">{{ r.device }} · {{ formatMin(r.play_duration) }} · {{ timeAgo(r.date_created) }}</div>
         </div>
       </n-card>
 
@@ -43,6 +50,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { NCard, NEmpty } from 'naive-ui'
 import LoadingState from '@/components/common/LoadingState.vue'
+import CardTitle from '@/components/common/CardTitle.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import HeatmapChart from '@/components/charts/HeatmapChart.vue'
 import PieChart from '@/components/charts/PieChart.vue'
 import AreaChart from '@/components/charts/AreaChart.vue'
@@ -66,7 +75,8 @@ onMounted(async () => { try { stats.value = (await portalApi.stats()).data ?? nu
 </script>
 
 <style scoped>
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.page-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .recent-row { padding: 8px 0; border-bottom: 0.5px solid var(--separator); }
 .recent-row:last-child { border-bottom: none; }
 </style>
