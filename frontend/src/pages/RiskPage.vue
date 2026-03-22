@@ -33,20 +33,27 @@
       </div>
     </section>
 
-    <!-- 并发限额设置 -->
+    <!-- 实时会话（可踢出） -->
     <section class="card" style="margin-bottom: 16px;">
       <div class="section-head">
-        <span class="section-title">⚙️ 默认并发限额</span>
+        <span class="section-title">🔴 实时播放会话</span>
+        <button class="btn btn-sm btn-ghost" @click="loadSessions">刷新</button>
       </div>
-      <div class="limit-row">
-        <span class="limit-label">每用户最大同时播放数</span>
-        <div class="limit-controls">
-          <button class="btn btn-sm" :disabled="concurrentLimit <= 1" @click="updateConcurrentLimit(concurrentLimit - 1)">−</button>
-          <span class="limit-num">{{ concurrentLimit }}</span>
-          <button class="btn btn-sm" :disabled="concurrentLimit >= 10" @click="updateConcurrentLimit(concurrentLimit + 1)">+</button>
+      <LoadingState v-if="sessionsLoading" height="80px" />
+      <EmptyState v-else-if="liveSessions.length === 0" title="暂无播放会话" desc="" />
+      <div v-else class="sessions-grid">
+        <div v-for="s in liveSessions" :key="s.Id" class="session-card card">
+          <div class="sc-header">
+            <span class="sc-user">{{ s.UserName || '未知' }}</span>
+            <span class="sc-client tag tag-blue">{{ s.Client || '' }}</span>
+          </div>
+          <div class="sc-media">{{ s.NowPlayingItem?.Name || '未知内容' }}</div>
+          <div class="sc-device">{{ s.DeviceName || '' }}</div>
+          <button class="btn btn-sm btn-danger" :disabled="kickingId === s.Id" @click="doKick(s.Id, s.UserName)">
+            {{ kickingId === s.Id ? '踢出中...' : '🚫 踢出播放' }}
+          </button>
         </div>
       </div>
-      <p class="limit-hint">天眼系统每 60 秒扫描一次，超过限额的用户将自动触发风控事件</p>
     </section>
 
     <!-- 客户端黑名单 -->
@@ -65,11 +72,10 @@
           <button class="btn btn-ghost btn-sm" @click="removeFromBlacklist(item)">移除</button>
         </div>
       </div>
-      <p class="limit-hint" style="margin-top: 8px;">命中黑名单的客户端会被自动踢出并删除设备，webhook 实时拦截</p>
     </section>
 
     <!-- 风控事件列表 -->
-    <section class="card">
+    <section class="card" style="margin-bottom: 16px;">
       <div class="section-head">
         <span class="section-title">📋 风控事件</span>
         <div class="filter-tabs">
@@ -95,10 +101,29 @@
           <div v-if="ev.status === 'open'" class="ev-actions">
             <button class="btn btn-sm btn-primary" :disabled="actioningId === ev.event_id" @click="handleAction(ev.event_id, 'resolve')">解决</button>
             <button class="btn btn-sm btn-ghost" :disabled="actioningId === ev.event_id" @click="handleAction(ev.event_id, 'ignore')">忽略</button>
+            <button v-if="ev.user_id" class="btn btn-sm btn-danger" :disabled="banningId === ev.user_id" @click="doBan(ev.user_id, ev.title)">
+              {{ banningId === ev.user_id ? '封禁中...' : '🚫 封禁' }}
+            </button>
           </div>
           <div v-else class="ev-status">
             <span class="tag" :class="ev.status === 'resolved' ? 'tag-green' : 'tag-gray'">{{ ev.status === 'resolved' ? '已解决' : '已忽略' }}</span>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 执法日志 -->
+    <section class="card">
+      <div class="section-head">
+        <span class="section-title">📝 执法日志</span>
+      </div>
+      <EmptyState v-if="actionLogs.length === 0" title="暂无执法记录" desc="" />
+      <div v-else class="log-list">
+        <div v-for="log in actionLogs" :key="log.id" class="log-item">
+          <span class="tag" :class="logTag(log.action)">{{ logLabel(log.action) }}</span>
+          <span class="log-target">{{ log.target }}</span>
+          <span class="log-reason">{{ log.reason }}</span>
+          <span class="log-time">{{ formatTime(log.created_at) }}</span>
         </div>
       </div>
     </section>
@@ -115,18 +140,28 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { riskApi } from '@/api/risk'
+import type { RiskActionLog } from '@/api/risk'
 import { systemApi } from '@/api/system'
+import apiClient from '@/api/client'
 
 const summary = ref<any>(null)
 const events = ref<any[]>([])
 const eventsLoading = ref(false)
 const loading = ref(false)
 const actioningId = ref<string | null>(null)
+const banningId = ref<string | null>(null)
+const kickingId = ref<string | null>(null)
 const blacklist = ref<string[]>([])
 const newBlacklistItem = ref('')
-const concurrentLimit = ref(2)
 const eventFilter = reactive({ status: 'open' })
 const toast = ref<{ message: string; type: string } | null>(null)
+
+// Live sessions
+const liveSessions = ref<any[]>([])
+const sessionsLoading = ref(false)
+
+// Action logs
+const actionLogs = ref<RiskActionLog[]>([])
 
 async function loadSummary() {
   loading.value = true
@@ -149,6 +184,55 @@ async function loadBlacklist() {
   } catch { blacklist.value = [] }
 }
 
+async function loadSessions() {
+  sessionsLoading.value = true
+  try {
+    const res = await apiClient.get('/dashboard/summary')
+    liveSessions.value = res.data?.data?.sessions ?? []
+    // Also get active sessions from Emby
+    const res2 = await apiClient.get('/system/sessions')
+    const embySessions = res2.data?.data ?? []
+    liveSessions.value = embySessions.filter((s: any) => s.NowPlayingItem)
+  } catch { liveSessions.value = [] }
+  finally { sessionsLoading.value = false }
+}
+
+async function loadActionLogs() {
+  try {
+    const res = await riskApi.logs(1, 20)
+    actionLogs.value = res.data?.items ?? []
+  } catch { actionLogs.value = [] }
+}
+
+async function doKick(sessionId: string, userName: string) {
+  kickingId.value = sessionId
+  try {
+    const res = await riskApi.kick(sessionId)
+    if (res.data?.success) {
+      showToast(`已踢出 ${userName || '会话'}`, 'success')
+      await loadSessions()
+      await loadActionLogs()
+    } else {
+      showToast('踢出失败', 'error')
+    }
+  } catch { showToast('踢出失败', 'error') }
+  finally { kickingId.value = null }
+}
+
+async function doBan(userId: string, title: string) {
+  banningId.value = userId
+  try {
+    const res = await riskApi.ban(userId)
+    if (res.data?.success) {
+      showToast(`已封禁用户`, 'success')
+      await loadAll()
+    } else {
+      showToast('封禁失败', 'error')
+    }
+  } catch { showToast('封禁失败', 'error') }
+  finally { banningId.value = null }
+}
+
 async function addToBlacklist() {
   const name = newBlacklistItem.value.trim()
   if (!name) return
@@ -168,12 +252,6 @@ async function removeFromBlacklist(name: string) {
   } catch { showToast('移除失败', 'error') }
 }
 
-async function updateConcurrentLimit(val: number) {
-  concurrentLimit.value = val
-  // TODO: 保存到后端 system settings
-  showToast(`默认并发限额已设为 ${val}`, 'success')
-}
-
 async function handleAction(id: string, action: string) {
   actioningId.value = id
   try {
@@ -184,10 +262,12 @@ async function handleAction(id: string, action: string) {
   finally { actioningId.value = null }
 }
 
-async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist()]) }
+async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist(), loadSessions(), loadActionLogs()]) }
 
 function severityTag(s: string) { return { high: 'tag-red', medium: 'tag-yellow', low: 'tag-blue' }[s] ?? 'tag-gray' }
 function severityLabel(s: string) { return { high: '高危', medium: '中危', low: '低危' }[s] ?? s }
+function logTag(a: string) { return { kick: 'tag-red', ban: 'tag-red', unban: 'tag-green' }[a] ?? 'tag-gray' }
+function logLabel(a: string) { return { kick: '踢出', ban: '封禁', unban: '解封' }[a] ?? a }
 function formatTime(iso: string) {
   const d = new Date(iso)
   const now = new Date()
@@ -216,11 +296,15 @@ onMounted(loadAll)
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
 .section-title { font-weight: 600; font-size: 14px; }
 
-.limit-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
-.limit-label { font-size: 13px; color: var(--text-soft); }
-.limit-controls { display: flex; align-items: center; gap: 12px; }
-.limit-num { font-size: 24px; font-weight: 700; min-width: 40px; text-align: center; }
-.limit-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+/* Sessions grid */
+.sessions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.session-card { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.sc-header { display: flex; align-items: center; justify-content: space-between; }
+.sc-user { font-weight: 600; font-size: 13px; }
+.sc-media { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-device { font-size: 11px; color: var(--text-muted); }
+.btn-danger { background: var(--danger); color: #fff; border: none; }
+.btn-danger:hover { opacity: 0.9; }
 
 .blacklist-add { display: flex; gap: 8px; }
 .bl-input { width: 180px; padding: 6px 10px; font-size: 13px; }
@@ -241,9 +325,16 @@ onMounted(loadAll)
 .ev-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .ev-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
 .ev-time { font-size: 11px; color: var(--text-muted); }
-.ev-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.ev-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 .ev-status { flex-shrink: 0; }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* Action logs */
+.log-list { display: flex; flex-direction: column; gap: 6px; }
+.log-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.log-target { font-weight: 500; }
+.log-reason { color: var(--text-muted); flex: 1; }
+.log-time { color: var(--text-muted); white-space: nowrap; }
 
 .toast { position: fixed; bottom: 32px; right: 32px; padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 9999; box-shadow: var(--shadow-lg); }
 .toast-success { background: var(--success-light); border: 1px solid var(--success); color: var(--success); }
@@ -259,5 +350,6 @@ onMounted(loadAll)
   .event-item { flex-direction: column; }
   .ev-actions { width: 100%; }
   .ev-actions .btn { flex: 1; }
+  .sessions-grid { grid-template-columns: 1fr; }
 }
 </style>
