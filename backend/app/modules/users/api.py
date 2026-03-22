@@ -9,7 +9,10 @@ from .service import UsersService
 from app.db.models.invite import UserOverride
 
 router = APIRouter(prefix="/users", tags=["users"])
+admin_router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
+
+# ─── 公共用户路由（需登录）───
 
 @router.get("", response_model=ApiResponse[UserListResponse])
 async def list_users(
@@ -31,9 +34,9 @@ async def update_user(user_id: str, body: UserUpdateRequest, db: AsyncSessionDep
     return ApiResponse.ok(data=await UsersService(db).update_user(user_id, body))
 
 
-# 添加到文件末尾（在现有路由之后）
+# ─── 管理员用户路由（需管理员）───
 
-@router.post("/create")
+@admin_router.post("/create")
 async def create_user(
     db: AsyncSessionDep,
     username: str = Body(...),
@@ -45,7 +48,6 @@ async def create_user(
     admin=Depends(get_current_admin),
 ):
     """手动创建 Emby 用户"""
-    from app.modules.users.service import UsersService
     svc = UsersService(db)
     try:
         result = await svc.create_user(
@@ -61,7 +63,7 @@ async def create_user(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{user_id}/permissions")
+@admin_router.get("/{user_id}/permissions")
 async def get_user_permissions(user_id: str, admin=Depends(get_current_admin)):
     """从 Emby 获取用户库权限"""
     from app.core.emby_users import EmbyUserService
@@ -74,7 +76,7 @@ async def get_user_permissions(user_id: str, admin=Depends(get_current_admin)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/{user_id}/permissions")
+@admin_router.put("/{user_id}/permissions")
 async def update_user_permissions(
     user_id: str,
     policy: dict = Body(...),
@@ -90,7 +92,7 @@ async def update_user_permissions(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{user_id}/override")
+@admin_router.get("/{user_id}/override")
 async def get_user_override(user_id: str, db: AsyncSessionDep, admin=Depends(get_current_admin)):
     """获取用户级覆盖配置"""
     result = await db.execute(select(UserOverride).where(UserOverride.emby_user_id == user_id))
@@ -98,7 +100,7 @@ async def get_user_override(user_id: str, db: AsyncSessionDep, admin=Depends(get
     return {"success": True, "data": override}
 
 
-@router.put("/{user_id}/override")
+@admin_router.put("/{user_id}/override")
 async def upsert_user_override(
     user_id: str,
     db: AsyncSessionDep,
@@ -110,12 +112,11 @@ async def upsert_user_override(
     admin=Depends(get_current_admin),
 ):
     """更新用户级覆盖配置"""
-    from app.db.models.invite import UserOverride
     from datetime import datetime, timezone
-    
+
     result = await db.execute(select(UserOverride).where(UserOverride.emby_user_id == user_id))
     override = result.scalar_one_or_none()
-    
+
     if override:
         if concurrent_limit is not None: override.concurrent_limit = concurrent_limit
         if max_bitrate is not None: override.max_bitrate = max_bitrate
@@ -134,12 +135,12 @@ async def upsert_user_override(
             updated_at=datetime.now(timezone.utc),
         )
         db.add(override)
-    
+
     await db.commit()
     return {"success": True}
 
 
-@router.post("/{user_id}/force-logout")
+@admin_router.post("/{user_id}/force-logout")
 async def force_logout_user(user_id: str, admin=Depends(get_current_admin)):
     """强制下线用户"""
     from app.core.emby_users import EmbyUserService
