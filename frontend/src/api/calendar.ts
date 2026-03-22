@@ -23,6 +23,21 @@ export interface CalendarStats {
   tracked_series: number
 }
 
+
+export interface WeekWaterfallItem {
+  dow: number
+  label: string
+  date: string
+  entries: CalendarEntry[]
+}
+
+export interface CalendarWeekData {
+  waterfall: WeekWaterfallItem[]
+  week_start: string
+  week_end: string
+  total: number
+}
+
 export const calendarApi = {
   async month(year: number, month: number): Promise<ApiResponse<CalendarMonthData>> {
     const res = await apiClient.get('/calendar/month', { params: { year, month } })
@@ -36,6 +51,11 @@ export const calendarApi = {
 
   async sync(): Promise<ApiResponse<{ synced: number }>> {
     const res = await apiClient.post('/calendar/sync')
+    return res.data
+  },
+
+  async week(year: number, month: number, week: number): Promise<ApiResponse<CalendarWeekData>> {
+    const res = await apiClient.get('/calendar/week', { params: { year, month, week } })
     return res.data
   },
 
