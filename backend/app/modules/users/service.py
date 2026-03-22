@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.emby_data import data as emby_data
 from app.core.exceptions import NotFoundError
 from .schemas import UserDetail, UserListItem, UserListResponse, UserUpdateRequest
+from app.db.models.user import User, UserProfile
 
 logger = logging.getLogger("app.users")
 
@@ -86,3 +87,48 @@ class UsersService:
     async def update_user(self, user_id: str, body: UserUpdateRequest) -> UserDetail:
         # 暂不支持写操作（需要扩展本地数据库）
         raise NotImplementedError("用户写操作待实现")
+
+    async def create_user(self, username: str, password: str | None = None, note: str | None = None, 
+                      expires_days: int | None = None, concurrent_limit: int | None = None,
+                      template_emby_user_id: str | None = None) -> dict:
+        """手动创建 Emby 用户 + 本地记录"""
+        from app.core.emby_users import EmbyUserService
+        from datetime import datetime, timedelta, timezone
+        
+        emby_svc = EmbyUserService()
+        
+        # 1. 创建 Emby 用户
+        emby_user = await emby_svc.create_emby_user(username, password)
+        emby_user_id = emby_user["Id"]
+        
+        # 2. 如果有模板用户，复制其权限
+        if template_emby_user_id:
+            template_policy = await emby_svc.get_user_policy(template_emby_user_id)
+            await emby_svc.update_user_policy(emby_user_id, template_policy)
+        
+        # 3. 创建本地用户记录
+        user = User(
+            emby_user_id=emby_user_id,
+            username=username,
+            role="user",
+            status="active",
+            source="manual",
+        )
+        self.db.add(user)
+        await self.db.flush()
+        
+        # 4. 创建 profile
+        expire_at = None
+        if expires_days and expires_days > 0:
+            expire_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
+        
+        profile = UserProfile(
+            user_id=user.id,
+            expire_at=expire_at,
+            note=note,
+            max_concurrent=concurrent_limit,
+        )
+        self.db.add(profile)
+        await self.db.commit()
+        
+        return {"user_id": user.id, "emby_user_id": emby_user_id, "username": username}
