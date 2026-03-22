@@ -41,7 +41,7 @@ async def create_user(
     expires_days: int | None = Body(None),
     concurrent_limit: int | None = Body(None),
     template_emby_user_id: str | None = Body(None),
-    db: AsyncSessionDep = Depends(),
+    db: AsyncSessionDep,
     admin=Depends(get_current_admin),
 ):
     """手动创建 Emby 用户"""
@@ -91,7 +91,7 @@ async def update_user_permissions(
 
 
 @router.get("/{user_id}/override")
-async def get_user_override(user_id: str, db: AsyncSessionDep = Depends(), admin=Depends(get_current_admin)):
+async def get_user_override(user_id: str, db: AsyncSessionDep, admin=Depends(get_current_admin)):
     """获取用户级覆盖配置"""
     result = await db.execute(select(UserOverride).where(UserOverride.emby_user_id == user_id))
     override = result.scalar_one_or_none()
@@ -106,7 +106,7 @@ async def upsert_user_override(
     allow_transcode: bool | None = Body(None),
     client_blacklist: list[str] | None = Body(None),
     note: str | None = Body(None),
-    db: AsyncSessionDep = Depends(),
+    db: AsyncSessionDep,
     admin=Depends(get_current_admin),
 ):
     """更新用户级覆盖配置"""
