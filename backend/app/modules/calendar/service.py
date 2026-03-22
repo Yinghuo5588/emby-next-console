@@ -69,16 +69,18 @@ class CalendarService:
             return 0
 
         count = 0
+        if isinstance(series_list, dict): series_list = series_list.get("Items", [])
         for series in series_list:
             series_id = series.get("Id")
             series_name = series.get("Name", "")
             try:
-                children = await emby.get_items(parent_id=series_id, include_item_types="Episode", fields="AirDate,Overview,ParentIndexNumber,IndexNumber,ImageTags", limit=200)
+                children = await emby.get_items(parent_id=series_id, include_item_types="Episode", fields="AirDate,PremiereDate,DateCreated,Overview,ParentIndexNumber,IndexNumber,ImageTags", limit=200)
             except Exception:
                 continue
 
+            if isinstance(children, dict): children = children.get("Items", [])
             for ep in children:
-                air_date_str = ep.get("AirDate")
+                air_date_str = ep.get("AirDate") or ep.get("PremiereDate") or ep.get("DateCreated")
                 if not air_date_str:
                     continue
                 try:
