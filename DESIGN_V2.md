@@ -883,6 +883,96 @@ class Announcement(Model):
 | 数据可视化 | 好看 | ✅ 对标，图表优先+动画过渡+移动端适配 |
 | 界面设计 | 好看 | ✅ iOS glassmorphism 风格，浅色/深色主题 |
 
+## 十、影视数据源方案
+
+### 三层数据源
+
+| 层 | 数据源 | 用途 |
+|----|--------|------|
+| 已入库内容 | Emby API | 标题、封面、元数据全部从 Emby 直接读 |
+| 未入库内容 | TMDB API (免费) | 搜索、上映日历、海报、详情 |
+| 封面缓存 | 本地 + CDN | TMDB 海报本地缓存，减少外部请求 |
+
+### TMDB 集成
+
+**申请：** https://www.themoviedb.org/settings/api → 免费 API Key
+
+**API 限制：** 40次/10秒，支持中文(zh-CN)
+
+**核心接口：**
+
+| 接口 | TMDB Endpoint | 用途 |
+|------|---------------|------|
+| 搜索影片 | `GET /search/movie?query=xxx` | 求片/订阅搜索 |
+| 搜索剧集 | `GET /search/tv?query=xxx` | 求片/订阅搜索 |
+| 电影详情 | `GET /movie/{id}` | 影片详情页 |
+| 剧集详情 | `GET /tv/{id}` | 剧集详情页(含季集列表) |
+| 某季集列表 | `GET /tv/{id}/season/{n}` | 缺集检测比对 |
+| 即将上映 | `GET /movie/upcoming` | 追剧日历 |
+| 正在播出 | `GET /tv/on_the_air` | 追剧日历 + 订阅同步 |
+| 海报图片 | `https://image.tmdb.org/t/p/w500/{path}` | 海报显示 |
+
+### 后端模块设计
+
+```
+backend/app/core/tmdb.py        ← TMDB 客户端
+├── search_movie(query, page)
+├── search_tv(query, page)
+├── get_movie(tmdb_id)
+├── get_tv(tmdb_id)
+├── get_tv_season(tmdb_id, season)
+├── upcoming_movies(page)
+├── on_the_air(page)
+├── poster_url(path, size)      ← size: w92/w185/w300/w500/w780/original
+└── backdrop_url(path, size)
+
+backend/app/modules/media/service.py  ← 媒体服务(依赖 tmdb.py)
+├── sync_library()                    同步 Emby 库到本地索引
+├── detect_missing_episodes()         缺集检测
+├── find_duplicates()                 去重分析
+└── get_calendar_data(start, end)     获取日历数据
+
+backend/app/modules/calendar/service.py  ← 日历服务
+├── get_month_view(year, month)       月视图数据
+├── get_upcoming()                    即将上映
+├── subscribe(user_id, tmdb_id)       用户订阅
+├── unsubscribe(user_id, tmdb_id)     取消订阅
+└── sync_subscriptions()              定时同步订阅更新
+```
+
+### 封面图策略
+
+| 场景 | 数据源 | URL 格式 |
+|------|--------|----------|
+| Emby 已入库 | Emby API | `PrimaryImageUrl` (Emby 自带) |
+| TMDB 搜索结果 | TMDB | `image.tmdb.org/t/p/w300/{poster_path}` |
+| 追剧日历 | TMDB | 同上，w185 缩略图 |
+| 用户海报生成 | TMDB + Emby | 组合渲染 |
+
+**封面缓存：** TMDB 海报 URL 通过后端代理缓存，避免直接引用外部 CDN：
+```
+GET /api/proxy/image?url=https://image.tmdb.org/t/p/w500/xxx.jpg
+→ 后端下载并缓存到本地/Redis
+→ 返回图片，设置长缓存头
+```
+
+### 定时任务（订阅同步）
+
+```
+Celery Beat / ARQ 定时任务：
+├── 每 6 小时：同步 on_the_air 剧集
+│   → 查 TMDB on_the_air → 对比 ContentSubscription
+│   → 发现新集数 → 触发用户通知
+│
+├── 每天 1 次：同步 upcoming 电影
+│   → 查 TMDB upcoming → 对比用户关注的电影
+│   → 上映日期到 → 触发通知
+│
+└── 每周 1 次：更新 Emby 库 TMDB ID 映射
+    → Emby Items → TMDB ID 对照表
+    → 用于交叉查询"这部剧在库里有没有"
+```
+
 ---
 
-**下一步：** 整合图图的反馈 → 定稿 → 按 Phase 开发
+**下一步：** 整合图图反馈 → 定稿 → 按 Phase 开发
