@@ -1,63 +1,52 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.session import get_db
+
+from app.db.session import AsyncSessionDep
 from app.core.dependencies import get_current_user_id
-from app.modules.calendar.service import CalendarService
+from app.shared.responses import ApiResponse
+from .schemas import CalendarMonthResponse, CalendarStatsResponse, CalendarWeekResponse
+from .service import CalendarService
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 
 
-@router.get("/month")
-async def get_month_entries(
+@router.get("/month", response_model=ApiResponse[CalendarMonthResponse])
+async def get_month(
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
-    admin=Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSessionDep = None,
+    _: str = Depends(get_current_user_id),
 ):
-    """获取指定月份的追剧日历条目"""
     svc = CalendarService(db)
-    return {"success": True, "data": await svc.get_month_entries(year, month)}
+    return ApiResponse.ok(data=await svc.get_month_entries(year, month))
+
+
+@router.get("/week", response_model=ApiResponse[CalendarWeekResponse])
+async def get_week(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    week: int = Query(..., ge=1, le=5),
+    db: AsyncSessionDep = None,
+    _: str = Depends(get_current_user_id),
+):
+    svc = CalendarService(db)
+    return ApiResponse.ok(data=await svc.get_week_entries(year, month, week))
 
 
 @router.get("/upcoming")
-async def get_upcoming(
-    days: int = Query(7, ge=1, le=30),
-    admin=Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-):
-    """获取未来 N 天的更新"""
+async def get_upcoming(days: int = Query(7, ge=1, le=30), db: AsyncSessionDep = None, _: str = Depends(get_current_user_id)):
     svc = CalendarService(db)
-    return {"success": True, "data": await svc.get_upcoming(days)}
+    return ApiResponse.ok(data=await svc.get_upcoming(days))
 
 
 @router.post("/sync")
-async def sync_from_emby(
-    admin=Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-):
-    """从 Emby 同步剧集日历"""
+async def sync_calendar(db: AsyncSessionDep = None, _: str = Depends(get_current_user_id)):
+    """从 TMDB 同步播出排期 + Emby 库对比"""
     svc = CalendarService(db)
-    count = await svc.sync_from_emby()
-    return {"success": True, "data": {"synced": count}}
+    synced = await svc.sync_from_tmdb()
+    return ApiResponse.ok(data={"synced": synced})
 
 
-@router.get("/stats")
-async def get_calendar_stats(
-    admin=Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-):
-    """日历统计 — 本月更新数、订阅数等"""
+@router.get("/stats", response_model=ApiResponse[CalendarStatsResponse])
+async def get_stats(db: AsyncSessionDep = None, _: str = Depends(get_current_user_id)):
     svc = CalendarService(db)
-    return {"success": True, "data": await svc.get_stats()}
-
-@router.get("/week")
-async def get_week_entries(
-    year: int = Query(...),
-    month: int = Query(..., ge=1, le=12),
-    week: int = Query(..., ge=1, le=5, description="本月第几周"),
-    admin=Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-):
-    """获取指定周的追剧日历条目"""
-    svc = CalendarService(db)
-    return {"success": True, "data": await svc.get_week_entries(year, month, week)}
+    return ApiResponse.ok(data=await svc.get_stats())
