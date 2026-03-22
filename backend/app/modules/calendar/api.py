@@ -49,3 +49,15 @@ async def get_calendar_stats(
     """日历统计 — 本月更新数、订阅数等"""
     svc = CalendarService(db)
     return {"success": True, "data": await svc.get_stats()}
+
+@router.get("/week")
+async def get_week_entries(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    week: int = Query(..., ge=1, le=5, description="本月第几周"),
+    admin=Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取指定周的追剧日历条目"""
+    svc = CalendarService(db)
+    return {"success": True, "data": await svc.get_week_entries(year, month, week)}
