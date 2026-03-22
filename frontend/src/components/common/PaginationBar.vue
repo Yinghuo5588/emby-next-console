@@ -8,7 +8,7 @@
       :page-size="pageSize"
       :item-count="total"
       :disabled="disabled"
-      @update:page="$emit('page-change', $event)"
+      @update:page="(p: number) => $emit('change', p)"
     />
   </div>
 </template>
