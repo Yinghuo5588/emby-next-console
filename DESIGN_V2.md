@@ -956,21 +956,57 @@ GET /api/proxy/image?url=https://image.tmdb.org/t/p/w500/xxx.jpg
 → 返回图片，设置长缓存头
 ```
 
-### 定时任务（订阅同步）
+### 定时任务与 Webhook（混合方案）
 
 ```
-Celery Beat / ARQ 定时任务：
-├── 每 6 小时：同步 on_the_air 剧集
-│   → 查 TMDB on_the_air → 对比 ContentSubscription
-│   → 发现新集数 → 触发用户通知
-│
-├── 每天 1 次：同步 upcoming 电影
-│   → 查 TMDB upcoming → 对比用户关注的电影
-│   → 上映日期到 → 触发通知
-│
-└── 每周 1 次：更新 Emby 库 TMDB ID 映射
-    → Emby Items → TMDB ID 对照表
-    → 用于交叉查询"这部剧在库里有没有"
+新集入库通知 → Emby Webhook（实时，核心）
+  → Emby Library Scan 发现新文件
+  → 发 Webhook: { Event: "library.new", Item: { Type, SeriesName, ParentIndexNumber, IndexNumber, ProviderIds: { Tmdb: "12345" } } }
+  → 后端收到 → 解析 tmdb_id → 查 ContentSubscription → 推送用户
+  → "📺《庆余年》S02E05 已入库！"
+
+即将上映日历 → TMDB 定时同步（每天 1 次，仅用于日历展示）
+  → 同步 upcoming 电影 + on_the_air 剧集
+  → 存入 CalendarEntry（tmdb_id, title, poster, release_date）
+  → 前端日历页面展示
+
+缺集检测 → 手动触发或每周（对比 Emby 库 vs TMDB 集列表）
+
+电影首播通知 → TMDB 定时同步 + 对比用户关注列表
+  → 关注的电影 release_date 到了 → 触发通知
+```
+
+**Webhook 事件处理（在现有 webhook/service.py 扩展）：**
+
+```python
+# webhook/service.py 中新增 library.new 处理
+async def handle_library_new(payload):
+    item = payload.get("Item", {})
+    tmdb_id = item.get("ProviderIds", {}).get("Tmdb")
+    item_type = item.get("Type")  # Episode / Movie
+    series_name = item.get("SeriesName")
+    season = item.get("ParentIndexNumber")
+    episode = item.get("IndexNumber")
+    
+    if item_type == "Episode" and tmdb_id:
+        # 查哪些用户订阅了这部剧
+        subs = await get_subscriptions(tmdb_id=tmdb_id, notify_on="new_episode")
+        for sub in subs:
+            await send_user_notification(
+                user_id=sub.emby_user_id,
+                template_vars={
+                    "series_name": series_name or item.get("Name"),
+                    "season_episode": f"S{season:02d}E{episode:02d}",
+                    "media_title": item.get("Name"),
+                },
+                channel=sub.channel  # 用户自选的通道
+            )
+    
+    elif item_type == "Movie" and tmdb_id:
+        # 查哪些用户关注了这部电影
+        subs = await get_subscriptions(tmdb_id=tmdb_id, notify_on="premiere")
+        for sub in subs:
+            await send_user_notification(...)
 ```
 
 ---
