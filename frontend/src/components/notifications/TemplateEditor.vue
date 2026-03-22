@@ -21,7 +21,7 @@
         <div style="font-weight:500">{{ t.title_template }}</div>
         <div style="color:var(--text-muted);margin-top:4px;white-space:pre-wrap">{{ t.body_template }}</div>
         <n-space v-if="t.variables?.length" size="small" style="margin-top:6px">
-          <n-tag v-for="v in t.variables" :key="v" size="tiny" round>{{ '{{' + v + '}}' }}</n-tag>
+          <n-tag v-for="v in t.variables" :key="v" size="tiny" round>{{ formatVar(v) }}</n-tag>
         </n-space>
       </div>
     </n-card>
@@ -62,6 +62,8 @@ const typeOptions = [
   { label: '系统通知', value: 'system' },
   { label: '欢迎', value: 'welcome' },
 ]
+
+function formatVar(v: string) { return '{{' + v + '}}' }
 
 function editTpl(t: NotificationTemplate) { editing.value = t; Object.assign(form, { name: t.name, template_type: t.template_type, title_template: t.title_template, body_template: t.body_template, variablesStr: t.variables?.join(', ') || '', is_default: t.is_default }); showEdit.value = true }
 async function saveTemplate() { const data = { ...form, variables: form.variablesStr.split(',').map(s => s.trim()).filter(Boolean) }; if (editing.value) await notificationsExtApi.updateTemplate(editing.value.id, data); else await notificationsExtApi.createTemplate(data); showEdit.value = false; msg.success('已保存'); await loadTemplates() }
