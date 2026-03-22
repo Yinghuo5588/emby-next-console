@@ -53,6 +53,14 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7L12 12L22 7L12 2Z"/><path d="M2 17L12 22L22 17"/><path d="M2 12L12 17L22 12"/></svg>
             <span>用户门户</span>
           </button>
+          <button class="more-item" @click="go('/tasks')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11L12 14L22 4"/><path d="M21 12V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H16"/></svg>
+            <span>任务中心</span>
+          </button>
+          <button class="more-item" @click="go('/poster')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15L16 10L5 21"/></svg>
+            <span>海报工坊</span>
+          </button>
           <button class="more-item" @click="go('/settings')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15C19.1278 15.6171 18.9788 16.3004 18.9788 17C18.9788 17.6996 19.1278 18.3829 19.4 19C19.5696 19.3875 19.8346 19.7229 20.1685 19.9674C20.5023 20.2119 20.8927 20.3568 21.3006 20.3872C21.7086 20.4175 22.1165 20.3322 22.4844 20.1404C22.8523 19.9486 23.1671 19.6571 23.3931 19.2971C23.6191 18.9371 23.7484 18.5214 23.7662 18.0939C23.784 17.6665 23.6898 17.2425 23.493 16.867C23.2963 16.4915 23.0038 16.1779 22.646 15.9573C22.2882 15.7368 21.8775 15.6171 21.4586 15.6115C21.0398 15.6059 20.6263 15.7146 20.2633 15.9254L19.4 15Z"/><path d="M4.6 9C4.87224 8.38295 5.02124 7.69964 5.02124 7C5.02124 6.30036 4.87224 5.61705 4.6 5C4.43042 4.61248 4.16536 4.27713 3.83153 4.03262C3.49769 3.78811 3.10732 3.64321 2.69938 3.61284C2.29144 3.58247 1.88354 3.66779 1.51562 3.85961C1.14769 4.05143 0.832935 4.34294 0.606918 4.70292C0.380901 5.0629 0.251564 5.4786 0.233775 5.90605C0.215985 6.3335 0.310175 6.75749 0.506953 7.133C0.703731 7.50852 0.996198 7.82213 1.35403 8.04272C1.71187 8.26331 2.12253 8.38295 2.5414 8.38855C2.96028 8.39415 3.37373 8.28544 3.73674 8.07465L4.6 9Z"/></svg>
             <span>设置</span>
