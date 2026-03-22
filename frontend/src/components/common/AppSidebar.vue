@@ -38,9 +38,6 @@
         </router-link>
       </template>
     </nav>
-        <router-link to="/admin/tasks" class="nav-item"><span class="nav-icon">📋</span><span>任务中心</span></router-link>
-    <router-link to="/admin/poster" class="nav-item"><span class="nav-icon">🖼️</span><span>海报工坊</span></router-link>
-  </nav>
     
     <div class="sidebar-footer">
       <button class="theme-toggle" @click="toggleTheme">
@@ -106,6 +103,8 @@ const navItems = [
   { to: '/calendar', label: '追剧日历', icon: CalendarIcon },
   { to: '/risk', label: 'Risk', icon: RiskIcon },
   { to: '/notifications', label: 'Notifications', icon: NotificationsIcon },
+  { to: '/tasks', label: '任务中心', icon: SettingsIcon },
+  { to: '/poster', label: '海报工坊', icon: SettingsIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
@@ -115,7 +114,6 @@ const toggleTheme = () => {
 }
 
 const handleLogout = () => {
-  // TODO: Implement logout logic
   router.push('/login')
 }
 </script>
@@ -136,171 +134,29 @@ const handleLogout = () => {
   z-index: 100;
   transition: transform 0.3s ease;
 }
-
-.sidebar-hidden {
-  transform: translateX(-100%);
-}
-
-.sidebar-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.logo-text {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.sidebar-nav {
-  flex: 1;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: all 0.2s;
-}
-
-.nav-item:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.nav-item.active {
-  background: var(--brand-light);
-  color: var(--brand);
-  font-weight: 500;
-}
-
-.nav-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.nav-text {
-  font-size: 0.95rem;
-}
-
-.nav-group {
-  margin-bottom: 0.25rem;
-}
-
-.nav-group-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.nav-group-header:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.nav-arrow {
-  margin-left: auto;
-  transition: transform 0.2s;
-}
-
-.nav-arrow-open {
-  transform: rotate(180deg);
-}
-
-.nav-submenu {
-  margin-left: 2.5rem;
-  margin-top: 0.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.nav-subitem {
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.nav-subitem:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.nav-subitem.active {
-  background: var(--brand-light);
-  color: var(--brand);
-  font-weight: 500;
-}
-
-.nav-subtext {
-  display: block;
-}
-
-.sidebar-footer {
-  padding: 1rem;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.theme-toggle,
-.logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  width: 100%;
-}
-
-.theme-toggle:hover,
-.logout-btn:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.theme-icon,
-.logout-icon {
-  width: 20px;
-  height: 20px;
-}
-
-@media (max-width: 767px) {
-  .sidebar {
-    transform: translateX(-100%);
-  }
-  
-  .sidebar-hidden {
-    transform: translateX(0);
-  }
-}
+.sidebar-hidden { transform: translateX(-100%); }
+.sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border); }
+.logo { display: flex; align-items: center; gap: 0.75rem; }
+.logo-text { font-size: 1.25rem; font-weight: 600; color: var(--text); }
+.sidebar-nav { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.nav-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 8px; color: var(--text-muted); text-decoration: none; transition: all 0.2s; }
+.nav-item:hover { background: var(--surface-hover); color: var(--text); }
+.nav-item.active { background: var(--brand-light); color: var(--brand); font-weight: 500; }
+.nav-icon { width: 20px; height: 20px; }
+.nav-text { font-size: 0.95rem; }
+.nav-group { margin-bottom: 0.25rem; }
+.nav-group-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 8px; color: var(--text-muted); cursor: pointer; transition: all 0.2s; }
+.nav-group-header:hover { background: var(--surface-hover); color: var(--text); }
+.nav-arrow { margin-left: auto; transition: transform 0.2s; }
+.nav-arrow-open { transform: rotate(180deg); }
+.nav-submenu { margin-left: 2.5rem; margin-top: 0.25rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.nav-subitem { padding: 0.5rem 0.75rem; border-radius: 6px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem; transition: all 0.2s; }
+.nav-subitem:hover { background: var(--surface-hover); color: var(--text); }
+.nav-subitem.active { background: var(--brand-light); color: var(--brand); font-weight: 500; }
+.nav-subtext { display: block; }
+.sidebar-footer { padding: 1rem; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.5rem; }
+.theme-toggle, .logout-btn { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 8px; background: transparent; border: none; color: var(--text-muted); font-size: 0.95rem; cursor: pointer; transition: all 0.2s; width: 100%; }
+.theme-toggle:hover, .logout-btn:hover { background: var(--surface-hover); color: var(--text); }
+.theme-icon, .logout-icon { width: 20px; height: 20px; }
+@media (max-width: 767px) { .sidebar { transform: translateX(-100%); } .sidebar-hidden { transform: translateX(0); } }
 </style>
