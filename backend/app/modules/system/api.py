@@ -94,3 +94,18 @@ async def remove_client_blacklist(app_name: str, db: AsyncSessionDep, _: str = D
         setting.updated_at = datetime.now(timezone.utc)
 
     return ApiResponse.ok(message=f"已从黑名单移除 {app_name}")
+
+
+# ── 实时会话 ─────────────────────────────────────────────
+
+@router.get("/sessions")
+async def get_active_sessions(_: str = Depends(get_current_user_id)):
+    """获取 Emby 实时播放会话"""
+    from app.core.emby import emby
+    try:
+        sessions = await emby.get_sessions(active_only=False)
+        # 只返回有播放内容的会话
+        active = [s for s in sessions if s.get("NowPlayingItem")]
+        return ApiResponse.ok(data=active)
+    except Exception:
+        return ApiResponse.ok(data=[])
