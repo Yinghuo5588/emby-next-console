@@ -204,6 +204,56 @@ class EmbyAdapter:
         return f"{self._host}/emby/Users/{user_id}/Images/Primary"
 
 
+
+    # ── 风控执法 ────────────────────────────────────────────────
+
+    async def kick_session(self, session_id: str, reason: str = "管理员强制中止播放") -> bool:
+        """踢出播放会话"""
+        try:
+            resp = await self.post(f"/Sessions/{session_id}/Playing/Stop", json={})
+            return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.error("踢出会话 %s 失败: %s", session_id, e)
+            return False
+
+    async def ban_user(self, user_id: str) -> bool:
+        """禁用用户"""
+        try:
+            resp = await self.get(f"/Users/{user_id}")
+            if resp.status_code != 200:
+                return False
+            policy = resp.json().get("Policy", {})
+            policy["IsDisabled"] = True
+            resp2 = await self.post(f"/Users/{user_id}/Policy", json=policy)
+            return resp2.status_code in (200, 204)
+        except Exception as e:
+            logger.error("封禁用户 %s 失败: %s", user_id, e)
+            return False
+
+    async def unban_user(self, user_id: str) -> bool:
+        """启用用户"""
+        try:
+            resp = await self.get(f"/Users/{user_id}")
+            if resp.status_code != 200:
+                return False
+            policy = resp.json().get("Policy", {})
+            policy["IsDisabled"] = False
+            resp2 = await self.post(f"/Users/{user_id}/Policy", json=policy)
+            return resp2.status_code in (200, 204)
+        except Exception as e:
+            logger.error("解封用户 %s 失败: %s", user_id, e)
+            return False
+
+    async def get_devices(self) -> list[dict]:
+        """获取设备列表"""
+        try:
+            resp = await self.get("/Devices")
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("Items", []) if isinstance(data, dict) else data
+        except Exception:
+            return []
+
 # ── 全局单例 ──────────────────────────────────────────────────
 
 emby = EmbyAdapter()
