@@ -10,6 +10,7 @@ export interface CalendarEntry {
   air_date: string
   backdrop_url: string | null
   overview: string
+  has_file: boolean
 }
 
 export interface CalendarMonthData {
