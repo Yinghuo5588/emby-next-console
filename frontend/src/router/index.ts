@@ -53,17 +53,28 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
   const portalToken = localStorage.getItem('portal_token')
-  
-  // 管理员路由检查
-  if (to.path.startsWith('/') && to.path !== '/login' && !token) {
-    next('/login')
-  } 
-  // Portal 路由检查
-  else if (to.path.startsWith('/portal') && to.path !== '/portal/login' && !portalToken) {
-    next('/portal/login')
-  }
-  else {
+
+  // Portal 路由（不以 / 开头检查，而是精确匹配 /portal 前缀）
+  if (to.path === '/portal/login') {
+    // 登录页放行
     next()
+  } else if (to.path.startsWith('/portal')) {
+    // Portal 其他页面需要 portal token
+    if (!portalToken) {
+      next('/portal/login')
+    } else {
+      next()
+    }
+  } else if (to.path === '/login' || to.path === '/') {
+    // 登录页和根路径放行
+    next()
+  } else {
+    // 管理员路由需要 admin token
+    if (!token) {
+      next('/login')
+    } else {
+      next()
+    }
   }
 })
 
