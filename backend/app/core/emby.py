@@ -188,12 +188,23 @@ class EmbyAdapter:
     async def auth_with_password(self, username: str, password: str) -> dict | None:
         """Emby 用户名密码登录认证"""
         try:
-            resp = await self._request(
-                "POST",
-                "/Users/AuthenticateByName",
+            client = await self._get_client()
+            url = self._build_url("/Users/AuthenticateByName")
+            headers = {
+                "X-Emby-Authorization": (
+                    'MediaBrowser Client="Emby Next Console",'
+                    'Device="Web",DeviceId="emby-next-console",'
+                    'Version="1.0.0"'
+                ),
+            }
+            resp = await client.post(
+                url,
                 json={"Username": username, "Pw": password},
-                auth=False,
+                headers=headers,
             )
+            if not resp.is_success:
+                body = await resp.aread()
+                logger.warning(f"Emby auth failed: {resp.status_code} body={body.decode('utf-8', errors='replace')}")
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
