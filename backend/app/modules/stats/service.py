@@ -207,9 +207,23 @@ async def get_genre_preference(days: int = 30) -> list[dict]:
     ]
 
 
-async def get_quality_analysis(days: int = 30) -> dict:
-    """转码率 + 分辨率分布"""
-    # 转码率：查最近会话
+# ── 质量盘点缓存（24h） ──────────────────────────────────
+_quality_cache: dict | None = None
+_quality_cache_time: float = 0
+_QUALITY_CACHE_TTL = 86400  # 24 小时
+
+
+async def get_quality_analysis(days: int = 30, force_refresh: bool = False) -> dict:
+    """质量盘点：分辨率 + 编码 + HDR + 转码率（参考 Emby Pulse）"""
+    import time
+    global _quality_cache, _quality_cache_time
+
+    now = time.time()
+    if not force_refresh and _quality_cache and (now - _quality_cache_time < _QUALITY_CACHE_TTL):
+        return _quality_cache
+
+    # 转码率：查当前会话
+    transcode_rate = 0.0
     try:
         resp = await emby.get("/Sessions")
         resp.raise_for_status()
@@ -218,42 +232,81 @@ async def get_quality_analysis(days: int = 30) -> dict:
         transcode = sum(1 for s in sessions if s.get("PlayState", {}).get("PlayMethod") == "Transcode")
         transcode_rate = round(transcode / total_s * 100, 1)
     except Exception:
-        transcode_rate = 0.0
-
-    # 分辨率分布：查媒体库
-    resolution_counts: dict[str, int] = {}
-    try:
-        resp = await emby.get("/Items", params={
-            "IncludeItemTypes": "Movie,Episode",
-            "Limit": 200,
-            "Fields": "MediaSources",
-        })
-        resp.raise_for_status()
-        for item in resp.json().get("Items", []):
-            for src in item.get("MediaSources", []):
-                for stream in src.get("MediaStreams", []):
-                    if stream.get("Type") == "Video":
-                        h = stream.get("Height", 0)
-                        if h >= 2160:
-                            res = "4K"
-                        elif h >= 1080:
-                            res = "1080p"
-                        elif h >= 720:
-                            res = "720p"
-                        else:
-                            res = "480p"
-                        resolution_counts[res] = resolution_counts.get(res, 0) + 1
-                        break
-    except Exception:
         pass
 
-    return {
+    # 扫描所有电影的 MediaStreams
+    stats: dict = {
+        "total_count": 0,
         "transcoding_rate": transcode_rate,
-        "resolution_dist": [
-            {"resolution": k, "count": v}
-            for k, v in sorted(resolution_counts.items(), key=lambda x: x[1], reverse=True)
-        ],
+        "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "resolution": {"4k": 0, "1080p": 0, "720p": 0, "sd": 0},
+        "codec": {"hevc": 0, "h264": 0, "av1": 0, "other": 0},
+        "hdr": {"dolby_vision": 0, "hdr10": 0, "sdr": 0},
     }
+
+    try:
+        resp = await emby.get("/Items", params={
+            "IncludeItemTypes": "Movie",
+            "Recursive": "true",
+            "Fields": "MediaSources,MediaStreams",
+        })
+        resp.raise_for_status()
+        items = resp.json().get("Items", [])
+        stats["total_count"] = len(items)
+
+        for item in items:
+            media_sources = item.get("MediaSources")
+            if not media_sources or not isinstance(media_sources, list):
+                continue
+
+            streams = media_sources[0].get("MediaStreams", [])
+            video_stream = next((s for s in streams if s.get("Type") == "Video"), None)
+            if not video_stream:
+                continue
+
+            width = video_stream.get("Width", 0) or 0
+            height = video_stream.get("Height", 0) or 0
+            if width == 0 and height == 0:
+                continue
+
+            # 分辨率
+            w = max(width, height)
+            if w >= 3800:
+                stats["resolution"]["4k"] += 1
+            elif w >= 1900:
+                stats["resolution"]["1080p"] += 1
+            elif w >= 1200:
+                stats["resolution"]["720p"] += 1
+            else:
+                stats["resolution"]["sd"] += 1
+
+            # 编码
+            codec = (video_stream.get("Codec") or "").lower()
+            if "hevc" in codec or "h265" in codec:
+                stats["codec"]["hevc"] += 1
+            elif "h264" in codec or "avc" in codec:
+                stats["codec"]["h264"] += 1
+            elif "av1" in codec:
+                stats["codec"]["av1"] += 1
+            else:
+                stats["codec"]["other"] += 1
+
+            # HDR
+            video_range = (video_stream.get("VideoRange") or "").lower()
+            display_title = (video_stream.get("DisplayTitle") or "").lower()
+            if "dolby" in display_title or "dv" in display_title or "dolby" in video_range:
+                stats["hdr"]["dolby_vision"] += 1
+            elif "hdr" in video_range or "hdr" in display_title or "pq" in video_range:
+                stats["hdr"]["hdr10"] += 1
+            else:
+                stats["hdr"]["sdr"] += 1
+
+    except Exception as e:
+        logger.warning("质量盘点扫描失败: %s", e)
+
+    _quality_cache = stats
+    _quality_cache_time = now
+    return stats
 
 
 async def get_badges(user_id: Optional[str] = None) -> list[dict]:
