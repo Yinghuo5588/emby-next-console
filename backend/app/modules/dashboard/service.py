@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache.redis import cache_get, cache_set
 from app.core.emby_data import data as emby_data
-from app.db.models.playback import PlaybackSession
+from app.db.models.playback import PlaybackSession, PlaybackEvent
 from app.db.models.notification import Notification
 from app.db.models.risk import RiskEvent
 from .schemas import (
@@ -82,9 +82,9 @@ async def _get_playback(db: AsyncSession) -> PlaybackData:
     )
     today_count = (await db.execute(stmt)).scalar() or 0
 
-    # 今日播放时长
-    dur_stmt = select(func.coalesce(func.sum(PlaybackSession.play_duration), 0)).where(
-        PlaybackSession.started_at >= today_start
+    # 今日播放时长（从 PlaybackEvent 表获取）
+    dur_stmt = select(func.coalesce(func.sum(PlaybackEvent.play_duration_sec), 0)).where(
+        PlaybackEvent.started_at >= today_start
     )
     today_duration = (await db.execute(dur_stmt)).scalar() or 0
 
