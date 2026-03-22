@@ -41,3 +41,21 @@ async def get_current_admin(
     if user.role != "admin":
         raise ForbiddenError("需要管理员权限")
     return user
+
+
+async def get_current_portal_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    """从 JWT 中提取 portal 用户的 emby_user_id"""
+    if not credentials:
+        raise UnauthorizedError()
+    try:
+        payload = decode_access_token(credentials.credentials)
+        if payload.get("type") != "portal":
+            raise ForbiddenError("需要 portal token")
+        emby_user_id = payload.get("sub")
+        if not emby_user_id:
+            raise UnauthorizedError("无效的 token")
+        return emby_user_id
+    except jwt.PyJWTError:
+        raise UnauthorizedError("Invalid or expired token")
