@@ -116,6 +116,54 @@ class CalendarService:
         await self.db.commit()
         return count
 
+
+    async def get_week_entries(self, year: int, month: int, week: int) -> dict:
+        """获取指定月份第 N 周的条目 (week 1-indexed)"""
+        import calendar as cal
+        from datetime import date as ddate
+        
+        # 计算该月第 N 周的日期范围
+        first_day = ddate(year, month, 1)
+        first_dow = first_day.weekday()  # 0=Monday
+        
+        # week 1 = 第1行 (周一到周日)
+        start = first_day - timedelta(days=first_dow) + timedelta(days=(week - 1) * 7)
+        end = start + timedelta(days=6)
+        
+        stmt = select(CalendarEntry).where(
+            and_(CalendarEntry.air_date >= start, CalendarEntry.air_date <= end)
+        ).order_by(CalendarEntry.air_date, CalendarEntry.series_name, CalendarEntry.episode_number)
+        result = await self.db.execute(stmt)
+        entries = result.scalars().all()
+
+        # 按星期几分组 (0=Monday)
+        by_dow: dict[int, list] = {i: [] for i in range(7)}
+        for e in entries:
+            dow = e.air_date.weekday()
+            by_dow[dow].append({
+                "id": e.id,
+                "emby_item_id": e.emby_item_id,
+                "series_name": e.series_name,
+                "season_number": e.season_number,
+                "episode_number": e.episode_number,
+                "episode_title": e.episode_title,
+                "air_date": e.air_date.isoformat(),
+                "backdrop_url": e.backdrop_url,
+                "overview": e.overview,
+            })
+        
+        dow_labels = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        waterfall = []
+        for i in range(7):
+            waterfall.append({
+                "dow": i,
+                "label": dow_labels[i],
+                "date": (start + timedelta(days=i)).isoformat(),
+                "entries": by_dow[i],
+            })
+        
+        return {"waterfall": waterfall, "week_start": start.isoformat(), "week_end": end.isoformat(), "total": len(entries)}
+
     async def get_stats(self) -> dict:
         """日历统计"""
         today = date.today()
