@@ -5,12 +5,32 @@ export interface PortalUser {
   username: string
   display_name: string
   is_admin: boolean
+  is_vip: boolean
+  max_concurrent: number
   avatar: string | null
 }
 
 export interface PortalStats {
-  active_sessions: number
-  now_playing: Array<{ device: string; item: string }>
+  overview: {
+    total_plays: number
+    total_duration: number
+    total_duration_hours: number
+    active_sessions: number
+  }
+  trend: Array<{ date: string; play_count: number; dur: number }>
+  top_media: Array<{ clean_name: string; play_count: number; total_duration: number; poster_url?: string; item_type?: string }>
+  recent: Array<{ date_created: string; clean_name: string; device: string; play_duration: number; poster_url?: string }>
+  devices: Array<{ device: string; count: number }>
+  clock: number[][]
+}
+
+export interface PortalBadge {
+  id: string
+  name: string
+  icon: string
+  color: string
+  bg: string
+  desc: string
 }
 
 export const portalApi = {
@@ -26,6 +46,11 @@ export const portalApi = {
 
   async stats(): Promise<ApiResponse<PortalStats>> {
     const res = await apiClient.get('/portal/me/stats')
+    return res.data
+  },
+
+  async badges(): Promise<ApiResponse<PortalBadge[]>> {
+    const res = await apiClient.get('/portal/me/badges')
     return res.data
   },
 
