@@ -14,12 +14,17 @@ depends_on = None
 
 
 def upgrade() -> None:
-    for table in ['invite_codes', 'permission_templates', 'invite_usages', 'user_overrides']:
+    # permission_templates 和 invite_codes: 有 created_at + updated_at
+    for table in ['permission_templates', 'invite_codes']:
         op.alter_column(table, 'created_at', server_default=sa.func.now())
         op.alter_column(table, 'updated_at', server_default=sa.func.now())
+    # user_overrides: 只有 updated_at
+    op.alter_column('user_overrides', 'updated_at', server_default=sa.func.now())
+    # invite_usages: 没有 created_at/updated_at，只有 used_at，跳过
 
 
 def downgrade() -> None:
-    for table in ['invite_codes', 'permission_templates', 'invite_usages', 'user_overrides']:
+    for table in ['permission_templates', 'invite_codes']:
         op.alter_column(table, 'created_at', server_default=None)
         op.alter_column(table, 'updated_at', server_default=None)
+    op.alter_column('user_overrides', 'updated_at', server_default=None)
