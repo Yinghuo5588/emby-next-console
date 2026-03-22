@@ -48,6 +48,16 @@ async def portal_stats(
     return {"success": True, "data": await svc.get_stats(user_id)}
 
 
+@router.get("/me/badges")
+async def portal_badges(
+    user_id: str = Depends(get_current_portal_user),
+    db: AsyncSessionDep = None,
+):
+    from app.modules.portal.service import PortalService
+    svc = PortalService(db)
+    return {"success": True, "data": await svc.get_badges(user_id)}
+
+
 @router.put("/me/profile")
 async def update_portal_profile(
     user_id: str = Depends(get_current_portal_user),
