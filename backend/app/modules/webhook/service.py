@@ -58,7 +58,7 @@ class WebhookService:
         if event_type in PLAYBACK_START:
             await self._handle_playback_start(user_info, item_info, session_info)
         elif event_type in PLAYBACK_STOP:
-            await self._handle_playback_stop(session_info)
+            await self._handle_playback_stop(session_info, item_info)
         elif event_type == "user.authenticated":
             await self._handle_user_login(user_info)
         elif event_type in NOTIFY_EVENTS:
@@ -110,9 +110,9 @@ class WebhookService:
             )
             self.db.add(session)
 
-    async def _handle_playback_stop(self, session_info: dict):
-        """播放停止 → 标记会话结束"""
-        from app.db.models.playback import PlaybackSession
+    async def _handle_playback_stop(self, session_info: dict, item_info: dict = None):
+        """播放停止 → 标记会话结束 + 写入 PlaybackEvent"""
+        from app.db.models.playback import PlaybackSession, PlaybackEvent
 
         session_id = session_info.get("Id")
         if not session_id:
@@ -127,6 +127,21 @@ class WebhookService:
             session.status = "ended"
             session.ended_at = now
             session.last_seen_at = now
+            
+            # 计算播放时长并写入 PlaybackEvent
+            duration = int((now - session.started_at).total_seconds())
+            if duration > 0 and session.user_id:
+                event = PlaybackEvent(
+                    user_id=session.user_id,
+                    media_id=session.media_id or "",
+                    media_name=session.media_name or "未知",
+                    media_type=item_info.get("Type", "Unknown") if item_info else "Unknown",
+                    play_duration_sec=duration,
+                    client_name=session.client_name,
+                    device_name=session.device_name,
+                    started_at=session.started_at,
+                )
+                self.db.add(event)
 
     async def _handle_user_login(self, user_info: dict):
         """用户登录 → 更新 last_login_at"""
