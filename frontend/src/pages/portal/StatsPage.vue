@@ -4,68 +4,69 @@
 
     <LoadingState v-if="loading" compact />
     <template v-else-if="stats">
-      <n-card v-if="hasClock" title="🕐 生物钟" size="small" style="margin-bottom:16px">
-        <div class="clock-grid">
-          <div class="clock-col" v-for="(col, hi) in clockCols" :key="hi">
-            <div v-for="(val, di) in col" :key="di" class="clock-cell" :style="{ background: cellColor(val) }" :title="`${hi}:00 ${dowLabels[di]} — ${val} 次`" />
-          </div>
-        </div>
-        <div class="clock-days"><span v-for="d in dowLabels" :key="d">{{ d }}</span></div>
+
+      <!-- 热度生物钟 -->
+      <n-card v-if="hasClock" title="🕐 观影生物钟" size="small" style="margin-bottom:16px">
+        <HeatmapChart :data="stats.clock" height="200px" />
       </n-card>
 
-      <n-card v-if="stats.devices?.length" title="📱 设备分布" size="small" style="margin-bottom:16px">
-        <div v-for="d in stats.devices" :key="d.device" class="bar-row">
-          <span class="bar-label">{{ d.device }}</span>
-          <n-progress :percentage="barPct(d.count)" :show-indicator="false" style="flex:1" />
-          <span class="bar-val">{{ d.count }}</span>
+      <!-- 播放趋势 -->
+      <n-card v-if="stats.trend?.length" title="📈 播放趋势" size="small" style="margin-bottom:16px">
+        <AreaChart :x-data="trendX" :series="[{ name: '播放次数', data: trendY }]" height="220px" />
+      </n-card>
+
+      <!-- 设备分布 + 热门内容 -->
+      <div class="grid-2">
+        <n-card v-if="stats.devices?.length" title="📱 设备分布" size="small">
+          <PieChart :data="stats.devices.map(d => ({ name: d.device, value: d.count }))" height="260px" />
+        </n-card>
+
+        <n-card v-if="stats.top_media?.length" title="🔥 热门内容" size="small">
+          <BarChart :y-data="topNames" :data="topCounts" horizontal height="260px" color="#FF3B30" />
+        </n-card>
+      </div>
+
+      <!-- 最近观看 -->
+      <n-card v-if="stats.recent?.length" title="🕐 最近观看" size="small" style="margin-top:16px">
+        <div v-for="(r, i) in stats.recent.slice(0, 8)" :key="i" class="recent-row">
+          <div style="font-weight:500">{{ r.clean_name }}</div>
+          <div style="font-size:12px;color:var(--text-muted)">{{ r.device }} · {{ formatMin(r.play_duration) }} · {{ timeAgo(r.date_created) }}</div>
         </div>
       </n-card>
 
-      <n-card v-if="stats.trend?.length" title="📈 播放趋势（30天）" size="small" style="margin-bottom:16px">
-        <div class="trend-bars">
-          <div v-for="t in stats.trend" :key="t.date" class="trend-item">
-            <div class="trend-bar" :style="{ height: trendPct(t.play_count) }"></div>
-            <div class="trend-label">{{ t.date.slice(5) }}</div>
-          </div>
-        </div>
-      </n-card>
-
-      <n-empty v-if="!stats.top_media?.length && !stats.recent?.length" description="看几部电影之后这里就会有内容啦" />
+      <n-empty v-if="!hasData" description="看几部电影之后这里就会有内容啦" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NCard, NProgress, NEmpty } from 'naive-ui'
+import { NCard, NEmpty } from 'naive-ui'
 import LoadingState from '@/components/common/LoadingState.vue'
+import HeatmapChart from '@/components/charts/HeatmapChart.vue'
+import PieChart from '@/components/charts/PieChart.vue'
+import AreaChart from '@/components/charts/AreaChart.vue'
+import BarChart from '@/components/charts/BarChart.vue'
 import { portalApi, type PortalStats } from '@/api/portal'
 
 const loading = ref(true)
 const stats = ref<PortalStats | null>(null)
-const dowLabels = ['一', '二', '三', '四', '五', '六', '日']
 
-const clockCols = computed(() => stats.value?.clock ?? [])
 const hasClock = computed(() => stats.value?.clock?.some(row => row.some(v => v > 0)) ?? false)
+const hasData = computed(() => hasClock.value || (stats.value?.top_media?.length ?? 0) > 0 || (stats.value?.recent?.length ?? 0) > 0)
+const trendX = computed(() => stats.value?.trend?.map(t => t.date.slice(5)) ?? [])
+const trendY = computed(() => stats.value?.trend?.map(t => t.play_count) ?? [])
+const topNames = computed(() => stats.value?.top_media?.slice(0, 10).map(m => m.clean_name) ?? [])
+const topCounts = computed(() => stats.value?.top_media?.slice(0, 10).map(m => m.play_count) ?? [])
 
-function cellColor(val: number) { if (val === 0) return 'var(--bg-secondary)'; if (val <= 2) return '#dbeafe'; if (val <= 5) return '#93c5fd'; if (val <= 10) return '#3b82f6'; return '#1d4ed8' }
-function barPct(val: number) { const max = Math.max(...(stats.value?.devices?.map(d => d.count) || [1])); return Math.round(val / max * 100) }
-const maxTrend = computed(() => Math.max(...(stats.value?.trend?.map(t => t.play_count) || [1]), 1))
-function trendPct(val: number) { return (val / maxTrend.value * 100) + '%' }
+function formatMin(seconds: number) { if (!seconds) return '0分钟'; const m = Math.round(seconds / 60); if (m < 60) return `${m}分钟`; return `${Math.floor(m / 60)}小时${m % 60 ? m % 60 + '分' : ''}` }
+function timeAgo(dateStr: string) { if (!dateStr) return ''; const d = new Date(dateStr.replace(' ', 'T')); const diff = Date.now() - d.getTime(); const min = Math.floor(diff / 60000); if (min < 60) return `${min}分钟前`; const h = Math.floor(min / 60); if (h < 24) return `${h}小时前`; return `${Math.floor(h / 24)}天前` }
 
 onMounted(async () => { try { stats.value = (await portalApi.stats()).data ?? null } finally { loading.value = false } })
 </script>
 
 <style scoped>
-.clock-grid { display: flex; gap: 2px; justify-content: center; }
-.clock-col { display: flex; flex-direction: column; gap: 2px; }
-.clock-cell { width: 12px; height: 12px; border-radius: 2px; }
-.clock-days { display: flex; justify-content: space-around; margin-top: 4px; font-size: 11px; color: var(--text-muted); }
-.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.bar-label { width: 80px; font-size: 13px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar-val { width: 40px; font-size: 13px; color: var(--text-muted); }
-.trend-bars { display: flex; align-items: flex-end; gap: 3px; height: 100px; }
-.trend-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
-.trend-bar { width: 100%; background: var(--brand); border-radius: 2px 2px 0 0; min-height: 2px; }
-.trend-label { font-size: 9px; color: var(--text-muted); margin-top: 2px; writing-mode: vertical-lr; transform: rotate(180deg); }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.recent-row { padding: 8px 0; border-bottom: 0.5px solid var(--separator); }
+.recent-row:last-child { border-bottom: none; }
 </style>
