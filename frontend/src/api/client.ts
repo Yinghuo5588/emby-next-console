@@ -22,7 +22,10 @@ const apiClient: AxiosInstance = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token')
+    // 优先读 portal_token，其次读 admin token
+    const portalToken = localStorage.getItem('portal_token')
+    const adminToken = localStorage.getItem('token')
+    const token = portalToken || adminToken
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -35,8 +38,12 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      if (typeof window !== 'undefined') {
+      const isPortal = window.location.pathname.startsWith('/portal')
+      if (isPortal) {
+        localStorage.removeItem('portal_token')
+        window.location.href = '/portal/login'
+      } else {
+        localStorage.removeItem('token')
         window.location.href = '/login'
       }
     }
