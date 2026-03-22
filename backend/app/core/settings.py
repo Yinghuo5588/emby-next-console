@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     EMBY_WEBHOOK_TOKEN: str = "embyconsole"
     DEFAULT_MAX_CONCURRENT: int = 2  # 默认并发限额
 
+    # TMDB
+    TMDB_API_KEY: str = ""
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
