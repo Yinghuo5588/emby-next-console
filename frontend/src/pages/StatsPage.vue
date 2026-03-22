@@ -121,23 +121,40 @@
 
     <!-- Tab 4: 质量 -->
     <div v-show="activeTab === 'quality'">
-      <div class="grid-2">
+      <div class="quality-summary">
+        <div class="stat-mini"><div class="sm-val">{{ quality?.total_count || 0 }}</div><div class="sm-label">电影总数</div></div>
+        <div class="stat-mini"><div class="sm-val">{{ quality?.transcoding_rate || 0 }}%</div><div class="sm-label">转码率</div></div>
+        <div class="stat-mini"><div class="sm-val">{{ quality?.scan_time?.slice(5, 16) || '-' }}</div><div class="sm-label">扫描时间</div></div>
+      </div>
+      <div class="grid-3">
         <div class="card">
-          <h4>分辨率分布</h4>
-          <div v-if="quality?.resolution_dist?.length">
-            <div v-for="r in quality.resolution_dist" :key="r.resolution" class="bar-row">
-              <span class="bar-label">{{ r.resolution }}</span>
-              <div class="bar-track"><div class="bar-fill" :style="{ width: barPct(r.count, quality.resolution_dist) }"></div></div>
-              <span class="bar-val">{{ r.count }}</span>
+          <h4>📐 分辨率分布</h4>
+          <div v-if="quality?.resolution">
+            <div v-for="(count, key) in quality.resolution" :key="key" class="bar-row">
+              <span class="bar-label">{{ resLabels[key] || key }}</span>
+              <div class="bar-track"><div class="bar-fill bar-blue" :style="{ width: pct(count, quality.resolution) }"></div></div>
+              <span class="bar-val">{{ count }}</span>
             </div>
           </div>
-          <EmptyState v-else title="暂无数据" />
         </div>
         <div class="card">
-          <h4>转码率</h4>
-          <div v-if="quality" style="text-align:center; padding: 24px;">
-            <div style="font-size: 36px; font-weight: 700; color: var(--brand);">{{ quality.transcoding_rate }}%</div>
-            <div class="muted">转码播放占比</div>
+          <h4>🎞️ 编码分布</h4>
+          <div v-if="quality?.codec">
+            <div v-for="(count, key) in quality.codec" :key="key" class="bar-row">
+              <span class="bar-label">{{ codecLabels[key] || key }}</span>
+              <div class="bar-track"><div class="bar-fill bar-green" :style="{ width: pct(count, quality.codec) }"></div></div>
+              <span class="bar-val">{{ count }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h4>🌈 HDR 分布</h4>
+          <div v-if="quality?.hdr">
+            <div v-for="(count, key) in quality.hdr" :key="key" class="bar-row">
+              <span class="bar-label">{{ hdrLabels[key] || key }}</span>
+              <div class="bar-track"><div class="bar-fill bar-purple" :style="{ width: pct(count, quality.hdr) }"></div></div>
+              <span class="bar-val">{{ count }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -185,6 +202,15 @@ function barPct(val: number, arr: { count: number }[]) {
   const max = Math.max(...arr.map(a => a.count), 1)
   return (val / max * 100) + '%'
 }
+
+function pct(val: number, obj: Record<string, number>) {
+  const max = Math.max(...Object.values(obj), 1)
+  return (val / max * 100) + '%'
+}
+
+const resLabels: Record<string, string> = { '4k': '4K UHD', '1080p': '1080p FHD', '720p': '720p HD', 'sd': 'SD 标清' }
+const codecLabels: Record<string, string> = { hevc: 'HEVC (H.265)', h264: 'H.264 (AVC)', av1: 'AV1', other: '其他' }
+const hdrLabels: Record<string, string> = { dolby_vision: 'Dolby Vision', hdr10: 'HDR10', sdr: 'SDR' }
 
 function formatDuration(min: number) {
   if (min < 60) return `${min}分钟`
@@ -237,11 +263,19 @@ onMounted(() => { refreshAll(); loadHistory() })
 .tab-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-muted); cursor: pointer; font-size: 13px; white-space: nowrap; }
 .tab-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.quality-summary { display: flex; gap: 12px; margin-bottom: 16px; }
+.stat-mini { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; text-align: center; }
+.sm-val { font-size: 22px; font-weight: 800; color: var(--brand); }
+.sm-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 .card h4 { margin: 0 0 12px; font-size: 15px; }
 .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .bar-label { width: 80px; font-size: 13px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-track { flex: 1; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; }
 .bar-fill { height: 100%; background: var(--brand); border-radius: 4px; min-width: 2px; transition: width 0.3s; }
+.bar-blue { background: #2563eb; }
+.bar-green { background: #16a34a; }
+.bar-purple { background: #9333ea; }
 .bar-val { width: 40px; font-size: 13px; color: var(--text-muted); }
 .genre-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .genre-item { padding: 4px 12px; border-radius: 16px; background: var(--bg-secondary); font-size: 13px; }
