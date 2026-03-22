@@ -51,7 +51,8 @@
     </n-card>
 
     <!-- 风控事件列表 -->
-    <n-card title="📋 风控事件" size="small" style="margin-bottom: 16px;">
+    <n-card size="small" style="margin-bottom: 16px;">
+      <template #header><CardTitle icon="alert" title="风控事件" /></template>
       <template #header-extra>
         <n-button-group size="small">
           <n-button v-for="s in ['', 'open', 'resolved', 'ignored']" :key="s" :type="eventFilter.status === s ? 'primary' : 'default'" @click="eventFilter.status = s; loadEvents()">
@@ -85,7 +86,8 @@
     </n-card>
 
     <!-- 执法日志 -->
-    <n-card title="📝 执法日志" size="small">
+    <n-card size="small">
+      <template #header><CardTitle icon="check" title="执法日志" /></template>
       <n-empty v-if="actionLogs.length === 0" description="暂无执法记录" />
       <div v-else class="log-list">
         <div v-for="log in actionLogs" :key="log.id" class="log-item">
@@ -103,6 +105,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { NCard, NButton, NButtonGroup, NTag, NInput, NInputGroup, NSpace, NEmpty, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
+import CardTitle from '@/components/common/CardTitle.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import { riskApi } from '@/api/risk'
