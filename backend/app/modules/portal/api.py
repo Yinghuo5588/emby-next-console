@@ -1,0 +1,76 @@
+from fastapi import APIRouter, Depends, HTTPException, Body
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.core.dependencies import get_current_portal_user
+from app.shared.responses import ApiResponse
+
+router = APIRouter(prefix="/portal", tags=["portal"])
+
+
+@router.post("/login")
+async def portal_login(
+    username: str = Body(...),
+    password: str = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """用户通过 Emby 账号登录门户，返回 portal JWT"""
+    from app.modules.portal.service import PortalService
+    svc = PortalService(db)
+    try:
+        result = await svc.login(username, password)
+        return {"success": True, "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@router.get("/me")
+async def portal_me(
+    user_id: str = Depends(get_current_portal_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前登录用户信息（合并本地 + Emby）"""
+    from app.modules.portal.service import PortalService
+    svc = PortalService(db)
+    return {"success": True, "data": await svc.get_me(user_id)}
+
+
+@router.get("/me/stats")
+async def portal_stats(
+    user_id: str = Depends(get_current_portal_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前用户观看统计"""
+    from app.modules.portal.service import PortalService
+    svc = PortalService(db)
+    return {"success": True, "data": await svc.get_stats(user_id)}
+
+
+@router.put("/me/profile")
+async def update_portal_profile(
+    user_id: str = Depends(get_current_portal_user),
+    db: AsyncSession = Depends(get_db),
+    display_name: str | None = Body(None),
+    avatar_url: str | None = Body(None),
+):
+    """更新用户资料"""
+    from app.modules.portal.service import PortalService
+    svc = PortalService(db)
+    await svc.update_profile(user_id, display_name=display_name, avatar_url=avatar_url)
+    return {"success": True}
+
+
+@router.post("/me/change-password")
+async def change_portal_password(
+    user_id: str = Depends(get_current_portal_user),
+    old_password: str = Body(...),
+    new_password: str = Body(...),
+):
+    """修改 Emby 密码"""
+    from app.core.emby_users import EmbyUserService
+    svc = EmbyUserService()
+    try:
+        await svc.change_password(user_id, old_password, new_password)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
