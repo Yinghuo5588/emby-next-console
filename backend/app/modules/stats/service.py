@@ -26,15 +26,37 @@ class StatsService:
             total_count = sum(t.get("play_count", 0) for t in trend)
             total_duration = sum(t.get("total_duration", 0) for t in trend)
             unique_users = sum(t.get("active_users", 0) for t in trend) // max(len(trend), 1)
-            return StatsOverview(
-                total_play_count=total_count,
-                total_play_duration_sec=total_duration,
-                unique_users=unique_users,
-                unique_media=0,
-            )
+            if total_count > 0:
+                return StatsOverview(
+                    total_play_count=total_count,
+                    total_play_duration_sec=total_duration,
+                    unique_users=unique_users,
+                    unique_media=0,
+                )
         except Exception as e:
-            logger.error("获取统计概览失败: %s", e)
-            return StatsOverview(total_play_count=0, total_play_duration_sec=0, unique_users=0, unique_media=0)
+            logger.warning("Emby playback stats failed, trying local: %s", e)
+        
+        # Fallback: 从本地 PlaybackEvent 表获取
+        try:
+            total_r = await self.db.execute(select(func.count()).select_from(PlaybackEvent))
+            total_count = total_r.scalar() or 0
+            if total_count > 0:
+                from datetime import timedelta
+                dur_r = await self.db.execute(
+                    select(func.coalesce(func.sum(PlaybackEvent.play_duration), 0))
+                )
+                users_r = await self.db.execute(
+                    select(func.count(func.distinct(PlaybackEvent.user_id)))
+                )
+                return StatsOverview(
+                    total_play_count=total_count,
+                    total_play_duration_sec=dur_r.scalar() or 0,
+                    unique_users=users_r.scalar() or 0,
+                    unique_media=0,
+                )
+        except Exception:
+            pass
+        return StatsOverview(total_play_count=0, total_play_duration_sec=0, unique_users=0, unique_media=0)
 
     async def get_top_users(self, limit: int = 10) -> list[TopUser]:
         try:
