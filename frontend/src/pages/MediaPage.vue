@@ -3,7 +3,8 @@
     <PageHeader title="媒体管理" desc="媒体库管理与 TMDB 发现" />
 
     <n-tabs v-model:value="activeTab" type="segment" size="small" style="margin-bottom: 16px;">
-      <n-tab-pane name="libraries" tab="📁 媒体库">
+      <n-tab-pane name="libraries">
+        <template #tab><IosIcon name="grid" :size="16" /> 媒体库</template>
         <LoadingState v-if="libsLoading" compact />
         <div v-else class="lib-grid">
           <n-card v-for="lib in libraries" :key="lib.id" size="small" style="text-align:center">
@@ -14,7 +15,8 @@
         </div>
       </n-tab-pane>
 
-      <n-tab-pane name="missing" tab="📋 缺集">
+      <n-tab-pane name="missing">
+        <template #tab><IosIcon name="check" :size="16" /> 缺集</template>
         <n-button type="primary" size="small" :loading="scanning" @click="scanMissing" style="margin-bottom:12px">🔍 扫描缺集</n-button>
         <LoadingState v-if="scanning" compact />
         <n-card v-for="m in missingList" :key="m.series_name" size="small" style="margin-bottom:8px">
@@ -24,7 +26,8 @@
         <n-empty v-if="!scanning && !missingList.length" description="点击扫描按钮检查剧集完整性" />
       </n-tab-pane>
 
-      <n-tab-pane name="duplicates" tab="🔁 去重">
+      <n-tab-pane name="duplicates">
+        <template #tab><IosIcon name="copy" :size="16" /> 去重</template>
         <n-button type="primary" size="small" :loading="dupScanning" @click="scanDuplicates" style="margin-bottom:12px">🔍 检测重复</n-button>
         <LoadingState v-if="dupScanning" compact />
         <n-card v-for="d in dupList" :key="d.name" size="small" style="margin-bottom:8px">
@@ -36,7 +39,8 @@
         <n-empty v-if="!dupScanning && !dupList.length" description="点击检测按钮查找重复媒体" />
       </n-tab-pane>
 
-      <n-tab-pane name="discover" tab="🔍 发现">
+      <n-tab-pane name="discover">
+        <template #tab><IosIcon name="search" :size="16" /> 发现</template>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
           <n-button-group size="small">
             <n-button :type="tmdbType === 'movie' ? 'primary' : 'default'" @click="tmdbType = 'movie'; loadUpcoming()">🎬 电影</n-button>
@@ -83,6 +87,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { NTabs, NTabPane, NCard, NButton, NButtonGroup, NTag, NInput, NSpace, NModal, NEmpty } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import { mediaApi } from '@/api/media'
 import type { Library, MissingEpisode, DuplicateItem, TMDBSearchResult, TMDBDetail } from '@/api/media'
