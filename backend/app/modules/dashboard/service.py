@@ -82,13 +82,19 @@ async def _get_playback(db: AsyncSession) -> PlaybackData:
     )
     today_count = (await db.execute(stmt)).scalar() or 0
 
+    # 今日播放时长
+    dur_stmt = select(func.coalesce(func.sum(PlaybackSession.play_duration), 0)).where(
+        PlaybackSession.started_at >= today_start
+    )
+    today_duration = (await db.execute(dur_stmt)).scalar() or 0
+
     # 当前活跃会话数
     active_stmt = select(func.count()).select_from(PlaybackSession).where(
         PlaybackSession.status == "active"
     )
     peak = (await db.execute(active_stmt)).scalar() or 0
 
-    return PlaybackData(today_play_count=today_count, peak_concurrent_today=peak)
+    return PlaybackData(today_play_count=today_count, today_play_duration_sec=today_duration, peak_concurrent_today=peak)
 
 
 async def _get_active_sessions(db: AsyncSession) -> list[SessionInfo]:
