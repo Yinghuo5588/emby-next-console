@@ -84,6 +84,49 @@ class RiskService:
         return _to_item(event)
 
 
+
+    async def log_action(self, action: str, target: str, reason: str) -> None:
+        """记录执法操作"""
+        from app.db.models.risk import RiskActionLog
+        log = RiskActionLog(
+            action=action,
+            target=target,
+            reason=reason,
+        )
+        self.db.add(log)
+        await self.db.commit()
+
+    async def get_action_logs(self, page: int = 1, page_size: int = 20) -> dict:
+        """获取执法日志"""
+        from app.db.models.risk import RiskActionLog
+        from sqlalchemy import func
+        
+        count_stmt = select(func.count()).select_from(RiskActionLog)
+        total = (await self.db.execute(count_stmt)).scalar() or 0
+        
+        stmt = (
+            select(RiskActionLog)
+            .order_by(RiskActionLog.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        rows = (await self.db.execute(stmt)).scalars().all()
+        
+        return {
+            "items": [
+                {
+                    "id": r.id,
+                    "action": r.action,
+                    "target": r.target,
+                    "reason": r.reason,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ],
+            "total": total,
+        }
+
+
 def _to_item(r: RiskEvent) -> RiskEventItem:
     return RiskEventItem(
         event_id=str(r.id),
