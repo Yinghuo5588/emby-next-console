@@ -196,7 +196,8 @@ class EmbyAdapter:
             )
             resp.raise_for_status()
             return resp.json()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Portal login failed for {username}: {e}")
             return None
 
     def get_user_image_url(self, user_id: str) -> str:
