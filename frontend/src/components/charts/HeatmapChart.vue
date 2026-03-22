@@ -1,77 +1,90 @@
 <template>
-  <div class="heatmap-container">
-    <canvas ref="canvasEl" :width="width" :height="height"></canvas>
-    <div class="hm-legend">
-      <span class="hm-legend-label">少</span>
-      <div class="hm-legend-blocks">
-        <span v-for="i in 5" :key="i" class="hm-block" :style="{ opacity: i * 0.2 }"></span>
-      </div>
-      <span class="hm-legend-label">多</span>
-    </div>
-    <div class="hm-labels-row">
-      <span></span>
-      <span v-for="d in weekDays" :key="d">{{ d }}</span>
-    </div>
-  </div>
+  <v-chart :option="chartOption" :autoresize="true" :style="{ width: '100%', height: height }" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { computed } from 'vue'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { HeatmapChart } from 'echarts/charts'
+import { CanvasRenderer } from 'echarts/renderers'
+import { GridComponent, TooltipComponent, VisualMapComponent } from 'echarts/components'
+import { useUiStore } from '@/stores/ui'
 
-const props = defineProps<{ data: number[][] }>() // 24 x 7
+use([HeatmapChart, CanvasRenderer, GridComponent, TooltipComponent, VisualMapComponent])
 
-const canvasEl = ref<HTMLCanvasElement | null>(null)
-const width = 320
-const height = 200
+const props = withDefaults(defineProps<{
+  data: number[][]
+  xLabels?: string[]
+  yLabels?: string[]
+  height?: string
+}>(), { height: '300px' })
 
-const weekDays = ['日', '一', '二', '三', '四', '五', '六']
-const cellW = Math.floor((width - 40) / 7)
-const cellH = Math.floor((height - 40) / 24)
+const uiStore = useUiStore()
 
-function draw() {
-  const canvas = canvasEl.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
+const defaultXLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
+const defaultYLabels = ['一', '二', '三', '四', '五', '六', '日']
 
-  ctx.clearRect(0, 0, width, height)
-
-  // Find max
-  let max = 0
-  for (const row of props.data) for (const v of row) if (v > max) max = v
-  if (max === 0) max = 1
-
-  // Draw cells
-  const offsetX = 30
-  const offsetY = 5
-  for (let h = 0; h < 24; h++) {
-    // Hour label
-    if (h % 3 === 0) {
-      ctx.fillStyle = '#999'
-      ctx.font = '10px sans-serif'
-      ctx.textAlign = 'right'
-      ctx.fillText(`${h}`, offsetX - 4, offsetY + h * cellH + cellH / 2 + 3)
-    }
-    for (let d = 0; d < 7; d++) {
-      const val = props.data[h]?.[d] ?? 0
-      const intensity = val / max
-      const alpha = intensity === 0 ? 0.05 : 0.15 + intensity * 0.85
-      ctx.fillStyle = `rgba(0, 122, 255, ${alpha})`
-      ctx.fillRect(offsetX + d * cellW + 1, offsetY + h * cellH + 1, cellW - 2, cellH - 2)
+const chartOption = computed(() => {
+  // data is grid[hour][dow], convert to [dow, hour, value] for ECharts
+  const heatData: [number, number, number][] = []
+  const grid = props.data
+  let maxVal = 0
+  for (let hour = 0; hour < 24; hour++) {
+    for (let dow = 0; dow < 7; dow++) {
+      const val = grid[hour]?.[dow] ?? 0
+      heatData.push([hour, dow, val])
+      if (val > maxVal) maxVal = val
     }
   }
-}
+  maxVal = Math.max(maxVal, 1)
 
-onMounted(() => { nextTick(draw) })
-watch(() => props.data, draw, { deep: true })
+  return {
+    tooltip: {
+      backgroundColor: uiStore.isDark ? 'rgba(44,44,46,0.95)' : 'rgba(255,255,255,0.95)',
+      borderColor: uiStore.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+      textStyle: { color: uiStore.isDark ? '#fff' : '#000', fontSize: 13 },
+      formatter: (p: any) => {
+        const hour = p.data[0]
+        const dow = p.data[1]
+        const val = p.data[2]
+        return `${defaultYLabels[dow]} ${hour}:00<br/>播放 <b>${val}</b> 次`
+      },
+    },
+    grid: { left: 36, right: 16, top: 8, bottom: 28 },
+    xAxis: {
+      type: 'category',
+      data: props.xLabels || defaultXLabels,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        color: uiStore.isDark ? '#8e8e93' : '#8e8e93',
+        fontSize: 10,
+        interval: 3,
+      },
+      splitArea: { show: false },
+    },
+    yAxis: {
+      type: 'category',
+      data: props.yLabels || defaultYLabels,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: uiStore.isDark ? '#8e8e93' : '#8e8e93', fontSize: 11 },
+      splitArea: { show: false },
+    },
+    visualMap: { show: false, min: 0, max: maxVal },
+    series: [{
+      type: 'heatmap',
+      data: heatData,
+      itemStyle: { borderRadius: 3 },
+      emphasis: {
+        itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.2)' },
+      },
+      color: uiStore.isDark
+        ? ['#000', '#0A84FF', '#34C759', '#FF9F0A', '#FF453A']
+        : ['#f2f2f7', '#007AFF', '#34C759', '#FF9500', '#FF3B30'],
+      itemStyle: { borderRadius: 4, borderWidth: 1, borderColor: uiStore.isDark ? '#1c1c1e' : '#fff' },
+    }],
+  }
+})
 </script>
-
-<style scoped>
-.heatmap-container { position: relative; }
-canvas { width: 100%; max-width: 320px; }
-.hm-legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; }
-.hm-legend-label { font-size: 10px; color: var(--text-muted); }
-.hm-legend-blocks { display: flex; gap: 2px; }
-.hm-block { width: 12px; height: 12px; background: rgb(0, 122, 255); border-radius: 2px; }
-.hm-labels-row { display: grid; grid-template-columns: 30px repeat(7, 1fr); font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 4px; }
-</style>
