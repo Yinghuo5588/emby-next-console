@@ -35,13 +35,13 @@ async def update_user(user_id: str, body: UserUpdateRequest, db: AsyncSessionDep
 
 @router.post("/create")
 async def create_user(
+    db: AsyncSessionDep,
     username: str = Body(...),
     password: str | None = Body(None),
     note: str | None = Body(None),
     expires_days: int | None = Body(None),
     concurrent_limit: int | None = Body(None),
     template_emby_user_id: str | None = Body(None),
-    db: AsyncSessionDep,
     admin=Depends(get_current_admin),
 ):
     """手动创建 Emby 用户"""
@@ -101,12 +101,12 @@ async def get_user_override(user_id: str, db: AsyncSessionDep, admin=Depends(get
 @router.put("/{user_id}/override")
 async def upsert_user_override(
     user_id: str,
+    db: AsyncSessionDep,
     concurrent_limit: int | None = Body(None),
     max_bitrate: int | None = Body(None),
     allow_transcode: bool | None = Body(None),
     client_blacklist: list[str] | None = Body(None),
     note: str | None = Body(None),
-    db: AsyncSessionDep,
     admin=Depends(get_current_admin),
 ):
     """更新用户级覆盖配置"""
