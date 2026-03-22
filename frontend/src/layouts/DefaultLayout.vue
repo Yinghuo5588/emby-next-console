@@ -20,14 +20,23 @@ const uiStore = useUiStore()
 <style scoped>
 .default-layout {
   min-height: 100vh;
+  background: var(--bg);
 }
 .main-content {
   padding: 20px;
+  padding-bottom: calc(var(--tab-height) + 20px);
   background: var(--bg);
+  min-height: 100vh;
 }
-@media (max-width: 767px) {
+@media (min-width: 769px) {
+  .main-content {
+    padding-bottom: 20px;
+  }
+}
+@media (max-width: 768px) {
   .main-content {
     padding: 12px;
+    padding-top: calc(var(--safe-top) + 12px);
     padding-bottom: calc(var(--tab-height) + 12px);
   }
 }
