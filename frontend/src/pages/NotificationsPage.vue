@@ -14,16 +14,20 @@
         </div>
         <NotificationList :items="notifications" :loading="loading" :error="error" :marking-id="markingId" :has-more="hasMore" :loading-more="loadingMore" @retry="loadNotifications" @mark-read="handleMarkRead" @load-more="loadMore" />
       </n-tab-pane>
-      <n-tab-pane name="channels" tab="📡 通道">
+      <n-tab-pane name="channels">
+        <template #tab><IosIcon name="link" :size="16" /> 通道</template>
         <ChannelConfig />
       </n-tab-pane>
-      <n-tab-pane name="templates" tab="📝 模板">
+      <n-tab-pane name="templates">
+        <template #tab><IosIcon name="save" :size="16" /> 模板</template>
         <TemplateEditor />
       </n-tab-pane>
-      <n-tab-pane name="rules" tab="⚙️ 规则">
+      <n-tab-pane name="rules">
+        <template #tab><IosIcon name="settings" :size="16" /> 规则</template>
         <RuleMatrix />
       </n-tab-pane>
-      <n-tab-pane name="logs" tab="📋 记录">
+      <n-tab-pane name="logs">
+        <template #tab><IosIcon name="check" :size="16" /> 记录</template>
         <div style="margin-bottom: 12px; display: flex; gap: 8px;">
           <n-select v-model:value="logFilter.status" :options="statusOptions" clearable placeholder="全部状态" size="small" style="width: 140px" />
           <n-select v-model:value="logFilter.eventType" :options="eventOptions" clearable placeholder="全部事件" size="small" style="width: 160px" />
@@ -53,6 +57,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { NTabs, NTabPane, NButton, NTag, NSelect, NCard, NEmpty } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ChannelConfig from '@/components/notifications/ChannelConfig.vue'
 import TemplateEditor from '@/components/notifications/TemplateEditor.vue'
