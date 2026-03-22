@@ -165,17 +165,17 @@ class StatsService:
 
     async def get_clock_heatmap(self, days: int = 30, user_id: Optional[str] = None) -> ClockHeatmapResponse:
         try:
-            query = text("""
+            query = f"""
                 SELECT EXTRACT(HOUR FROM started_at)::int as hour,
                        EXTRACT(DOW FROM started_at)::int as dow,
                        COUNT(*)::int as cnt
                 FROM playback_events
-                WHERE started_at >= NOW() - INTERVAL ':days days'
+                WHERE started_at >= NOW() - INTERVAL '{days} days'
                 GROUP BY hour, dow
                 ORDER BY hour, dow
-            """)
+            """
             
-            result = await self.db.execute(query, {"days": days})
+            result = await self.db.execute(text(query))
             rows = result.fetchall()
             
             # Initialize 24x7 grid
@@ -197,16 +197,16 @@ class StatsService:
 
     async def get_device_distribution(self, days: int = 30) -> List[DeviceDistributionItem]:
         try:
-            query = text("""
+            query = f"""
                 SELECT client_name as device, COUNT(*)::int as cnt
                 FROM playback_events
-                WHERE started_at >= NOW() - INTERVAL ':days days'
+                WHERE started_at >= NOW() - INTERVAL '{days} days'
                     AND client_name IS NOT NULL
                 GROUP BY client_name
                 ORDER BY cnt DESC
-            """)
+            """
             
-            result = await self.db.execute(query, {"days": days})
+            result = await self.db.execute(text(query))
             rows = result.fetchall()
             
             items = []
@@ -233,18 +233,18 @@ class StatsService:
 
     async def get_hot_rank(self, days: int = 30, limit: int = 20) -> List[HotRankItem]:
         try:
-            query = text("""
+            query = f"""
                 SELECT media_name as item_name,
                        COUNT(*)::int as play_count,
                        COUNT(DISTINCT user_id)::int as unique_users
                 FROM playback_events
-                WHERE started_at >= NOW() - INTERVAL ':days days'
+                WHERE started_at >= NOW() - INTERVAL '{days} days'
                 GROUP BY media_name
                 ORDER BY play_count DESC
-                LIMIT :limit
-            """)
+                LIMIT {limit}
+            """
             
-            result = await self.db.execute(query, {"days": days, "limit": limit})
+            result = await self.db.execute(text(query))
             rows = result.fetchall()
             
             items = []
@@ -262,18 +262,18 @@ class StatsService:
 
     async def get_duration_rank(self, days: int = 30, limit: int = 20) -> List[DurationRankItem]:
         try:
-            query = text("""
+            query = f"""
                 SELECT media_name as item_name,
                        SUM(play_duration_sec)::float / 60 as total_duration_min,
                        COUNT(*)::int as play_count
                 FROM playback_events
-                WHERE started_at >= NOW() - INTERVAL ':days days'
+                WHERE started_at >= NOW() - INTERVAL '{days} days'
                 GROUP BY media_name
                 ORDER BY total_duration_min DESC
-                LIMIT :limit
-            """)
+                LIMIT {limit}
+            """
             
-            result = await self.db.execute(query, {"days": days, "limit": limit})
+            result = await self.db.execute(text(query))
             rows = result.fetchall()
             
             items = []
@@ -291,20 +291,20 @@ class StatsService:
 
     async def get_user_rank(self, days: int = 30, limit: int = 20) -> List[UserRankItem]:
         try:
-            query = text("""
+            query = f"""
                 SELECT u.username,
                        COUNT(*)::int as play_count,
                        SUM(e.play_duration_sec)::float / 60 as total_duration_min,
                        MAX(e.started_at) as last_played
                 FROM playback_events e
                 LEFT JOIN users u ON e.user_id = u.id
-                WHERE e.started_at >= NOW() - INTERVAL ':days days'
+                WHERE e.started_at >= NOW() - INTERVAL '{days} days'
                 GROUP BY u.username, e.user_id
                 ORDER BY play_count DESC
-                LIMIT :limit
-            """)
+                LIMIT {limit}
+            """
             
-            result = await self.db.execute(query, {"days": days, "limit": limit})
+            result = await self.db.execute(text(query))
             rows = result.fetchall()
             
             items = []
