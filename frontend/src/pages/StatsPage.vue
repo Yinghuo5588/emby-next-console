@@ -2,273 +2,196 @@
   <div>
     <PageHeader title="数据分析" desc="多维度观看数据分析">
       <template #actions>
-        <select v-model="days" @change="refreshAll" class="days-select">
-          <option :value="7">近 7 天</option>
-          <option :value="30">近 30 天</option>
-          <option :value="90">近 90 天</option>
-        </select>
+        <n-select v-model:value="days" :options="daysOptions" size="small" style="width: 120px" @update:value="refreshAll" />
       </template>
     </PageHeader>
 
-    <!-- Tab 栏 -->
-    <div class="tab-bar">
-      <button v-for="t in tabs" :key="t.key" class="tab-btn" :class="{ active: activeTab === t.key }" @click="activeTab = t.key">
-        {{ t.icon }} {{ t.label }}
-      </button>
-    </div>
+    <n-tabs v-model:value="activeTab" type="segment" size="small" style="margin-bottom: 16px;">
+      <n-tab-pane name="overview" tab="📊 总览">
+        <div class="grid-2">
+          <n-card title="24H 观影生物钟" size="small">
+            <HeatmapChart v-if="heatmapData" :data="heatmapData" />
+            <n-empty v-else description="暂无数据" />
+          </n-card>
+          <n-card title="设备分布" size="small">
+            <div v-if="devices.length">
+              <div v-for="d in devices" :key="d.device" class="bar-row">
+                <span class="bar-label">{{ d.device }}</span>
+                <div class="bar-track"><div class="bar-fill" :style="{ width: barPct(d.count, devices) }"></div></div>
+                <span class="bar-val">{{ d.count }}</span>
+              </div>
+            </div>
+            <n-empty v-else description="暂无数据" />
+          </n-card>
+        </div>
+        <n-card title="类型偏好" size="small" style="margin-top: 16px;">
+          <div v-if="genres.length" class="genre-grid">
+            <n-tag v-for="g in genres" :key="g.genre" size="small" round>{{ g.genre }} {{ g.percentage }}%</n-tag>
+          </div>
+          <n-empty v-else description="暂无数据" />
+        </n-card>
+      </n-tab-pane>
 
-    <!-- Tab 1: 总览 -->
-    <div v-show="activeTab === 'overview'">
-      <div class="grid-2">
-        <div class="card">
-          <h4>24H 观影生物钟</h4>
-          <HeatmapChart v-if="heatmapData" :data="heatmapData" />
-          <EmptyState v-else title="暂无数据" />
-        </div>
-        <div class="card">
-          <h4>设备分布</h4>
-          <div v-if="devices.length">
-            <div v-for="d in devices" :key="d.device" class="bar-row">
-              <span class="bar-label">{{ d.device }}</span>
-              <div class="bar-track"><div class="bar-fill" :style="{ width: barPct(d.count, devices) }"></div></div>
-              <span class="bar-val">{{ d.count }}</span>
+      <n-tab-pane name="ranking" tab="🏆 排行">
+        <div class="grid-2">
+          <n-card title="热度排行" size="small">
+            <div v-if="hotRank.length">
+              <div v-for="(item, i) in hotRank" :key="i" class="rank-row">
+                <n-tag :type="i < 3 ? 'info' : 'default'" size="tiny" round>{{ i + 1 }}</n-tag>
+                <span class="rank-name">{{ item.item_name }}</span>
+                <span class="rank-val">{{ item.play_count }}次</span>
+              </div>
             </div>
-          </div>
-          <EmptyState v-else title="暂无数据" />
+            <n-empty v-else description="暂无数据" />
+          </n-card>
+          <n-card title="时长排行" size="small">
+            <div v-if="durationRank.length">
+              <div v-for="(item, i) in durationRank" :key="i" class="rank-row">
+                <n-tag :type="i < 3 ? 'info' : 'default'" size="tiny" round>{{ i + 1 }}</n-tag>
+                <span class="rank-name">{{ item.item_name }}</span>
+                <span class="rank-val">{{ formatDuration(item.total_duration_min) }}</span>
+              </div>
+            </div>
+            <n-empty v-else description="暂无数据" />
+          </n-card>
         </div>
-      </div>
-      <div class="card" style="margin-top: 16px;">
-        <h4>类型偏好</h4>
-        <div v-if="genres.length" class="genre-grid">
-          <div v-for="g in genres" :key="g.genre" class="genre-item">
-            <span class="genre-name">{{ g.genre }}</span>
-            <span class="genre-pct">{{ g.percentage }}%</span>
-          </div>
-        </div>
-        <EmptyState v-else title="暂无数据" />
-      </div>
-    </div>
+        <n-card title="用户排行" size="small" style="margin-top: 16px;">
+          <n-empty v-if="!userRank.length" description="暂无数据" />
+          <n-data-table v-else :columns="userColumns" :data="userRank" size="small" :bordered="false" />
+        </n-card>
+      </n-tab-pane>
 
-    <!-- Tab 2: 排行 -->
-    <div v-show="activeTab === 'ranking'">
-      <div class="grid-2">
-        <div class="card">
-          <h4>热度排行</h4>
-          <div v-if="hotRank.length">
-            <div v-for="(item, i) in hotRank" :key="i" class="rank-row">
-              <span class="rank-num" :class="{ top3: i < 3 }">{{ i + 1 }}</span>
-              <span class="rank-name">{{ item.item_name }}</span>
-              <span class="rank-val">{{ item.play_count }}次</span>
-            </div>
-          </div>
-          <EmptyState v-else title="暂无数据" />
-        </div>
-        <div class="card">
-          <h4>时长排行</h4>
-          <div v-if="durationRank.length">
-            <div v-for="(item, i) in durationRank" :key="i" class="rank-row">
-              <span class="rank-num" :class="{ top3: i < 3 }">{{ i + 1 }}</span>
-              <span class="rank-name">{{ item.item_name }}</span>
-              <span class="rank-val">{{ formatDuration(item.total_duration_min) }}</span>
-            </div>
-          </div>
-          <EmptyState v-else title="暂无数据" />
-        </div>
-      </div>
-      <div class="card" style="margin-top: 16px;">
-        <h4>用户排行</h4>
-        <div v-if="userRank.length">
-          <table>
-            <thead><tr><th>排名</th><th>用户</th><th>播放次数</th><th>总时长</th><th>最近播放</th></tr></thead>
-            <tbody>
-              <tr v-for="(u, i) in userRank" :key="i">
-                <td><span class="rank-num" :class="{ top3: i < 3 }">{{ i + 1 }}</span></td>
-                <td>{{ u.username }}</td>
-                <td>{{ u.play_count }}</td>
-                <td>{{ formatDuration(u.total_duration_min) }}</td>
-                <td class="muted">{{ new Date(u.last_played).toLocaleDateString('zh-CN') }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <EmptyState v-else title="暂无数据" />
-      </div>
-    </div>
+      <n-tab-pane name="history" tab="📋 历史">
+        <n-card size="small" style="padding: 0; overflow: auto;">
+          <LoadingState v-if="historyLoading" compact />
+          <n-empty v-else-if="!historyItems.length" description="暂无观看记录" />
+          <n-data-table v-else :columns="historyColumns" :data="historyItems" size="small" :bordered="false" />
+        </n-card>
+      </n-tab-pane>
 
-    <!-- Tab 3: 历史 -->
-    <div v-show="activeTab === 'history'">
-      <div class="card" style="padding: 0; overflow: auto;">
-        <LoadingState v-if="historyLoading" height="120px" />
-        <table v-else>
-          <thead><tr><th>用户</th><th>内容</th><th>设备</th><th>时间</th><th>时长</th><th>完成度</th></tr></thead>
-          <tbody>
-            <tr v-if="!historyItems.length"><td colspan="6" class="empty">暂无观看记录</td></tr>
-            <tr v-for="(h, i) in historyItems" :key="i">
-              <td>{{ h.user_name }}</td>
-              <td>{{ h.item_name }}</td>
-              <td class="muted">{{ h.device }}</td>
-              <td class="muted">{{ new Date(h.start_time).toLocaleString('zh-CN') }}</td>
-              <td>{{ h.duration_min }}分钟</td>
-              <td>
-                <div class="pct-bar"><div class="pct-fill" :style="{ width: h.pct_complete + '%' }"></div></div>
-                <span class="muted" style="margin-left:4px">{{ h.pct_complete }}%</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Tab 4: 质量 -->
-    <div v-show="activeTab === 'quality'">
-      <div class="quality-summary">
-        <div class="stat-mini"><div class="sm-val">{{ quality?.total_count || 0 }}</div><div class="sm-label">电影总数</div></div>
-        <div class="stat-mini"><div class="sm-val">{{ quality?.transcoding_rate || 0 }}%</div><div class="sm-label">转码率</div></div>
-        <div class="stat-mini"><div class="sm-val">{{ quality?.scan_time?.slice(5, 16) || '-' }}</div><div class="sm-label">扫描时间</div></div>
-      </div>
-      <div class="grid-3">
-        <div class="card">
-          <h4>📐 分辨率分布</h4>
-          <div v-if="quality?.resolution">
-            <div v-for="(count, key) in quality.resolution" :key="key" class="bar-row">
-              <span class="bar-label">{{ resLabels[key] || key }}</span>
-              <div class="bar-track"><div class="bar-fill bar-blue" :style="{ width: pct(count, quality.resolution) }"></div></div>
-              <span class="bar-val">{{ count }}</span>
-            </div>
-          </div>
+      <n-tab-pane name="quality" tab="🎬 质量">
+        <div class="quality-summary">
+          <StatCard label="电影总数" :value="quality?.total_count || 0" />
+          <StatCard label="转码率" :value="(quality?.transcoding_rate || 0) + '%'" :highlight="(quality?.transcoding_rate || 0) > 50" />
+          <StatCard label="扫描时间" :value="quality?.scan_time?.slice(5, 16) || '-'" />
         </div>
-        <div class="card">
-          <h4>🎞️ 编码分布</h4>
-          <div v-if="quality?.codec">
-            <div v-for="(count, key) in quality.codec" :key="key" class="bar-row">
-              <span class="bar-label">{{ codecLabels[key] || key }}</span>
-              <div class="bar-track"><div class="bar-fill bar-green" :style="{ width: pct(count, quality.codec) }"></div></div>
-              <span class="bar-val">{{ count }}</span>
+        <div class="grid-3">
+          <n-card title="📐 分辨率分布" size="small">
+            <div v-if="quality?.resolution">
+              <div v-for="(count, key) in quality.resolution" :key="key" class="bar-row">
+                <span class="bar-label">{{ resLabels[key] || key }}</span>
+                <div class="bar-track"><div class="bar-fill bar-blue" :style="{ width: pct(count, quality.resolution) }"></div></div>
+                <span class="bar-val">{{ count }}</span>
+              </div>
             </div>
-          </div>
-        </div>
-        <div class="card">
-          <h4>🌈 HDR 分布</h4>
-          <div v-if="quality?.hdr">
-            <div v-for="(count, key) in quality.hdr" :key="key" class="bar-row">
-              <span class="bar-label">{{ hdrLabels[key] || key }}</span>
-              <div class="bar-track"><div class="bar-fill bar-purple" :style="{ width: pct(count, quality.hdr) }"></div></div>
-              <span class="bar-val">{{ count }}</span>
+          </n-card>
+          <n-card title="🎞️ 编码分布" size="small">
+            <div v-if="quality?.codec">
+              <div v-for="(count, key) in quality.codec" :key="key" class="bar-row">
+                <span class="bar-label">{{ codecLabels[key] || key }}</span>
+                <div class="bar-track"><div class="bar-fill bar-green" :style="{ width: pct(count, quality.codec) }"></div></div>
+                <span class="bar-val">{{ count }}</span>
+              </div>
             </div>
-          </div>
+          </n-card>
+          <n-card title="🌈 HDR 分布" size="small">
+            <div v-if="quality?.hdr">
+              <div v-for="(count, key) in quality.hdr" :key="key" class="bar-row">
+                <span class="bar-label">{{ hdrLabels[key] || key }}</span>
+                <div class="bar-track"><div class="bar-fill bar-purple" :style="{ width: pct(count, quality.hdr) }"></div></div>
+                <span class="bar-val">{{ count }}</span>
+              </div>
+            </div>
+          </n-card>
         </div>
-      </div>
-    </div>
+      </n-tab-pane>
+    </n-tabs>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, h } from 'vue'
+import type { DataTableColumns } from 'naive-ui'
+import { NTabs, NTabPane, NCard, NTag, NSelect, NEmpty, NDataTable } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
+import StatCard from '@/components/common/StatCard.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
 import HeatmapChart from '@/components/charts/HeatmapChart.vue'
 import { analyticsApi } from '@/api/analytics'
 import type { ClockHeatmap, DeviceItem, GenreItem, HotRankItem, DurationRankItem, UserRankItem, QualityData, WatchHistoryItem } from '@/api/analytics'
 
 const days = ref(30)
 const activeTab = ref('overview')
-
-const tabs = [
-  { key: 'overview', icon: '📊', label: '总览' },
-  { key: 'ranking', icon: '🏆', label: '排行' },
-  { key: 'history', icon: '📋', label: '历史' },
-  { key: 'quality', icon: '🎬', label: '质量' },
-]
-
-// 总览数据
 const heatmapData = ref<number[][] | null>(null)
 const devices = ref<DeviceItem[]>([])
 const genres = ref<GenreItem[]>([])
-
-// 排行数据
 const hotRank = ref<HotRankItem[]>([])
 const durationRank = ref<DurationRankItem[]>([])
 const userRank = ref<UserRankItem[]>([])
-
-// 历史数据
 const historyItems = ref<WatchHistoryItem[]>([])
 const historyLoading = ref(false)
-
-// 质量数据
 const quality = ref<QualityData | null>(null)
 
-function barPct(val: number, arr: { count: number }[]) {
-  const max = Math.max(...arr.map(a => a.count), 1)
-  return (val / max * 100) + '%'
-}
+const daysOptions = [
+  { label: '近 7 天', value: 7 },
+  { label: '近 30 天', value: 30 },
+  { label: '近 90 天', value: 90 },
+]
 
-function pct(val: number, obj: Record<string, number>) {
-  const max = Math.max(...Object.values(obj), 1)
-  return (val / max * 100) + '%'
-}
+const userColumns: DataTableColumns = [
+  { title: '排名', key: 'rank', width: 60, render: (_r: any, i: number) => h(NTag, { type: i < 3 ? 'info' : 'default', size: 'tiny', round: true }, { default: () => i + 1 }) },
+  { title: '用户', key: 'username' },
+  { title: '播放次数', key: 'play_count', sorter: (a: any, b: any) => a.play_count - b.play_count },
+  { title: '总时长', key: 'total_duration_min', render: (r: any) => formatDuration(r.total_duration_min), sorter: (a: any, b: any) => a.total_duration_min - b.total_duration_min },
+  { title: '最近播放', key: 'last_played', render: (r: any) => new Date(r.last_played).toLocaleDateString('zh-CN') },
+]
+
+const historyColumns: DataTableColumns = [
+  { title: '用户', key: 'user_name', width: 100 },
+  { title: '内容', key: 'item_name', ellipsis: true },
+  { title: '设备', key: 'device', width: 100, ellipsis: true },
+  { title: '时间', key: 'start_time', width: 160, render: (r: any) => new Date(r.start_time).toLocaleString('zh-CN') },
+  { title: '时长', key: 'duration_min', width: 80, render: (r: any) => r.duration_min + '分钟' },
+  { title: '完成度', key: 'pct_complete', width: 100, render: (r: any) => r.pct_complete + '%' },
+]
+
+function barPct(val: number, arr: { count: number }[]) { const max = Math.max(...arr.map(a => a.count), 1); return (val / max * 100) + '%' }
+function pct(val: number, obj: Record<string, number>) { const max = Math.max(...Object.values(obj), 1); return (val / max * 100) + '%' }
+function formatDuration(min: number) { if (min < 60) return `${min}分钟`; return `${Math.floor(min / 60)}小时${min % 60 ? min % 60 + '分' : ''}` }
 
 const resLabels: Record<string, string> = { '4k': '4K UHD', '1080p': '1080p FHD', '720p': '720p HD', 'sd': 'SD 标清' }
 const codecLabels: Record<string, string> = { hevc: 'HEVC (H.265)', h264: 'H.264 (AVC)', av1: 'AV1', other: '其他' }
 const hdrLabels: Record<string, string> = { dolby_vision: 'Dolby Vision', hdr10: 'HDR10', sdr: 'SDR' }
 
-function formatDuration(min: number) {
-  if (min < 60) return `${min}分钟`
-  return `${Math.floor(min / 60)}小时${min % 60 ? min % 60 + '分' : ''}`
-}
-
 async function refreshAll() {
   const d = days.value
-  // 总览
-  const [hRes, devRes, genRes] = await Promise.all([
-    analyticsApi.clock24h(d),
-    analyticsApi.deviceDist(d),
-    analyticsApi.genrePreference(d),
+  const [hRes, devRes, genRes, hotRes, durRes, usrRes, qRes] = await Promise.all([
+    analyticsApi.clock24h(d), analyticsApi.deviceDist(d), analyticsApi.genrePreference(d),
+    analyticsApi.hotRank(d), analyticsApi.durationRank(d), analyticsApi.userRank(d),
+    analyticsApi.quality(d),
   ])
   heatmapData.value = hRes.data?.grid ?? null
   devices.value = devRes.data ?? []
   genres.value = genRes.data ?? []
-
-  // 排行
-  const [hotRes, durRes, usrRes] = await Promise.all([
-    analyticsApi.hotRank(d),
-    analyticsApi.durationRank(d),
-    analyticsApi.userRank(d),
-  ])
   hotRank.value = hotRes.data ?? []
   durationRank.value = durRes.data ?? []
   userRank.value = usrRes.data ?? []
-
-  // 质量
-  const qRes = await analyticsApi.quality(d)
   quality.value = qRes.data ?? null
 }
 
 async function loadHistory() {
   historyLoading.value = true
-  try {
-    const res = await analyticsApi.watchHistory({ days: days.value, page_size: 50 })
-    historyItems.value = res.data?.items ?? []
-  } finally {
-    historyLoading.value = false
-  }
+  try { const res = await analyticsApi.watchHistory({ days: days.value, page_size: 50 }); historyItems.value = res.data?.items ?? [] }
+  finally { historyLoading.value = false }
 }
 
 onMounted(() => { refreshAll(); loadHistory() })
 </script>
 
 <style scoped>
-.days-select { min-width: 100px; }
-.tab-bar { display: flex; gap: 4px; margin-bottom: 16px; overflow-x: auto; }
-.tab-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-muted); cursor: pointer; font-size: 13px; white-space: nowrap; }
-.tab-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 .grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.quality-summary { display: flex; gap: 12px; margin-bottom: 16px; }
-.stat-mini { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; text-align: center; }
-.sm-val { font-size: 22px; font-weight: 800; color: var(--brand); }
-.sm-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-.card h4 { margin: 0 0 12px; font-size: 15px; }
+.quality-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
 .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .bar-label { width: 80px; font-size: 13px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-track { flex: 1; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; }
@@ -278,17 +201,8 @@ onMounted(() => { refreshAll(); loadHistory() })
 .bar-purple { background: #9333ea; }
 .bar-val { width: 40px; font-size: 13px; color: var(--text-muted); }
 .genre-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-.genre-item { padding: 4px 12px; border-radius: 16px; background: var(--bg-secondary); font-size: 13px; }
-.genre-name { font-weight: 500; }
-.genre-pct { color: var(--text-muted); margin-left: 4px; }
 .rank-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .rank-row:last-child { border-bottom: none; }
-.rank-num { width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; background: var(--bg-secondary); }
-.rank-num.top3 { background: var(--brand); color: #fff; }
 .rank-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank-val { color: var(--text-muted); font-size: 13px; }
-.pct-bar { display: inline-block; width: 60px; height: 6px; background: var(--bg-secondary); border-radius: 3px; overflow: hidden; vertical-align: middle; }
-.pct-fill { height: 100%; background: var(--brand); border-radius: 3px; }
-.muted { color: var(--text-muted); font-size: 12px; }
-.empty { text-align: center; padding: 32px !important; color: var(--text-muted); }
 </style>
