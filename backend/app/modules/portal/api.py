@@ -12,13 +12,20 @@ async def portal_login(
     password: str = Body(...),
     db: AsyncSessionDep = None,
 ):
+    import logging
+    logger = logging.getLogger("app.portal")
     from app.modules.portal.service import PortalService
     svc = PortalService(db)
     try:
         result = await svc.login(username, password)
+        logger.info(f"Portal login success: {username}")
         return {"success": True, "data": result}
     except ValueError as e:
+        logger.warning(f"Portal login rejected: {username} - {e}")
         raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        logger.error(f"Portal login error for {username}: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"登录异常: {type(e).__name__}")
 
 
 @router.get("/me")
