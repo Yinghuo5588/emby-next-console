@@ -70,7 +70,7 @@ async def get_device_distribution(
     return ApiResponse.ok(data=await StatsService(db).get_device_distribution(days=days))
 
 
-@analytics_router.get("/genre-preference", response_model=ApiResponse[list[GenrePreferenceItem]])
+@analytics_router.get("/genre-preferences", response_model=ApiResponse[list[GenrePreferenceItem]])
 async def get_genre_preference(
     db: AsyncSessionDep,
     days: int = Query(30, ge=1, le=365),
