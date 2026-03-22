@@ -1,38 +1,50 @@
 <template>
   <div class="trakt-cal">
-    <!-- 周导航 -->
-    <div class="week-nav">
-      <button class="nav-btn" @click="$emit('prev')">‹</button>
-      <div class="week-range">{{ weekLabel }}</div>
-      <button class="nav-btn" @click="$emit('next')">›</button>
-      <button class="nav-btn today-btn" @click="$emit('today')">今天</button>
+    <!-- 顶部日期导航条 -->
+    <div class="date-nav">
+      <button class="nav-arrow" @click="$emit('prev')">‹</button>
+      <div class="date-pills">
+        <button
+          v-for="col in waterfall"
+          :key="col.dow"
+          class="date-pill"
+          :class="{
+            'is-today': col.date === todayStr,
+            'is-past': col.date < todayStr,
+          }"
+          @click="scrollToDay(col.dow)"
+        >
+          <span class="pill-weekday">{{ shortDay(col.label) }}</span>
+          <span class="pill-num" :class="{ 'num-today': col.date === todayStr }">{{ dayNum(col.date) }}</span>
+        </button>
+      </div>
+      <button class="nav-arrow" @click="$emit('next')">›</button>
     </div>
 
-    <!-- 7 列瀑布流 -->
-    <div class="week-grid">
+    <!-- 日期分组列表 -->
+    <div class="day-groups">
       <div
         v-for="col in waterfall"
         :key="col.dow"
-        class="day-col"
-        :class="{ 'is-today': col.date === todayStr, 'is-past': col.date < todayStr }"
+        :id="`day-${col.dow}`"
+        class="day-group"
       >
-        <!-- 日期标头 -->
-        <div class="day-header">
-          <div class="day-name">{{ col.label }}</div>
-          <div class="day-num" :class="{ 'num-today': col.date === todayStr }">{{ dayNum(col.date) }}</div>
-          <div v-if="col.entries.length" class="day-badge">{{ col.entries.length }}</div>
+        <!-- 组标题：周三 03-18 -->
+        <div class="group-header">
+          <span class="group-weekday">{{ col.label }}</span>
+          <span class="group-date">{{ formatDate(col.date) }}</span>
         </div>
 
-        <!-- 剧集列表 -->
-        <div class="day-entries">
+        <!-- 剧集条目列表 -->
+        <div v-if="col.entries.length" class="entry-list">
           <div
             v-for="e in col.entries"
             :key="e.id"
-            class="entry-card"
+            class="episode-card"
             @click="$emit('select', e)"
           >
-            <!-- 海报 -->
-            <div class="entry-poster">
+            <!-- 左侧竖版封面 -->
+            <div class="card-poster">
               <img
                 v-if="e.backdrop_url"
                 :src="e.backdrop_url"
@@ -40,37 +52,39 @@
                 loading="lazy"
               />
               <div v-else class="poster-placeholder">
-                {{ e.series_name?.charAt(0) || '?' }}
-              </div>
-              <!-- 状态指示灯 -->
-              <div class="status-dot" :class="statusClass(e)" :title="statusText(e)">
-                <span class="dot-inner"></span>
+                <span>{{ e.series_name?.charAt(0) || '?' }}</span>
               </div>
             </div>
 
-            <!-- 信息 -->
-            <div class="entry-info">
-              <div class="entry-series">{{ e.series_name }}</div>
-              <div class="entry-ep">
-                <span class="ep-tag">S{{ pad(e.season_number) }}E{{ pad(e.episode_number) }}</span>
-                <span v-if="e.episode_title" class="entry-title">{{ e.episode_title }}</span>
+            <!-- 右侧文字区 -->
+            <div class="card-body">
+              <!-- 顶部：剧名 + 日期 -->
+              <div class="card-top">
+                <h3 class="series-name">{{ e.series_name }}</h3>
+                <span class="update-date">{{ formatDate(e.air_date) }}</span>
               </div>
-            </div>
-          </div>
 
-          <!-- 空状态 -->
-          <div v-if="!col.entries.length" class="day-empty">
-            <span class="empty-icon">{{ col.date < todayStr ? '✓' : '·' }}</span>
-            <span>{{ col.date < todayStr ? '已过' : '暂无' }}</span>
+              <!-- 季集标签 -->
+              <div class="ep-tag">S{{ pad(e.season_number) }}E{{ pad(e.episode_number) }}</div>
+
+              <!-- 剧情简介 -->
+              <p v-if="e.episode_title" class="ep-title">{{ e.episode_title }}</p>
+              <p v-if="e.overview" class="ep-overview">{{ e.overview }}</p>
+
+              <!-- 底部状态标签 -->
+              <span class="status-badge" :class="statusClass(e)">{{ statusText(e) }}</span>
+            </div>
           </div>
         </div>
+
+        <!-- 空状态 -->
+        <div v-else class="day-empty">暂无更新</div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { WeekWaterfallItem, CalendarEntry } from '@/api/calendar'
 
 const props = defineProps<{
@@ -81,30 +95,26 @@ defineEmits<{
   select: [entry: CalendarEntry]
   prev: []
   next: []
-  today: []
 }>()
 
 const today = new Date()
 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-
-const weekLabel = computed(() => {
-  if (!props.waterfall.length) return ''
-  const s = props.waterfall[0].date
-  const e = props.waterfall[6]?.date || s
-  return `${formatMonthDay(s)} — ${formatMonthDay(e)}`
-})
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
 function dayNum(dateStr: string): string {
-  return dateStr.split('-')[2]
+  return parseInt(dateStr.split('-')[2]).toString()
 }
 
-function formatMonthDay(dateStr: string): string {
+function shortDay(label: string): string {
+  return label.slice(0, 1)
+}
+
+function formatDate(dateStr: string): string {
   const parts = dateStr.split('-')
-  return `${parseInt(parts[1])}月${parseInt(parts[2])}日`
+  return `${pad(parseInt(parts[1]))}-${pad(parseInt(parts[2]))}`
 }
 
 function statusClass(e: CalendarEntry): string {
@@ -116,258 +126,296 @@ function statusClass(e: CalendarEntry): string {
 
 function statusText(e: CalendarEntry): string {
   if (e.has_file) return '已入库'
-  if (e.air_date < todayStr) return '缺失'
-  if (e.air_date === todayStr) return '今日播出'
-  return '待播出'
+  if (e.air_date < todayStr) return '待补货'
+  if (e.air_date === todayStr) return '今日更新'
+  return '待更新'
+}
+
+function scrollToDay(dow: number) {
+  document.getElementById(`day-${dow}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 </script>
 
 <style scoped>
 .trakt-cal {
-  --cal-radius: 12px;
-  --cal-card-bg: var(--card-bg, #1a1a2e);
+  --cal-bg: var(--bg, #f5f5f5);
+  --cal-card: var(--card-bg, #ffffff);
+  --cal-text: var(--text, #1a1a1a);
+  --cal-muted: var(--text-muted, #8e8e93);
+  --cal-border: var(--border, rgba(0, 0, 0, 0.06));
+  --cal-brand: var(--brand, #2563eb);
+  --cal-brand-light: var(--brand-light, rgba(37, 99, 235, 0.08));
 }
 
-/* ── 周导航 ── */
-.week-nav {
+/* ── 顶部日期导航条 ── */
+.date-nav {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  justify-content: center;
+  gap: 4px;
+  padding: 12px 0;
+  margin-bottom: 20px;
 }
-.week-range {
-  font-size: 18px;
-  font-weight: 700;
-  min-width: 200px;
-  text-align: center;
-}
-.nav-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--text);
-  font-size: 18px;
+.nav-arrow {
+  width: 32px;
+  height: 48px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--cal-muted);
+  font-size: 20px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 8px;
   transition: all 0.15s;
 }
-.nav-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
-.today-btn {
-  width: auto;
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 600;
+.nav-arrow:hover {
+  background: var(--cal-brand-light);
+  color: var(--cal-brand);
 }
-
-/* ── 7 列网格 ── */
-.week-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  min-height: 400px;
+.date-pills {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+  justify-content: space-between;
 }
-
-/* ── 单日列 ── */
-.day-col {
-  background: var(--cal-card-bg);
-  border-radius: var(--cal-radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
+.date-pill {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  transition: border-color 0.2s;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 2px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: all 0.15s;
 }
-.day-col.is-today {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary), 0 4px 12px rgba(59, 130, 246, 0.15);
+.date-pill:hover {
+  background: var(--cal-brand-light);
 }
-.day-col.is-past { opacity: 0.7; }
-.day-col:hover { opacity: 1; }
-
-/* ── 日期标头 ── */
-.day-header {
-  padding: 10px 8px 8px;
-  text-align: center;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
-  position: relative;
-}
-.day-name {
+.pill-weekday {
   font-size: 11px;
   font-weight: 600;
+  color: var(--cal-muted);
   text-transform: uppercase;
-  color: var(--text-muted);
-  letter-spacing: 0.5px;
 }
-.day-num {
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.2;
-  margin-top: 2px;
-}
-.num-today {
-  color: var(--primary);
-  background: rgba(59, 130, 246, 0.1);
-  border-radius: 50%;
+.pill-num {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--cal-text);
   width: 36px;
   height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-}
-.day-badge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+.num-today {
+  background: var(--cal-brand);
+  color: #fff;
+}
+.is-past .pill-num {
+  color: var(--cal-muted);
+}
+.is-past .pill-weekday {
+  color: var(--cal-border);
 }
 
-/* ── 剧集列表 ── */
-.day-entries {
-  flex: 1;
-  padding: 6px;
+/* ── 日期分组 ── */
+.day-groups {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
+  gap: 28px;
+}
+.day-group {
+  scroll-margin-top: 80px;
+}
+.group-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--cal-border);
+}
+.group-weekday {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cal-text);
+}
+.group-date {
+  font-size: 13px;
+  color: var(--cal-muted);
+  font-weight: 500;
+}
+
+/* ── 剧集条目列表 ── */
+.entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* ── 单条剧集卡片 ── */
-.entry-card {
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bg);
-  border: 1px solid var(--border);
+.episode-card {
+  display: flex;
+  gap: 14px;
+  background: var(--cal-card);
+  border: 1px solid var(--cal-border);
+  border-radius: 12px;
+  padding: 12px;
   cursor: pointer;
   transition: all 0.2s;
 }
-.entry-card:hover {
-  border-color: var(--primary);
+.episode-card:hover {
+  border-color: var(--cal-brand);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-/* ── 海报区域 ── */
-.entry-poster {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
+/* ── 左侧竖版封面 ── */
+.card-poster {
+  width: 80px;
+  min-height: 110px;
+  flex-shrink: 0;
+  border-radius: 8px;
   overflow: hidden;
-  background: var(--bg-secondary);
+  background: var(--cal-bg);
 }
-.entry-poster img {
+.card-poster img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
+  display: block;
 }
-.entry-card:hover .entry-poster img { transform: scale(1.05); }
 .poster-placeholder {
   width: 100%;
   height: 100%;
+  min-height: 110px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  background: linear-gradient(135deg, var(--cal-brand-light), var(--cal-bg));
+  font-size: 28px;
   font-weight: 700;
-  color: var(--text-muted);
-  background: var(--bg-secondary);
+  color: var(--cal-brand);
 }
 
-/* ── 状态指示灯 ── */
-.status-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
+/* ── 右侧文字区 ── */
+.card-body {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(4px);
+  flex-direction: column;
+  gap: 6px;
 }
-.dot-inner {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
 }
-.status-ready .dot-inner { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-.status-missing .dot-inner { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
-.status-today .dot-inner { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
-.status-upcoming .dot-inner { background: #6b7280; }
+.series-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cal-text);
+  line-height: 1.3;
+  flex: 1;
+}
+.update-date {
+  font-size: 12px;
+  color: var(--cal-muted);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
 
-/* ── 信息区域 ── */
-.entry-info {
-  padding: 8px;
-}
-.entry-series {
+/* ── 季集标签 ── */
+.ep-tag {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px 8px;
+  background: var(--cal-brand-light);
+  color: var(--cal-brand);
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+}
+
+/* ── 剧情简介 ── */
+.ep-title {
+  font-size: 13px;
+  color: var(--cal-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+.ep-overview {
+  font-size: 12px;
+  color: var(--cal-muted);
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
-.entry-ep {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 3px;
+
+/* ── 状态标签 ── */
+.status-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  margin-top: auto;
 }
-.ep-tag {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--primary);
-  background: rgba(59, 130, 246, 0.1);
-  padding: 1px 5px;
-  border-radius: 4px;
-  flex-shrink: 0;
+.status-ready {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
 }
-.entry-title {
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.status-missing {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+.status-today {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+.status-upcoming {
+  background: var(--cal-bg);
+  color: var(--cal-muted);
 }
 
 /* ── 空状态 ── */
 .day-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 8px;
-  color: var(--text-muted);
-  font-size: 11px;
-  gap: 4px;
+  text-align: center;
+  padding: 20px;
+  color: var(--cal-muted);
+  font-size: 13px;
+  background: var(--cal-card);
+  border-radius: 12px;
+  border: 1px dashed var(--cal-border);
 }
-.empty-icon { font-size: 16px; }
 
 /* ── 移动端 ── */
 @media (max-width: 767px) {
-  .week-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px;
+  .card-poster {
+    width: 64px;
+    min-height: 90px;
   }
-  .entry-poster { aspect-ratio: 2 / 1; }
-  .week-range { font-size: 14px; min-width: 160px; }
+  .series-name {
+    font-size: 14px;
+  }
+  .episode-card {
+    padding: 10px;
+    gap: 10px;
+  }
+  .pill-num {
+    font-size: 16px;
+    width: 32px;
+    height: 32px;
+  }
 }
 </style>
