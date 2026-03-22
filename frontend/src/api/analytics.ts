@@ -35,8 +35,12 @@ export interface UserRankItem {
 }
 
 export interface QualityData {
-  resolution_dist: Array<{ resolution: string; count: number }>
+  total_count: number
   transcoding_rate: number
+  scan_time: string
+  resolution: { '4k': number; '1080p': number; '720p': number; 'sd': number }
+  codec: { hevc: number; h264: number; av1: number; other: number }
+  hdr: { dolby_vision: number; hdr10: number; sdr: number }
 }
 
 export interface WatchHistoryItem {
