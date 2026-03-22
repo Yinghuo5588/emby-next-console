@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache.redis import cache_get, cache_set
 from app.core.emby_data import data as emby_data
-from app.shared.schemas import ApiResponse
 
 logger = logging.getLogger("app.dashboard")
 
