@@ -87,7 +87,7 @@ export const statsApiV3 = {
   contentDetail: (item_id: string) => client.get(`/stats/content/${item_id}`),
   userRankings: (params: { period?: string; page?: number; size?: number }) =>
     client.get('/stats/user-rankings', { params }),
-  userDetail: (user_id: string) => client.get(`/stats/users/${user_id}`),
+  userDetail: (user_id: string, period: string = '7d') => client.get(`/stats/users/${user_id}`, { params: { period } }),
   heatmap: (period: string = '30d') => client.get('/stats/heatmap', { params: { period } }),
   deviceDist: (period: string = '30d', type: string = 'client') =>
     client.get('/stats/device-dist', { params: { period, type } }),
