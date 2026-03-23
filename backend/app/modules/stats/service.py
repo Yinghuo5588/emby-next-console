@@ -400,23 +400,41 @@ async def get_user_detail(user_id: str) -> dict:
             "poster_url": f"/api/proxy/smart_image?item_id={f['ItemId']}&type=Primary" if f.get("ItemId") else "",
         }
 
-    # 时段热力图
+    # 播放趋势（近30天按天）
+    trend_rows = await _query(
+        f"SELECT DATE(DateCreated) as label, "
+        f"COALESCE(SUM(PlayDuration), 0) as duration "
+        f"FROM PlaybackActivity WHERE {where} "
+        f"AND DateCreated >= date('now', '-30 days') "
+        f"GROUP BY label ORDER BY label"
+    )
+    trend = {r["label"]: round(r["duration"] / 3600, 1) for r in trend_rows} if trend_rows else {}
+
+    # 观影生物钟（二维热力图：day_of_week × hour）
     dc_rows = await _query(
         f"SELECT DateCreated FROM PlaybackActivity WHERE {where}"
     )
-    hourly = [0] * 24
+    # 热力图 [day_of_week][hour]，day 0=周一 ... 6=周日
+    heatmap = [[0] * 24 for _ in range(7)]
     for r in dc_rows:
         dc = r.get("DateCreated")
         if dc:
-            m = re.search(r"[T\s](\d{2}):", str(dc))
+            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
             if m:
-                h = int(m.group(1))
-                if 0 <= h < 24:
-                    hourly[h] += 1
+                from datetime import date as _d
+                dt = _d(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                dow = dt.weekday()  # 0=Mon
+                h = int(m.group(4))
+                if 0 <= h < 24 and 0 <= dow < 7:
+                    heatmap[dow][h] += 1
 
-    # 设备分布
-    dev_rows = await _query(
-        f"SELECT COALESCE(ClientName, DeviceName, '未知') as device, COUNT(*) as cnt "
+    # 设备分布：软件 + 硬件
+    client_rows = await _query(
+        f"SELECT COALESCE(ClientName, '未知') as device, COUNT(*) as cnt "
+        f"FROM PlaybackActivity WHERE {where} GROUP BY device ORDER BY cnt DESC LIMIT 5"
+    )
+    device_rows = await _query(
+        f"SELECT COALESCE(DeviceName, '未知') as device, COUNT(*) as cnt "
         f"FROM PlaybackActivity WHERE {where} GROUP BY device ORDER BY cnt DESC LIMIT 5"
     )
 
@@ -453,10 +471,11 @@ async def get_user_detail(user_id: str) -> dict:
             "tag": "电影党" if movie_plays > episode_plays else "追剧党" if episode_plays > 0 else "未知",
         },
         "top_fav": top_fav,
-        "hourly": hourly,
-        "devices": [{"device": r["device"], "count": r["cnt"]} for r in dev_rows],
+        "trend": trend,
+        "heatmap": heatmap,
+        "client_dist": [{"name": r["device"], "value": r["cnt"]} for r in client_rows],
+        "device_dist": [{"name": r["device"], "value": r["cnt"]} for r in device_rows],
         "recent_plays": recent,
-        "badges": badges,
     }
 
 
