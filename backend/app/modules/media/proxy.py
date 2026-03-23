@@ -39,8 +39,10 @@ def _extract_season_number(name: str) -> int | None:
 async def _get_real_image_id(item_id: str) -> str:
     """
     智能 ID 转换：把单集 ID 转成剧集/季 ID
-    解决剧集封面变单集截图的问题
+    参考 emby-pulse get_real_image_id_robust，三层兜底
+    失败返回原始 item_id（不是 None）
     """
+    # ── 第1层：逐个查询 Fields ──
     try:
         resp = await emby.get(f"/Items/{item_id}", params={"Fields": "SeriesId,ParentId,SeasonId"})
         if resp.status_code == 200:
@@ -66,7 +68,7 @@ async def _get_real_image_id(item_id: str) -> str:
     except Exception:
         pass
 
-    # 回退：查祖先
+    # ── 第2层：查祖先 ──
     try:
         resp = await emby.get(f"/Items/{item_id}/Ancestors")
         if resp.status_code == 200:
@@ -78,6 +80,17 @@ async def _get_real_image_id(item_id: str) -> str:
     except Exception:
         pass
 
+    # ── 第3层：Recursive 查询兜底 ──
+    try:
+        resp = await emby.get("/Items", params={"Ids": item_id, "Fields": "SeriesId", "Recursive": "true"})
+        if resp.status_code == 200:
+            items = resp.json().get("Items", [])
+            if items and items[0].get("SeriesId"):
+                return items[0]["SeriesId"]
+    except Exception:
+        pass
+
+    # 失败返回原始 ID
     return item_id
 
 
@@ -174,9 +187,8 @@ async def smart_image(
         pass
 
     # ── 第2级：Emby 内库搜索兜底 ──
+    # 优先从 name 参数取（前端传的），再从 Emby 获取
     clean_name = name.split(" - ")[0].strip() if name else ""
-
-    # 如果没有 name，从 Emby 获取
     if not clean_name:
         try:
             resp = await emby.get(f"/Items/{item_id}")
