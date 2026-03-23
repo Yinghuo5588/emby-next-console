@@ -68,10 +68,11 @@ export interface UserDetail {
   kpis: { total_plays: number; total_duration_hours: number; avg_session_min: number }
   preference: { movie_plays: number; episode_plays: number; tag: string }
   top_fav: { name: string; hours: number; poster_url: string } | null
-  hourly: number[]
-  devices: { device: string; count: number }[]
+  trend: Record<string, number>
+  heatmap: number[][]
+  client_dist: { name: string; value: number }[]
+  device_dist: { name: string; value: number }[]
   recent_plays: { name: string; item_id: string; date: string; duration_min: number; poster_url: string }[]
-  badges: Badge[]
 }
 
 export const statsApiV3 = {
@@ -81,7 +82,7 @@ export const statsApiV3 = {
     client.get('/stats/top-content', { params: { limit, period } }),
   topUsers: (limit: number = 5, period: string = '7d') =>
     client.get('/stats/top-users', { params: { limit, period } }),
-  contentRankings: (params: { type?: string; period?: string; sort?: string; page?: number; size?: number }) =>
+  contentRankings: (params: { type?: string; period?: string; sort?: string; page?: number; size?: number; user_id?: string }) =>
     client.get('/stats/content-rankings', { params }),
   contentDetail: (item_id: string) => client.get(`/stats/content/${item_id}`),
   userRankings: (params: { period?: string; page?: number; size?: number }) =>
@@ -90,4 +91,6 @@ export const statsApiV3 = {
   heatmap: (period: string = '30d') => client.get('/stats/heatmap', { params: { period } }),
   deviceDist: (period: string = '30d', type: string = 'client') =>
     client.get('/stats/device-dist', { params: { period, type } }),
+  searchUsers: (q: string) =>
+    client.get('/stats/search-users', { params: { q } }),
 }
