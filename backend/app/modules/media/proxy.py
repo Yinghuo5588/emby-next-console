@@ -159,7 +159,7 @@ async def smart_image(
 
     # ── 第1级：Emby 原生（带剧集 ID 转换）──
     target_id = await _get_real_image_id(item_id) if img_type.lower() == "primary" else item_id
-    logger.info(f"[smart_image] item_id={item_id} target_id={target_id} type={img_type} name={clean_name}")
+    logger.info(f"[smart_image] item_id={item_id} target_id={target_id} type={img_type} name={name or ''}")
 
     try:
         resp = await emby.get(f"/Items/{target_id}/Images/{img_type}", params=params)
