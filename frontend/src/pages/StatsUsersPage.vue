@@ -85,9 +85,15 @@
         <!-- 内容偏好 -->
         <div class="section-sub">
           <h4>内容偏好</h4>
-          <div class="pref-row">
-            <span class="pref-tag">{{ userDetail.preference.tag }}</span>
-            <span class="pref-stats">电影 {{ userDetail.preference.movie_plays }} · 剧集 {{ userDetail.preference.episode_plays }}</span>
+          <div class="pref-bar-wrap">
+            <div class="pref-bar">
+              <div class="pref-bar-fill movie" :style="{ width: moviePercent + '%' }"></div>
+              <div class="pref-bar-fill episode" :style="{ width: episodePercent + '%' }"></div>
+            </div>
+            <div class="pref-bar-legend">
+              <span class="legend-item"><span class="dot movie"></span>电影 {{ userDetail.preference.movie_plays }}</span>
+              <span class="legend-item"><span class="dot episode"></span>剧集 {{ userDetail.preference.episode_plays }}</span>
+            </div>
           </div>
           <div v-if="userDetail.top_fav" class="fav-item">
             <n-avatar :src="userDetail.top_fav.poster_url" :size="32" round />
@@ -193,6 +199,15 @@ const heatmapHasData = computed(() => {
   return hm?.some((row: number[]) => row.some((v: number) => v > 0))
 })
 
+const moviePercent = computed(() => {
+  if (!userDetail.value) return 0
+  const m = userDetail.value.preference.movie_plays || 0
+  const e = userDetail.value.preference.episode_plays || 0
+  const total = m + e
+  return total > 0 ? Math.round((m / total) * 100) : 0
+})
+const episodePercent = computed(() => 100 - moviePercent.value)
+
 function barWidth(val: number, max: number) { return max > 0 ? (val / max) * 100 : 0 }
 
 async function loadRankings() {
@@ -257,9 +272,16 @@ onMounted(loadRankings)
 .section-sub { margin-bottom: 1.25rem; }
 .section-sub h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--text); }
 .dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.pref-row { display: flex; align-items: center; gap: 0.75rem; }
-.pref-tag { display: inline-block; padding: 0.15rem 0.6rem; background: var(--brand); color: #fff; border-radius: 1rem; font-size: 0.75rem; font-weight: 600; }
-.pref-stats { font-size: 0.75rem; color: var(--text-muted); }
+.pref-bar-wrap { margin-bottom: 0.5rem; }
+.pref-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); }
+.pref-bar-fill { transition: width 0.4s ease; }
+.pref-bar-fill.movie { background: #ff9500; }
+.pref-bar-fill.episode { background: #34c759; }
+.pref-bar-legend { display: flex; gap: 1rem; margin-top: 0.4rem; }
+.legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--text-muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot.movie { background: #ff9500; }
+.dot.episode { background: #34c759; }
 .fav-item { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
 .fav-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
 .fav-sub { font-size: 0.7rem; color: var(--text-muted); }
