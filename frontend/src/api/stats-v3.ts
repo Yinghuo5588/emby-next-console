@@ -76,7 +76,7 @@ export interface UserDetail {
 }
 
 export const statsApiV3 = {
-  overview: () => client.get('/stats/overview'),
+  overview: (period: string = '30d') => client.get('/stats/overview', { params: { period } }),
   trend: (period: string = '30d') => client.get('/stats/trend', { params: { period } }),
   topContent: (limit: number = 5, period: string = '7d') =>
     client.get('/stats/top-content', { params: { limit, period } }),
