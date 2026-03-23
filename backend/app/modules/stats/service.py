@@ -67,7 +67,7 @@ async def _resolve_poster_ids(items: list[dict]) -> None:
         batch = id_list[i:i+50]
         ids_param = ",".join(batch)
         try:
-            resp = await emby.get("/Items", params={"Ids": ids_param})
+            resp = await emby.get("/Items", params={"Ids": ids_param, "Fields": "SeriesId,SeasonId,ParentId"})
             if resp.status_code == 200:
                 for e in resp.json().get("Items", []):
                     orig_id = str(e.get("Id", ""))
