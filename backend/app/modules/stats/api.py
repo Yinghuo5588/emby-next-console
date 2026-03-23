@@ -114,10 +114,11 @@ async def user_rankings(
 @router.get("/users/{user_id}")
 async def user_detail(
     user_id: str,
+    period: str = Query("7d", regex=r"^(7d|30d|90d|all)$"),
     _: str = Depends(get_current_user_id),
 ):
-    """单个用户画像：KPI + 偏好 + 趋势 + 热力图 + 设备"""
-    data = await service.get_user_detail(user_id)
+    """单个用户画像：KPI + 偏好 + 趋势 + 热力图 + 设备（按 period 筛选）"""
+    data = await service.get_user_detail(user_id, period=period)
     return ApiResponse.ok(data=data)
 
 
