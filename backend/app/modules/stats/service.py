@@ -344,10 +344,10 @@ async def get_user_rankings(
     return {"total": total, "items": page_items}
 
 
-async def get_user_detail(user_id: str) -> dict:
-    """单个用户画像"""
-    pf = "1=1"
-    where = f"UserId = '{user_id}'"
+async def get_user_detail(user_id: str, period: str = "7d") -> dict:
+    """单个用户画像 — 所有数据按 period 筛选"""
+    pf = _period_filter(period)
+    where = f"UserId = '{user_id}' AND {pf}"
 
     # KPI
     kpi_rows = await _query(
