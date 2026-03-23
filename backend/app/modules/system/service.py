@@ -46,8 +46,7 @@ class SystemService:
                     db_s = db_settings[item.setting_key]
                     if db_s.value_json is not None:
                         item.value = db_s.value_json
-                    elif db_s.value_str is not None:
-                        item.value = db_s.value_str
+                    # value_json only (no value_str column in model)
         except Exception:
             pass
 
@@ -65,19 +64,14 @@ class SystemService:
 
         now = datetime.now(timezone.utc)
         if setting:
-            if isinstance(value, str):
-                setting.value_str = value
-                setting.value_json = None
-            else:
-                setting.value_json = value
-                setting.value_str = None
+            # SystemSetting only has value_json (JSONB)
+            setting.value_json = value
             setting.updated_at = now
         else:
             setting = SystemSetting(
                 setting_key=key,
                 setting_group="general",
-                value_str=value if isinstance(value, str) else None,
-                value_json=value if not isinstance(value, str) else None,
+                value_json=value,
                 updated_at=now,
             )
             db.add(setting)
