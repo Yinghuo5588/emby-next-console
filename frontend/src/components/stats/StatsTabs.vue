@@ -30,7 +30,7 @@ const route = useRoute()
 const router = useRouter()
 
 const tabs = [
-  { key: 'overview', label: '总览', path: '/stats' },
+  { key: 'overview', label: '总览', path: '/stats', hasFilter: true },
   { key: 'content', label: '内容', path: '/stats/content', hasFilter: true },
   { key: 'users', label: '用户', path: '/stats/users' },
 ]
