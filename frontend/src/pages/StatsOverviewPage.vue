@@ -3,6 +3,15 @@
     <PageHeader title="分析总览" desc="一眼看全局" />
     <StatsTabs />
 
+    <!-- 统一时间筛选 -->
+    <div class="unified-filter">
+      <div class="segment-group">
+        <button v-for="p in periods" :key="p.value"
+          class="seg-btn" :class="{ active: period === p.value }"
+          @click="period = p.value">{{ p.label }}</button>
+      </div>
+    </div>
+
     <!-- KPI 卡片 -->
     <div class="kpi-grid" v-if="overview">
       <div class="kpi-card">
@@ -35,38 +44,26 @@
       </div>
     </div>
 
-    <!-- 播放趋势 — AreaChart 面积图 -->
+    <!-- 播放趋势 -->
     <div class="section-card">
-      <div class="section-header">
-        <h3 class="section-title">播放趋势</h3>
-        <div class="segment-group">
-          <button v-for="p in trendPeriods" :key="p.value"
-            class="seg-btn" :class="{ active: trendPeriod === p.value }"
-            @click="trendPeriod = p.value">{{ p.label }}</button>
-        </div>
-      </div>
+      <h3 class="section-title">播放趋势</h3>
       <AreaChart :xData="trendXData" :series="[{ name: '播放时长', data: trendYData }]" height="260px" />
     </div>
 
-    <!-- 热力图 + 设备分布 -->
-    <div class="split-row">
+    <!-- 热力图 + 软件分布 + 硬件分布 -->
+    <div class="three-col">
       <div class="section-card">
-        <div class="section-header">
-          <h3 class="section-title">观影生物钟</h3>
-          <div class="segment-group sm">
-            <button v-for="p in heatPeriods" :key="p.value"
-              class="seg-btn" :class="{ active: heatPeriod === p.value }"
-              @click="heatPeriod = p.value">{{ p.label }}</button>
-          </div>
-        </div>
+        <h3 class="section-title">观影生物钟</h3>
         <HeatmapChart :data="heatmapData" height="240px" />
       </div>
-
       <div class="section-card">
-        <div class="section-header">
-          <h3 class="section-title">设备分布</h3>
-        </div>
-        <PieChart v-if="deviceData.length > 0" :data="deviceData" height="240px" />
+        <h3 class="section-title">软件分布</h3>
+        <PieChart v-if="clientDist.length > 0" :data="clientDist" height="240px" />
+        <div v-else class="empty-chart">暂无数据</div>
+      </div>
+      <div class="section-card">
+        <h3 class="section-title">硬件分布</h3>
+        <PieChart v-if="hardwareDist.length > 0" :data="hardwareDist" height="240px" />
         <div v-else class="empty-chart">暂无数据</div>
       </div>
     </div>
@@ -74,14 +71,7 @@
     <!-- Top 5 内容 + Top 5 用户 -->
     <div class="split-row">
       <div class="section-card">
-        <div class="section-header">
-          <h3 class="section-title">热门内容 Top 5</h3>
-          <div class="segment-group sm">
-            <button v-for="p in contentPeriods" :key="p.value"
-              class="seg-btn" :class="{ active: contentPeriod === p.value }"
-              @click="contentPeriod = p.value">{{ p.label }}</button>
-          </div>
-        </div>
+        <h3 class="section-title">热门内容 Top 5</h3>
         <div v-if="topContent.length === 0" class="empty-text">暂无数据</div>
         <div v-else class="rank-list">
           <div v-for="(item, i) in topContent" :key="i" class="rank-item">
@@ -96,14 +86,7 @@
       </div>
 
       <div class="section-card">
-        <div class="section-header">
-          <h3 class="section-title">活跃用户 Top 5</h3>
-          <div class="segment-group sm">
-            <button v-for="p in userPeriods" :key="p.value"
-              class="seg-btn" :class="{ active: userPeriod === p.value }"
-              @click="userPeriod = p.value">{{ p.label }}</button>
-          </div>
-        </div>
+        <h3 class="section-title">活跃用户 Top 5</h3>
         <div v-if="topUsers.length === 0" class="empty-text">暂无数据</div>
         <div v-else class="rank-list">
           <div v-for="(item, i) in topUsers" :key="i" class="rank-item">
@@ -135,59 +118,66 @@ const trendData = ref<Record<string, number>>({})
 const topContent = ref<any[]>([])
 const topUsers = ref<any[]>([])
 const heatmapData = ref<number[][]>([])
-const deviceData = ref<{ name: string; value: number }[]>([])
+const clientDist = ref<{ name: string; value: number }[]>([])
+const hardwareDist = ref<{ name: string; value: number }[]>([])
 
-const trendPeriod = ref('30d')
-const contentPeriod = ref('7d')
-const userPeriod = ref('7d')
-const heatPeriod = ref('30d')
-
-const trendPeriods = [{ label: '30天', value: '30d' }, { label: '12周', value: '12w' }, { label: '12月', value: '12m' }]
-const contentPeriods = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }]
-const userPeriods = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }]
-const heatPeriods = [{ label: '30天', value: '30d' }, { label: '90天', value: '90d' }]
+const period = ref('30d')
+const periods = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 
 // AreaChart props
 const trendXData = computed(() => Object.keys(trendData.value))
 const trendYData = computed(() => Object.values(trendData.value))
 
+async function loadAll() {
+  const p = period.value
+  const trendP = p === '7d' ? '30d' : p === 'all' ? '12m' : p // trend 用特殊值
+  loadOverview()
+  loadTrend(trendP)
+  loadTopContent(p)
+  loadTopUsers(p)
+  loadHeatmap(p)
+  loadDeviceDist(p)
+}
+
 async function loadOverview() {
   const res = await statsApiV3.overview()
   overview.value = res.data?.data ?? res.data
 }
-async function loadTrend() {
-  const res = await statsApiV3.trend(trendPeriod.value)
+async function loadTrend(p: string) {
+  const res = await statsApiV3.trend(p)
   trendData.value = res.data?.data ?? res.data ?? {}
 }
-async function loadTopContent() {
-  const res = await statsApiV3.topContent(5, contentPeriod.value)
+async function loadTopContent(p: string) {
+  const res = await statsApiV3.topContent(5, p)
   topContent.value = res.data?.data ?? res.data ?? []
 }
-async function loadTopUsers() {
-  const res = await statsApiV3.topUsers(5, userPeriod.value)
+async function loadTopUsers(p: string) {
+  const res = await statsApiV3.topUsers(5, p)
   topUsers.value = res.data?.data ?? res.data ?? []
 }
-async function loadHeatmap() {
-  const res = await statsApiV3.heatmap(heatPeriod.value)
+async function loadHeatmap(p: string) {
+  const res = await statsApiV3.heatmap(p)
   heatmapData.value = res.data?.data ?? res.data ?? []
 }
-async function loadDeviceDist() {
-  const res = await statsApiV3.deviceDist('30d')
-  deviceData.value = res.data?.data ?? res.data ?? []
+async function loadDeviceDist(p: string) {
+  const [cRes, hRes] = await Promise.all([
+    statsApiV3.deviceDist(p, 'client'),
+    statsApiV3.deviceDist(p, 'hardware'),
+  ])
+  clientDist.value = cRes.data?.data ?? cRes.data ?? []
+  hardwareDist.value = hRes.data?.data ?? hRes.data ?? []
 }
 
-watch(trendPeriod, loadTrend)
-watch(contentPeriod, loadTopContent)
-watch(userPeriod, loadTopUsers)
-watch(heatPeriod, loadHeatmap)
-
-onMounted(() => {
-  loadOverview(); loadTrend(); loadTopContent(); loadTopUsers(); loadHeatmap(); loadDeviceDist()
-})
+watch(period, loadAll)
+onMounted(loadAll)
 </script>
 
 <style scoped>
 .stats-page { padding: 0.5rem 0; }
+.unified-filter { margin-bottom: 1rem; }
+.segment-group { display: inline-flex; background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 3px; }
+.seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
 .kpi-card { display: flex; align-items: center; gap: 0.75rem; background: var(--surface); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border); }
 .kpi-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -199,12 +189,8 @@ onMounted(() => {
 .kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1.2; }
 .kpi-label { font-size: 0.75rem; color: var(--text-muted); }
 .section-card { background: var(--surface); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border); margin-bottom: 1rem; }
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
-.section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0; }
-.segment-group { display: flex; background: var(--bg-secondary); border-radius: var(--radius); padding: 2px; }
-.segment-group.sm { transform: scale(0.9); transform-origin: right center; }
-.seg-btn { border: none; background: none; padding: 4px 10px; font-size: 0.75rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
-.seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0 0 0.75rem; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
 .split-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .rank-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .rank-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.25rem; border-radius: var(--radius); }
@@ -218,6 +204,7 @@ onMounted(() => {
 .empty-chart { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.85rem; }
 @media (max-width: 767px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .three-col { grid-template-columns: 1fr; }
   .split-row { grid-template-columns: 1fr; }
 }
 </style>
