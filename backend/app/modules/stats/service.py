@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import re
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -83,7 +84,7 @@ async def _resolve_poster_ids(items: list[dict]) -> None:
             resolved = id_map[str(iid)]
             item["item_id"] = resolved
             if "poster_url" in item:
-                item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={resolved}&type=Primary"
+                item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={resolved}&type=Primary&name={urllib.parse.quote(item.get('name', ''))}"
 
 
 def _period_filter(period: str) -> str:
@@ -209,7 +210,7 @@ async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
     for item in result:
         iid = item.get("item_id")
         if iid:
-            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
+            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary&name={urllib.parse.quote(item.get('name', ''))}"
     await _resolve_poster_ids(result)
     return result
 
@@ -296,7 +297,7 @@ async def get_content_rankings(
     for item in page_items:
         iid = item.get("item_id")
         if iid:
-            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
+            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary&name={urllib.parse.quote(item.get('name', ''))}"
     await _resolve_poster_ids(page_items)
 
     return {"total": total, "items": page_items}
@@ -347,7 +348,7 @@ async def get_content_detail(item_id: str) -> dict:
         "type": item_type,
         "trend": trend,
         "viewers": viewers,
-        "poster_url": f"/api/v1/proxy/smart_image?item_id={item_id}&type=Primary",
+        "poster_url": f"/api/v1/proxy/smart_image?item_id={item_id}&type=Primary&name={urllib.parse.quote(name)}",
         "item_id": item_id,
     }
     await _resolve_poster_ids([result])
@@ -447,7 +448,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
         top_fav = {
             "name": _clean_name(f.get("ItemName", ""), f.get("ItemType", "")),
             "hours": round(f["dur"] / 3600, 1),
-            "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary" if f.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(f.get('ItemName', ''), f.get('ItemType', '')))}" if f.get("ItemId") else "",
         }
 
     # 播放趋势（近30天按天）
@@ -500,7 +501,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "item_id": r.get("ItemId"),
             "date": r.get("DateCreated", "")[:16].replace("T", " "),
             "duration_min": round((r.get("PlayDuration") or 0) / 60, 1),
-            "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary" if r.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(r.get('ItemName', ''), r.get('ItemType', '')))}" if r.get("ItemId") else "",
         })
 
     # 成就徽章
