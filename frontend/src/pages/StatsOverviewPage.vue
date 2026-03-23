@@ -1,7 +1,7 @@
 <template>
   <div class="stats-page">
     <PageHeader title="分析总览" />
-    <StatsTabs />
+    <StatsTabs filterActive="false" />
 
     <!-- 统一时间筛选 -->
     <div class="unified-filter">
@@ -31,8 +31,8 @@
       <div class="kpi-card">
         <div class="kpi-icon purple"><span class="kpi-emoji">👥</span></div>
         <div class="kpi-body">
-          <div class="kpi-value">{{ overview.active_users_30d }}</div>
-          <div class="kpi-label">30 天活跃</div>
+          <div class="kpi-value">{{ overview.active_users }}</div>
+          <div class="kpi-label">活跃用户</div>
         </div>
       </div>
       <div class="kpi-card">
@@ -124,23 +124,21 @@ const hardwareDist = ref<{ name: string; value: number }[]>([])
 const period = ref('30d')
 const periods = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 
-// AreaChart props
 const trendXData = computed(() => Object.keys(trendData.value))
 const trendYData = computed(() => Object.values(trendData.value))
 
 async function loadAll() {
   const p = period.value
-  const trendP = p === '7d' ? '30d' : p === 'all' ? '12m' : p // trend 用特殊值
-  loadOverview()
-  loadTrend(trendP)
+  loadOverview(p)
+  loadTrend(p)
   loadTopContent(p)
   loadTopUsers(p)
   loadHeatmap(p)
   loadDeviceDist(p)
 }
 
-async function loadOverview() {
-  const res = await statsApiV3.overview()
+async function loadOverview(p: string) {
+  const res = await statsApiV3.overview(p)
   overview.value = res.data?.data ?? res.data
 }
 async function loadTrend(p: string) {
