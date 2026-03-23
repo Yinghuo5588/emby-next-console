@@ -26,18 +26,23 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 # ════════════════════════════════════════════════════════════
 
 @router.get("/overview")
-async def overview(_: str = Depends(get_current_user_id)):
-    """核心指标：媒体总量 / 播放总次数 / 活跃用户 / 总时长"""
-    data = await service.get_overview()
+async def overview(
+    period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
+    _: str = Depends(get_current_user_id),
+):
+    """核心指标：媒体总量 / 播放总次数 / 活跃用户 / 总时长（按 period）"""
+    data = await service.get_overview(period=period)
     return ApiResponse.ok(data=data)
 
 
 @router.get("/trend")
 async def trend(
-    period: str = Query("30d", regex=r"^(30d|12w|12m)$"),
+    period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
     _: str = Depends(get_current_user_id),
 ):
-    """播放趋势：只有播放时长一条线"""
+    """播放趋势：播放时长"""
+    data = await service.get_trend_by_period(period)
+    return ApiResponse.ok(data=data)
     data = await service.get_trend_by_period(period)
     return ApiResponse.ok(data=data)
 
