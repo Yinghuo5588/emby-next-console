@@ -8,12 +8,21 @@
         </n-button>
       </template>
     </PageHeader>
+    <StatsTabs />
 
     <div class="active-filters" v-if="period !== '30d'">
       <n-tag size="small" closable @close="period = '30d'">{{ periodLabel }}</n-tag>
     </div>
 
-    <!-- 用户排行 -->
+    <!-- 用户时长排行图 -->
+    <div class="section-card" v-if="items.length > 0">
+      <div class="section-header">
+        <h3 class="section-title">用户时长排行</h3>
+      </div>
+      <v-chart :option="userBarOption" autoresize style="height: 260px" />
+    </div>
+
+    <!-- 用户列表 -->
     <div class="ranking-card">
       <div v-if="loading" class="empty-text">加载中...</div>
       <div v-else-if="items.length === 0" class="empty-text">暂无数据</div>
@@ -23,7 +32,7 @@
           :class="{ active: selectedUserId === item.user_id }"
           @click="selectUser(item.user_id)">
           <span class="ranking-num" :class="{ 'num-top': i < 3 }">{{ (page - 1) * size + i + 1 }}</span>
-          <n-avatar :size="38" round class="ranking-avatar">{{ item.username?.charAt(0) || '?' }}</n-avatar>
+          <n-avatar :size="36" round class="ranking-avatar">{{ item.username?.charAt(0) || '?' }}</n-avatar>
           <div class="ranking-body">
             <div class="ranking-name">{{ item.username }}</div>
             <div class="ranking-meta">
@@ -87,7 +96,7 @@
           <h4>成就徽章</h4>
           <div class="badge-grid">
             <div v-for="b in userDetail.badges" :key="b.id" class="badge-item">
-              <span class="badge-icon" :class="b.color"><i :class="'fa-solid ' + b.icon"></i></span>
+              <span class="badge-icon"><i :class="'fa-solid ' + b.icon"></i></span>
               <div>
                 <div class="badge-name">{{ b.name }}</div>
                 <div class="badge-desc">{{ b.desc }}</div>
@@ -96,7 +105,7 @@
           </div>
         </div>
 
-        <!-- 内容偏好 -->
+        <!-- 内容偏好 + 最爱 -->
         <div class="section-sub">
           <h4>内容偏好</h4>
           <div class="pref-row">
@@ -112,21 +121,16 @@
           </div>
         </div>
 
-        <!-- 时段分布 -->
-        <div class="section-sub" v-if="userDetail.hourly.some((h: number) => h > 0)">
+        <!-- 时段分布 — 柱状图 -->
+        <div class="section-sub" v-if="hourlyHasData">
           <h4>时段分布</h4>
-          <v-chart :option="hourlyOption" autoresize style="height: 100px" />
+          <v-chart :option="hourlyOption" autoresize style="height: 120px" />
         </div>
 
-        <!-- 设备分布 -->
+        <!-- 设备分布 — 环形图 -->
         <div class="section-sub" v-if="userDetail.devices.length > 0">
-          <h4>设备</h4>
-          <div class="device-list">
-            <div v-for="d in userDetail.devices" :key="d.device" class="device-item">
-              <span>{{ d.device }}</span>
-              <span class="device-cnt">{{ d.count }} 次</span>
-            </div>
-          </div>
+          <h4>设备分布</h4>
+          <v-chart :option="deviceOption" autoresize style="height: 180px" />
         </div>
 
         <!-- 最近播放 -->
@@ -149,19 +153,18 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
 import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent } from 'naive-ui'
 import { use } from 'echarts/core'
-import { BarChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
+import { BarChart, PieChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import PageHeader from '@/components/common/PageHeader.vue'
+import StatsTabs from '@/components/stats/StatsTabs.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
-use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
+use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
-const route = useRoute()
 const showFilter = ref(false)
 const period = ref('30d')
 const page = ref(1)
@@ -196,29 +199,79 @@ async function selectUser(uid: string) {
   showDrawer.value = true
 }
 
+// 水平条形图 — 用户排行
+const userBarOption = computed(() => {
+  const top = [...items.value].slice(0, 8).reverse()
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (v: number) => `${v} 小时` },
+    grid: { top: 8, right: 20, bottom: 10, left: 10, containLabel: true },
+    xAxis: { type: 'value', show: false },
+    yAxis: { type: 'category', data: top.map(u => u.username), axisLabel: { fontSize: 11, color: '#333' }, axisLine: { show: false }, axisTick: { show: false } },
+    series: [{
+      type: 'bar', data: top.map(u => u.total_duration_hours), barMaxWidth: 14,
+      itemStyle: { borderRadius: [0, 4, 4, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#af52de' }, { offset: 1, color: '#d8b4fe' }] } },
+      label: { show: true, position: 'right', fontSize: 10, color: '#8e8e93', formatter: '{c}h' },
+    }],
+  }
+})
+
+// 时段柱状图
+const hourlyHasData = computed(() => userDetail.value?.hourly?.some((h: number) => h > 0))
 const hourlyOption = computed(() => {
   if (!userDetail.value) return {}
   return {
-    tooltip: { trigger: 'axis' },
-    grid: { top: 5, right: 5, bottom: 20, left: 20 },
-    xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), axisLabel: { fontSize: 9, color: '#8e8e93', interval: 3 } },
+    tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v} 次` },
+    grid: { top: 8, right: 8, bottom: 16, left: 24 },
+    xAxis: {
+      type: 'category',
+      data: Array.from({ length: 24 }, (_, i) => `${i}`),
+      axisLabel: { fontSize: 9, color: '#8e8e93', interval: 2 },
+      axisLine: { show: false }, axisTick: { show: false },
+    },
     yAxis: { type: 'value', show: false },
-    series: [{ type: 'bar', data: userDetail.value.hourly, itemStyle: { color: '#3b82f6', borderRadius: [2, 2, 0, 0] }, barMaxWidth: 10 }],
+    series: [{
+      type: 'bar', data: userDetail.value.hourly,
+      itemStyle: { color: '#3b82f6', borderRadius: [2, 2, 0, 0] },
+      barMaxWidth: 10,
+    }],
+  }
+})
+
+// 设备环形图
+const deviceColors = ['#3b82f6', '#af52de', '#34c759', '#ff2d55', '#ff9500', '#5856d6', '#007aff', '#64d2ff']
+const deviceOption = computed(() => {
+  if (!userDetail.value?.devices?.length) return {}
+  return {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} 次 ({d}%)' },
+    legend: { orient: 'vertical', right: 10, top: 'center', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11, color: '#666' } },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '65%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: true,
+      label: { show: false },
+      emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' } },
+      data: userDetail.value.devices.map((d: any, i: number) => ({
+        name: d.device,
+        value: d.count,
+        itemStyle: { color: deviceColors[i % deviceColors.length] },
+      })),
+    }],
   }
 })
 
 watch(period, () => { page.value = 1; loadRankings() })
 watch(page, loadRankings)
-onMounted(() => {
-  const uid = route.query.user as string
-  loadRankings().then(() => { if (uid) selectUser(uid) })
-})
+onMounted(() => { loadRankings() })
 </script>
 
 <style scoped>
 .stats-page { padding: 0.5rem 0; }
 .active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
 .filter-badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 0.65rem; margin-left: 4px; }
+.section-card { background: var(--surface); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border); margin-bottom: 1rem; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0; }
 .ranking-card { background: var(--surface); border-radius: var(--radius-lg); padding: 0.5rem; border: 1px solid var(--border); }
 .ranking-list { display: flex; flex-direction: column; }
 .ranking-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.5rem; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
@@ -236,8 +289,8 @@ onMounted(() => {
 .empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
 .filter-group { margin-bottom: 1rem; }
 .filter-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-.kpi-row { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
-.kpi-item { flex: 1; text-align: center; background: var(--bg-secondary); border-radius: var(--radius); padding: 0.75rem 0.25rem; }
+.kpi-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.kpi-item { flex: 1; text-align: center; background: var(--bg-secondary); border-radius: var(--radius); padding: 0.6rem 0.25rem; }
 .kpi-val { font-size: 1.3rem; font-weight: 700; color: var(--text); }
 .kpi-lbl { font-size: 0.7rem; color: var(--text-muted); }
 .age-text { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem; }
@@ -255,9 +308,6 @@ onMounted(() => {
 .fav-item { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
 .fav-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
 .fav-sub { font-size: 0.7rem; color: var(--text-muted); }
-.device-list { display: flex; flex-direction: column; gap: 0.2rem; }
-.device-item { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.2rem 0; }
-.device-cnt { color: var(--text-muted); }
 .recent-list { display: flex; flex-direction: column; gap: 0.4rem; }
 .recent-item { display: flex; align-items: center; gap: 0.5rem; }
 .recent-body { flex: 1; min-width: 0; }
