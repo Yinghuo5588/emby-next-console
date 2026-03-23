@@ -73,24 +73,20 @@ async def _get_user_map() -> dict:
 # 总览页
 # ════════════════════════════════════════════════════════════
 
-async def get_overview() -> dict:
-    """核心指标 + 媒体库总量"""
-    # 播放统计
+async def get_overview(period: str = "30d") -> dict:
+    """核心指标（按 period 筛选）+ 媒体库总量"""
+    pf = _period_filter(period)
+
+    # 播放统计（按时间）
     rows = await _query(
-        "SELECT COUNT(*) as total_plays, "
-        "COALESCE(SUM(PlayDuration), 0) as total_duration, "
-        "COUNT(DISTINCT UserId) as unique_users "
-        "FROM PlaybackActivity"
+        f"SELECT COUNT(*) as total_plays, "
+        f"COALESCE(SUM(PlayDuration), 0) as total_duration, "
+        f"COUNT(DISTINCT UserId) as unique_users "
+        f"FROM PlaybackActivity WHERE {pf}"
     )
     r = rows[0] if rows else {}
 
-    # 30 天活跃用户
-    active_rows = await _query(
-        "SELECT COUNT(DISTINCT UserId) as cnt FROM PlaybackActivity "
-        "WHERE DateCreated >= date('now', '-30 days')"
-    )
-
-    # 媒体库总量
+    # 媒体库总量（始终显示）
     library = {"movie": 0, "series": 0, "episode": 0}
     try:
         resp = await emby.get("/Items/Counts")
@@ -107,25 +103,32 @@ async def get_overview() -> dict:
     return {
         "total_plays": r.get("total_plays", 0),
         "total_duration_hours": round(r.get("total_duration", 0) / 3600, 1),
-        "active_users_30d": active_rows[0].get("cnt", 0) if active_rows else 0,
+        "active_users": r.get("unique_users", 0),
         "library": library,
     }
 
 
 async def get_trend_by_period(period: str = "30d") -> dict:
     """播放趋势：只有播放时长"""
-    if period == "12w":
+    if period == "7d":
         rows = await _query(
-            "SELECT strftime('%Y-%W', substr(replace(DateCreated, 'T', ' '), 1, 19)) as label, "
+            "SELECT DATE(DateCreated) as label, "
             "COALESCE(SUM(PlayDuration), 0) as duration "
-            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-84 days') "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-7 days') "
             "GROUP BY label ORDER BY label"
         )
-    elif period == "12m":
+    elif period == "90d":
+        rows = await _query(
+            "SELECT strftime('%Y-%m-%d', DateCreated) as label, "
+            "COALESCE(SUM(PlayDuration), 0) as duration "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-90 days') "
+            "GROUP BY label ORDER BY label"
+        )
+    elif period == "all":
         rows = await _query(
             "SELECT substr(replace(DateCreated, 'T', ' '), 1, 7) as label, "
             "COALESCE(SUM(PlayDuration), 0) as duration "
-            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-365 days') "
+            "FROM PlaybackActivity "
             "GROUP BY label ORDER BY label"
         )
     else:  # 30d
