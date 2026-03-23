@@ -61,7 +61,7 @@
     </n-drawer>
 
     <!-- 用户画像抽屉 -->
-    <n-drawer v-model:show="showDrawer" :width="480" placement="right">
+    <n-drawer v-model:show="showDrawer" :width="isMobile ? undefined : 480" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '90vh' : undefined">
       <n-drawer-content v-if="userDetail" :title="userDetail.username" closable>
         <!-- KPI -->
         <div class="kpi-row">
@@ -143,11 +143,15 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent } from 'naive-ui'
+import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
 import PieChart from '@/components/charts/PieChart.vue'
 import BarChart from '@/components/charts/BarChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
+
+const { width: winWidth } = useWindowSize()
+const isMobile = computed(() => winWidth.value < 768)
 
 const showFilter = ref(false)
 const period = ref('30d')
