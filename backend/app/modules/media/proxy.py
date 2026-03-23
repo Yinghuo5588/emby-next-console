@@ -1,7 +1,7 @@
 """
 媒体代理 — 解决跨域+封面/头像回退
-- /api/proxy/smart_image → 媒体封面（Emby → TMDB 回退）
-- /api/proxy/user_image  → 用户头像（Emby → dicebear 回退）
+- /api/v1/proxy/smart_image → 媒体封面（Emby → TMDB 回退）
+- /api/v1/proxy/user_image  → 用户头像（Emby → dicebear 回退）
 """
 import urllib.parse
 
@@ -37,12 +37,13 @@ async def smart_image(
     # 1) Emby 原生
     try:
         resp = await emby.get(f"/Items/{item_id}/Images/{type}", params={"quality": 90})
-        if resp.status_code == 200:
+        if resp.status_code == 200 and len(resp.content) > 100:
             content = resp.content
             ctype = resp.headers.get("content-type", "image/jpeg")
             _cache[cache_key] = content
             _cache_meta[cache_key] = {"type": ctype}
             return Response(content=content, media_type=ctype)
+        # Emby 返回 404 或空内容 → 继续走 TMDB 回退
     except Exception:
         pass
 
