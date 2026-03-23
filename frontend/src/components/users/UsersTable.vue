@@ -14,7 +14,7 @@
       <router-link v-for="u in items" :key="u.user_id" :to="`/users/${u.user_id}`" class="user-card">
         <n-card size="small" style="margin-bottom: 8px;">
           <div class="uc-top">
-            <n-avatar :size="36" round :style="{ background: '#3b82f6' }">{{ u.username?.charAt(0)?.toUpperCase() || '?' }}</n-avatar>
+            <n-avatar :src="`/api/v1/proxy/user_image/${u.user_id}`" :size="36" round :style="{ background: '#3b82f6' }" fallback-src="">{{ u.username?.charAt(0)?.toUpperCase() || '?' }}</n-avatar>
             <div class="uc-info">
               <div style="font-weight:500">{{ u.username }}</div>
               <n-space size="small">
@@ -52,7 +52,7 @@ const columns: DataTableColumns = [
   {
     title: '用户', key: 'username',
     render: (row: any) => h('div', { style: 'display:flex;align-items:center;gap:10px' }, [
-      h(NAvatar, { size: 36, round: true, style: 'background:#3b82f6' }, { default: () => row.username?.charAt(0)?.toUpperCase() || '?' }),
+      h(NAvatar, { size: 36, round: true, src: `/api/v1/proxy/user_image/${row.user_id}`, fallbackSrc: '', style: 'background:#3b82f6' }, { default: () => row.username?.charAt(0)?.toUpperCase() || '?' }),
       h('div', {}, [
         h('div', { style: 'font-weight:500;font-size:13px' }, row.username),
         h('div', { style: 'font-size:12px;color:var(--text-muted)' }, row.display_name || ''),
