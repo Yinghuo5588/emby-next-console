@@ -286,7 +286,7 @@ async def user_image_query(user_id: str = Query("")):
 
 
 async def _get_user_image(user_id: str):
-    """用户头像代理：Emby → dicebear 回退"""
+    """用户头像代理：Emby → SVG 占位符兜底，始终返回 200"""
     if not user_id:
         return Response(status_code=400)
 
@@ -307,7 +307,7 @@ async def _get_user_image(user_id: str):
     except Exception as e:
         logger.error(f"[user_image] Emby 异常: {e}")
 
-    # dicebear 回退
+    # SVG 占位符兜底（始终返回 200，避免前端缓存 404）
     try:
         resp = await emby.get(f"/Users/{user_id}")
         if resp.status_code == 200:
@@ -317,17 +317,12 @@ async def _get_user_image(user_id: str):
     except Exception:
         username = user_id[:6]
 
-    logger.info(f"[user_image] dicebear fallback username={username}")
-    seed = urllib.parse.quote(username)
-    try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.get(f"https://api.dicebear.com/9.x/notionists/png?seed={seed}&size=128")
-            logger.info(f"[user_image] dicebear 响应: status={resp.status_code}")
-            if resp.status_code == 200:
-                return Response(content=resp.content, media_type="image/png",
-                                headers={"Cache-Control": "public, max-age=86400"})
-    except Exception as e:
-        logger.error(f"[user_image] dicebear 异常: {e}")
-
-    logger.warning(f"[user_image] 全部失败 user_id={user_id}")
-    return Response(status_code=404)
+    initial = (username[0] if username else "?").upper()
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+      <rect width="200" height="200" rx="100" fill="#3b82f6"/>
+      <text x="100" y="100" dy=".35em" text-anchor="middle" fill="white"
+        font-size="80" font-family="system-ui,sans-serif" font-weight="700">{initial}</text>
+    </svg>'''
+    logger.info(f"[user_image] SVG fallback username={username}")
+    return Response(content=svg, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=3600"})
