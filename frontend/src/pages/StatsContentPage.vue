@@ -19,7 +19,8 @@
           :class="{ active: selectedItemId === item.item_id }"
           @click="selectItem(item.item_id)">
           <span class="ranking-num" :class="{ 'num-top': i < 3 }">{{ (page - 1) * size + i + 1 }}</span>
-          <n-avatar :src="item.poster_url" :size="36" round class="ranking-avatar" fallback-src="" />
+          <img v-if="item.poster_url" :src="item.poster_url" class="ranking-poster" loading="lazy" />
+          <n-avatar v-else :size="36" class="ranking-avatar">{{ item.name?.charAt(0) || '?' }}</n-avatar>
           <div class="ranking-body">
             <div class="ranking-name">{{ item.name }}</div>
             <div class="ranking-meta">
@@ -90,7 +91,8 @@
     <n-drawer v-model:show="showDetail" :width="isMobile ? undefined : 480" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '90vh' : undefined">
       <n-drawer-content v-if="detail" :title="detail.name" closable>
         <div class="detail-hero">
-          <n-avatar :src="detail.poster_url" :size="56" round />
+          <img v-if="detail.poster_url" :src="detail.poster_url" class="detail-poster" loading="lazy" />
+          <n-avatar v-else :size="56">{{ detail.name?.charAt(0) || '?' }}</n-avatar>
           <div>
             <h3>{{ detail.name }}</h3>
             <div class="detail-meta">{{ detail.type === 'Movie' ? '电影' : '剧集' }}</div>
@@ -238,6 +240,8 @@ onMounted(() => { loadRankings() })
 .ranking-list { display: flex; flex-direction: column; }
 .ranking-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.5rem; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
 .ranking-item:hover, .ranking-item.active { background: var(--bg-secondary); }
+.ranking-poster { width: 36px; height: 50px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.detail-poster { width: 56px; height: 80px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
 .ranking-num { width: 24px; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-align: center; flex-shrink: 0; }
 .num-top { color: var(--brand); }
 .ranking-avatar { flex-shrink: 0; }
