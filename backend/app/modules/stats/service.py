@@ -47,6 +47,45 @@ def _clean_name(name: str, item_type: str = "") -> str:
     return series
 
 
+# ── 批量 ID 转换（参考 emby-pulse resolve_poster_ids）──
+
+async def _resolve_poster_ids(items: list[dict]) -> None:
+    """批量查询 Emby，将单集/节目 ID 转为剧集/季 ID（就地修改 items）"""
+    id_set: set[str] = set()
+    for item in items:
+        iid = item.get("item_id")
+        if iid:
+            id_set.add(str(iid))
+    if not id_set:
+        return
+
+    # 分批，每批最多 50 个 ID
+    id_list = list(id_set)
+    id_map: dict[str, str] = {}
+
+    for i in range(0, len(id_list), 50):
+        batch = id_list[i:i+50]
+        ids_param = ",".join(batch)
+        try:
+            resp = await emby.get("/Items", params={"Ids": ids_param})
+            if resp.status_code == 200:
+                for e in resp.json().get("Items", []):
+                    orig_id = str(e.get("Id", ""))
+                    best_id = e.get("SeriesId") or e.get("SeasonId") or orig_id
+                    id_map[orig_id] = best_id
+        except Exception as ex:
+            logger.warning("批量 ID 转换失败: %s", ex)
+
+    # 就地更新 item_id 和 poster_url
+    for item in items:
+        iid = item.get("item_id")
+        if iid and str(iid) in id_map:
+            resolved = id_map[str(iid)]
+            item["item_id"] = resolved
+            if "poster_url" in item:
+                item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={resolved}&type=Primary"
+
+
 def _period_filter(period: str) -> str:
     """时间范围条件"""
     if period == "7d":
@@ -171,6 +210,7 @@ async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
         iid = item.get("item_id")
         if iid:
             item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
+    await _resolve_poster_ids(result)
     return result
 
 
@@ -257,6 +297,7 @@ async def get_content_rankings(
         iid = item.get("item_id")
         if iid:
             item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
+    await _resolve_poster_ids(page_items)
 
     return {"total": total, "items": page_items}
 
@@ -301,13 +342,16 @@ async def get_content_detail(item_id: str) -> dict:
             "duration_hours": round(r.get("duration", 0) / 3600, 1),
         })
 
-    return {
+    result = {
         "name": name,
         "type": item_type,
         "trend": trend,
         "viewers": viewers,
         "poster_url": f"/api/v1/proxy/smart_image?item_id={item_id}&type=Primary",
+        "item_id": item_id,
     }
+    await _resolve_poster_ids([result])
+    return result
 
 
 # ════════════════════════════════════════════════════════════
@@ -461,6 +505,17 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
 
     # 成就徽章
     badges = await _get_badges(where)
+
+    # 批量转换 item_id → 剧集/季 ID
+    resolve_list = []
+    if top_fav and top_fav.get("poster_url"):
+        resolve_list.append({"item_id": top_fav.get("name"), "poster_url": top_fav["poster_url"]})
+    resolve_list.extend(recent)
+    await _resolve_poster_ids(resolve_list)
+
+    # 更新 top_fav 的 poster_url
+    if top_fav and top_fav.get("poster_url"):
+        top_fav["poster_url"] = resolve_list[0]["poster_url"] if resolve_list else top_fav["poster_url"]
 
     return {
         "user_id": user_id,
