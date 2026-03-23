@@ -137,8 +137,9 @@ async def heatmap(
 @router.get("/device-dist")
 async def device_dist(
     period: str = Query("30d", regex=r"^(30d|90d|all)$"),
+    type: str = Query("client", regex=r"^(client|hardware)$"),
     _: str = Depends(get_current_user_id),
 ):
-    """设备分布"""
-    data = await service.get_device_dist(period)
+    """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)"""
+    data = await service.get_device_dist(period, type)
     return ApiResponse.ok(data=data)
