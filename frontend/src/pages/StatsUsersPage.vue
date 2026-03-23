@@ -14,14 +14,6 @@
       <n-tag size="small" closable @close="period = '30d'">{{ periodLabel }}</n-tag>
     </div>
 
-    <!-- 用户时长排行图 -->
-    <div class="section-card" v-if="items.length > 0">
-      <div class="section-header">
-        <h3 class="section-title">用户时长排行</h3>
-      </div>
-      <v-chart :option="userBarOption" autoresize style="height: 260px" />
-    </div>
-
     <!-- 用户列表 -->
     <div class="ranking-card">
       <div v-if="loading" class="empty-text">加载中...</div>
@@ -87,16 +79,13 @@
           </div>
         </div>
 
-        <div class="age-text">
-          入驻服务器第 <b>{{ userDetail.account_age_days }}</b> 天
-        </div>
+        <div class="age-text">入驻服务器第 <b>{{ userDetail.account_age_days }}</b> 天</div>
 
         <!-- 徽章 -->
         <div class="section-sub" v-if="userDetail.badges.length > 0">
           <h4>成就徽章</h4>
           <div class="badge-grid">
             <div v-for="b in userDetail.badges" :key="b.id" class="badge-item">
-              <span class="badge-icon"><i :class="'fa-solid ' + b.icon"></i></span>
               <div>
                 <div class="badge-name">{{ b.name }}</div>
                 <div class="badge-desc">{{ b.desc }}</div>
@@ -105,7 +94,7 @@
           </div>
         </div>
 
-        <!-- 内容偏好 + 最爱 -->
+        <!-- 内容偏好 -->
         <div class="section-sub">
           <h4>内容偏好</h4>
           <div class="pref-row">
@@ -121,16 +110,16 @@
           </div>
         </div>
 
-        <!-- 时段分布 — 柱状图 -->
+        <!-- 时段柱状图 — BarChart -->
         <div class="section-sub" v-if="hourlyHasData">
           <h4>时段分布</h4>
-          <v-chart :option="hourlyOption" autoresize style="height: 120px" />
+          <BarChart :yData="hourLabels" :data="userDetail.hourly" :horizontal="false" height="180px" />
         </div>
 
-        <!-- 设备分布 — 环形图 -->
+        <!-- 设备环形图 — PieChart -->
         <div class="section-sub" v-if="userDetail.devices.length > 0">
           <h4>设备分布</h4>
-          <v-chart :option="deviceOption" autoresize style="height: 180px" />
+          <PieChart :data="pieDevices" height="240px" />
         </div>
 
         <!-- 最近播放 -->
@@ -154,16 +143,11 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent } from 'naive-ui'
-import { use } from 'echarts/core'
-import { BarChart, PieChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
-import VChart from 'vue-echarts'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
+import PieChart from '@/components/charts/PieChart.vue'
+import BarChart from '@/components/charts/BarChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
-
-use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const showFilter = ref(false)
 const period = ref('30d')
@@ -179,6 +163,15 @@ const userDetail = ref<any>(null)
 const periodOptions = [{ label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 const periodLabel = computed(() => periodOptions.find(p => p.value === period.value)?.label || '')
 const maxDuration = computed(() => Math.max(...items.value.map(i => i.total_duration_hours), 1))
+
+const hourLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
+const hourlyHasData = computed(() => userDetail.value?.hourly?.some((h: number) => h > 0))
+
+// BarChart 需要 yData + data（垂直柱状图用 yData 作为 x 轴标签）
+const pieDevices = computed(() => {
+  if (!userDetail.value?.devices?.length) return []
+  return userDetail.value.devices.map((d: any) => ({ name: d.device, value: d.count }))
+})
 
 function barWidth(val: number, max: number) { return max > 0 ? (val / max) * 100 : 0 }
 
@@ -199,67 +192,6 @@ async function selectUser(uid: string) {
   showDrawer.value = true
 }
 
-// 水平条形图 — 用户排行
-const userBarOption = computed(() => {
-  const top = [...items.value].slice(0, 8).reverse()
-  return {
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (v: number) => `${v} 小时` },
-    grid: { top: 8, right: 20, bottom: 10, left: 10, containLabel: true },
-    xAxis: { type: 'value', show: false },
-    yAxis: { type: 'category', data: top.map(u => u.username), axisLabel: { fontSize: 11, color: '#333' }, axisLine: { show: false }, axisTick: { show: false } },
-    series: [{
-      type: 'bar', data: top.map(u => u.total_duration_hours), barMaxWidth: 14,
-      itemStyle: { borderRadius: [0, 4, 4, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#af52de' }, { offset: 1, color: '#d8b4fe' }] } },
-      label: { show: true, position: 'right', fontSize: 10, color: '#8e8e93', formatter: '{c}h' },
-    }],
-  }
-})
-
-// 时段柱状图
-const hourlyHasData = computed(() => userDetail.value?.hourly?.some((h: number) => h > 0))
-const hourlyOption = computed(() => {
-  if (!userDetail.value) return {}
-  return {
-    tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v} 次` },
-    grid: { top: 8, right: 8, bottom: 16, left: 24 },
-    xAxis: {
-      type: 'category',
-      data: Array.from({ length: 24 }, (_, i) => `${i}`),
-      axisLabel: { fontSize: 9, color: '#8e8e93', interval: 2 },
-      axisLine: { show: false }, axisTick: { show: false },
-    },
-    yAxis: { type: 'value', show: false },
-    series: [{
-      type: 'bar', data: userDetail.value.hourly,
-      itemStyle: { color: '#3b82f6', borderRadius: [2, 2, 0, 0] },
-      barMaxWidth: 10,
-    }],
-  }
-})
-
-// 设备环形图
-const deviceColors = ['#3b82f6', '#af52de', '#34c759', '#ff2d55', '#ff9500', '#5856d6', '#007aff', '#64d2ff']
-const deviceOption = computed(() => {
-  if (!userDetail.value?.devices?.length) return {}
-  return {
-    tooltip: { trigger: 'item', formatter: '{b}: {c} 次 ({d}%)' },
-    legend: { orient: 'vertical', right: 10, top: 'center', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11, color: '#666' } },
-    series: [{
-      type: 'pie',
-      radius: ['40%', '65%'],
-      center: ['35%', '50%'],
-      avoidLabelOverlap: true,
-      label: { show: false },
-      emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' } },
-      data: userDetail.value.devices.map((d: any, i: number) => ({
-        name: d.device,
-        value: d.count,
-        itemStyle: { color: deviceColors[i % deviceColors.length] },
-      })),
-    }],
-  }
-})
-
 watch(period, () => { page.value = 1; loadRankings() })
 watch(page, loadRankings)
 onMounted(() => { loadRankings() })
@@ -269,9 +201,6 @@ onMounted(() => { loadRankings() })
 .stats-page { padding: 0.5rem 0; }
 .active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
 .filter-badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 0.65rem; margin-left: 4px; }
-.section-card { background: var(--surface); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border); margin-bottom: 1rem; }
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
-.section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0; }
 .ranking-card { background: var(--surface); border-radius: var(--radius-lg); padding: 0.5rem; border: 1px solid var(--border); }
 .ranking-list { display: flex; flex-direction: column; }
 .ranking-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.5rem; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
@@ -298,8 +227,7 @@ onMounted(() => { loadRankings() })
 .section-sub { margin-bottom: 1.25rem; }
 .section-sub h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; }
 .badge-grid { display: flex; flex-direction: column; gap: 0.4rem; }
-.badge-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; background: var(--bg-secondary); border-radius: var(--radius); }
-.badge-icon { font-size: 1rem; }
+.badge-item { padding: 0.4rem 0.5rem; background: var(--bg-secondary); border-radius: var(--radius); }
 .badge-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
 .badge-desc { font-size: 0.7rem; color: var(--text-muted); }
 .pref-row { display: flex; align-items: center; gap: 0.75rem; }
