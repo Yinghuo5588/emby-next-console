@@ -71,6 +71,9 @@ const activeKey = computed(() => {
   if (path.startsWith('/users/invites')) return '/users/invites'
   if (path.startsWith('/users/templates')) return '/users/templates'
   if (path.startsWith('/users')) return '/users'
+  if (path.startsWith('/stats/content')) return '/stats/content'
+  if (path.startsWith('/stats/users')) return '/stats/users'
+  if (path.startsWith('/stats')) return '/stats'
   return path
 })
 
@@ -90,7 +93,9 @@ const menuOptions: MenuOption[] = [
       { label: '权限模板', key: '/users/templates' },
     ],
   },
-  { label: '数据分析', key: '/stats', icon: renderIcon(StatsIcon) },
+  { label: '分析总览', key: '/stats', icon: renderIcon(StatsIcon) },
+  { label: '内容分析', key: '/stats/content', icon: renderIcon(StatsIcon) },
+  { label: '用户分析', key: '/stats/users', icon: renderIcon(StatsIcon) },
   { label: '媒体管理', key: '/media', icon: renderIcon(MediaIcon) },
   { label: '追剧日历', key: '/calendar', icon: renderIcon(CalendarIcon) },
   { label: 'Risk', key: '/risk', icon: renderIcon(RiskIcon) },
