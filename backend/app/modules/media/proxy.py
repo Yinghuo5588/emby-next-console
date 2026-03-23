@@ -23,9 +23,9 @@ _cache_meta: dict[str, dict] = {}
 @router.get("/smart_image")
 async def smart_image(
     item_id: str,
-    name: str = Query("", alias="name"),
     type: str = Query("Primary"),
-    year: str = Query("", alias="year"),
+    name: str = Query(""),
+    year: str = Query(""),
 ):
     """智能封面代理：Emby → TMDB 回退"""
     cache_key = f"img:{item_id}:{type}"
@@ -46,22 +46,33 @@ async def smart_image(
     except Exception:
         pass
 
-    # 2) TMDB 回退
+    # 2) TMDB 回退 — 先从 Emby 拿名称，再搜
     tmdb_key = settings.TMDB_API_KEY
-    if name and tmdb_key:
-        try:
-            tmdb_url = await _tmdb_poster(name, tmdb_key, type)
-            if tmdb_url:
-                async with httpx.AsyncClient(timeout=8) as client:
-                    resp = await client.get(tmdb_url)
-                    if resp.status_code == 200:
-                        content = resp.content
-                        ctype = resp.headers.get("content-type", "image/jpeg")
-                        _cache[cache_key] = content
-                        _cache_meta[cache_key] = {"type": ctype}
-                        return Response(content=content, media_type=ctype)
-        except Exception:
-            pass
+    if tmdb_key:
+        # 从 Emby 获取 item 名称
+        if not name:
+            try:
+                resp = await emby.get(f"/Items/{item_id}")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    name = data.get("Name", "")
+            except Exception:
+                pass
+
+        if name:
+            try:
+                tmdb_url = await _tmdb_poster(name, tmdb_key, type)
+                if tmdb_url:
+                    async with httpx.AsyncClient(timeout=8) as client:
+                        resp = await client.get(tmdb_url)
+                        if resp.status_code == 200:
+                            content = resp.content
+                            ctype = resp.headers.get("content-type", "image/jpeg")
+                            _cache[cache_key] = content
+                            _cache_meta[cache_key] = {"type": ctype}
+                            return Response(content=content, media_type=ctype)
+            except Exception:
+                pass
 
     # 3) 占位图（1x1 透明 PNG）
     placeholder = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
