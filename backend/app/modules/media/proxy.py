@@ -62,7 +62,15 @@ async def _get_real_image_id(item_id: str) -> str:
                 if data.get("ParentId"):
                     return data["ParentId"]
 
-            # 如果有 SeriesId 直接用
+            elif item_type == "Season":
+                if data.get("SeriesId"):
+                    return data["SeriesId"]
+
+            elif item_type == "Series":
+                # 已经是剧集，直接返回
+                return item_id
+
+            # 兜底：有 SeriesId 就用
             if data.get("SeriesId"):
                 return data["SeriesId"]
     except Exception:
