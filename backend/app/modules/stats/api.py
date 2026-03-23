@@ -118,3 +118,27 @@ async def user_detail(
     """单个用户画像：KPI + 徽章 + 偏好 + 时段 + 设备 + 最近播放"""
     data = await service.get_user_detail(user_id)
     return ApiResponse.ok(data=data)
+
+
+# ════════════════════════════════════════════════════════════
+# 总览页额外数据
+# ════════════════════════════════════════════════════════════
+
+@router.get("/heatmap")
+async def heatmap(
+    period: str = Query("30d", regex=r"^(30d|90d|all)$"),
+    _: str = Depends(get_current_user_id),
+):
+    """24×7 热力图：观影生物钟"""
+    data = await service.get_heatmap(period)
+    return ApiResponse.ok(data=data)
+
+
+@router.get("/device-dist")
+async def device_dist(
+    period: str = Query("30d", regex=r"^(30d|90d|all)$"),
+    _: str = Depends(get_current_user_id),
+):
+    """设备分布"""
+    data = await service.get_device_dist(period)
+    return ApiResponse.ok(data=data)
