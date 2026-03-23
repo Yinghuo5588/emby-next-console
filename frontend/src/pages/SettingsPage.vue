@@ -43,9 +43,9 @@
             </div>
             <div class="setting-val">
               <template v-if="editingKey === item.setting_key">
-                <n-input v-model:value="editingValue" size="small" @keyup.enter="saveSetting(item.setting_key)" @keyup.escape="cancelEdit" />
+                <n-input v-model:value="editingValue" size="small" type="textarea" :autosize="{ minRows: 1, maxRows: 3 }" @keyup.ctrl.enter="saveSetting(item.setting_key)" @keyup.escape="cancelEdit" />
               </template>
-              <span v-else>{{ displayValue(item.value) }}</span>
+              <span v-else class="setting-value-text">{{ displayValue(item.value) }}</span>
             </div>
             <div class="setting-actions">
               <template v-if="editingKey === item.setting_key">
@@ -156,11 +156,20 @@ onMounted(() => { loadHealth(); loadSettings(); loadJobs() })
 .health-card { flex: 1; min-width: 140px; }
 .health-inner { display: flex; align-items: center; gap: 10px; }
 .health-icon { font-size: 16px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--bg-secondary); }
-.setting-row { display: flex; align-items: center; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.setting-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .setting-row:last-child { border-bottom: none; }
-.setting-meta { width: 180px; flex-shrink: 0; }
+.setting-meta { width: 140px; flex-shrink: 0; }
 .setting-key { font-size: 13px; font-weight: 500; font-family: monospace; }
 .setting-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .setting-val { flex: 1; min-width: 0; font-size: 13px; color: var(--text-muted); font-family: monospace; }
+.setting-value-text { word-break: break-all; }
 .setting-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+@media (max-width: 640px) {
+  .setting-row { flex-wrap: wrap; }
+  .setting-meta { width: 100%; }
+  .setting-val { width: 100%; }
+  .setting-actions { width: 100%; justify-content: flex-end; margin-top: 6px; }
+  .health-grid { flex-direction: column; }
+}
 </style>
