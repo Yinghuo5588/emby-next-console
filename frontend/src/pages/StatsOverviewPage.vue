@@ -1,10 +1,10 @@
 <template>
   <div class="stats-page">
     <PageHeader title="分析总览" />
-    <StatsTabs filterActive="false" />
+    <StatsTabs :filterActive="true" @toggle-filter="showTime = !showTime" />
 
-    <!-- 统一时间筛选 -->
-    <div class="unified-filter">
+    <!-- 时间筛选（默认展开） -->
+    <div class="unified-filter" v-show="showTime">
       <div class="segment-group">
         <button v-for="p in periods" :key="p.value"
           class="seg-btn" :class="{ active: period === p.value }"
@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { NAvatar } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
@@ -121,6 +121,7 @@ const heatmapData = ref<number[][]>([])
 const clientDist = ref<{ name: string; value: number }[]>([])
 const hardwareDist = ref<{ name: string; value: number }[]>([])
 
+const showTime = ref(true) // 默认展开
 const period = ref('30d')
 const periods = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 
@@ -129,8 +130,9 @@ const trendYData = computed(() => Object.values(trendData.value))
 
 async function loadAll() {
   const p = period.value
+  const trendP = p // 后端已支持 7d/30d/90d/all
   loadOverview(p)
-  loadTrend(p)
+  loadTrend(trendP)
   loadTopContent(p)
   loadTopUsers(p)
   loadHeatmap(p)
@@ -172,7 +174,8 @@ onMounted(loadAll)
 
 <style scoped>
 .stats-page { padding: 0.5rem 0; }
-.unified-filter { margin-bottom: 1rem; }
+.unified-filter { margin-bottom: 0.75rem; animation: slideDown 0.2s ease; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 .segment-group { display: inline-flex; background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 3px; }
 .seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
 .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
