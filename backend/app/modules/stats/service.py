@@ -536,3 +536,41 @@ async def _get_badges(where: str) -> list[dict]:
             badges.append({"id": "tv_lover", "name": "追剧狂魔", "icon": "fa-tv", "color": "text-purple-500", "desc": "一集接一集，根本停不下来"})
 
     return badges
+
+
+# ════════════════════════════════════════════════════════════
+# 总览页额外数据
+# ════════════════════════════════════════════════════════════
+
+async def get_heatmap(period: str = "30d") -> list[list[int]]:
+    """24×7 热力图数据：grid[hour][day_of_week] = 播放次数"""
+    pf = _period_filter(period)
+    rows = await _query(
+        f"SELECT DateCreated FROM PlaybackActivity WHERE {pf}"
+    )
+    grid = [[0] * 7 for _ in range(24)]
+    day_names = ['一', '二', '三', '四', '五', '六', '日']
+    for r in rows:
+        dc = r.get("DateCreated")
+        if dc:
+            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2})", str(dc))
+            if m:
+                hour = int(m.group(4))
+                try:
+                    dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                    dow = dt.weekday()  # 0=Mon
+                    if 0 <= hour < 24:
+                        grid[hour][dow] += 1
+                except ValueError:
+                    pass
+    return grid
+
+
+async def get_device_dist(period: str = "30d") -> list[dict]:
+    """设备分布"""
+    pf = _period_filter(period)
+    rows = await _query(
+        f"SELECT COALESCE(ClientName, DeviceName, '未知') as device, COUNT(*) as cnt "
+        f"FROM PlaybackActivity WHERE {pf} GROUP BY device ORDER BY cnt DESC LIMIT 8"
+    )
+    return [{"name": r["device"], "value": r["cnt"]} for r in rows]
