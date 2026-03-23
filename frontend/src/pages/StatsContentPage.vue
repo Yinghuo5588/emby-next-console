@@ -48,7 +48,7 @@
     </div>
 
     <!-- 筛选抽屉 -->
-    <n-drawer v-model:show="showFilter" :width="320" placement="bottom" :height="'auto'">
+    <n-drawer v-model:show="showFilter" :width="320" placement="bottom" height="420px">
       <n-drawer-content title="筛选" closable :body-content-style="{ padding: '16px' }">
         <div class="filter-group">
           <div class="filter-label">内容类型</div>
