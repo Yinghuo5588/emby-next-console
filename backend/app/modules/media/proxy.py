@@ -6,6 +6,7 @@
 """
 import re
 import urllib.parse
+import logging
 
 import httpx
 from fastapi import APIRouter, Query, Response
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Query, Response
 from app.core.emby import emby
 from app.core.settings import settings
 
+logger = logging.getLogger("app.proxy")
 router = APIRouter(prefix="/proxy", tags=["proxy"])
 
 # 缓存：item_id → resolved_id 或 TMDB URL
@@ -157,9 +159,11 @@ async def smart_image(
 
     # ── 第1级：Emby 原生（带剧集 ID 转换）──
     target_id = await _get_real_image_id(item_id) if img_type.lower() == "primary" else item_id
+    logger.info(f"[smart_image] item_id={item_id} target_id={target_id} type={img_type} name={clean_name}")
 
     try:
         resp = await emby.get(f"/Items/{target_id}/Images/{img_type}", params=params)
+        logger.info(f"[smart_image] Emby L1: status={resp.status_code} size={len(resp.content)}")
         if resp.status_code == 200 and len(resp.content) > 100:
             return Response(
                 content=resp.content,
@@ -286,19 +290,22 @@ async def _get_user_image(user_id: str):
     if not user_id:
         return Response(status_code=400)
 
+    logger.info(f"[user_image] 请求 user_id={user_id}")
+
     # Emby 原生头像（与 emby-pulse 参数一致）
     try:
         resp = await emby.get(f"/Users/{user_id}/Images/Primary", params={
             "width": 200, "height": 200, "mode": "Crop", "quality": 90,
         })
+        logger.info(f"[user_image] Emby 响应: status={resp.status_code} size={len(resp.content)}")
         if resp.status_code == 200 and len(resp.content) > 100:
             return Response(
                 content=resp.content,
                 media_type=resp.headers.get("Content-Type", "image/jpeg"),
                 headers={"Cache-Control": "public, max-age=3600"},
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"[user_image] Emby 异常: {e}")
 
     # dicebear 回退
     try:
@@ -310,14 +317,17 @@ async def _get_user_image(user_id: str):
     except Exception:
         username = user_id[:6]
 
+    logger.info(f"[user_image] dicebear fallback username={username}")
     seed = urllib.parse.quote(username)
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             resp = await client.get(f"https://api.dicebear.com/9.x/notionists/png?seed={seed}&size=128")
+            logger.info(f"[user_image] dicebear 响应: status={resp.status_code}")
             if resp.status_code == 200:
                 return Response(content=resp.content, media_type="image/png",
                                 headers={"Cache-Control": "public, max-age=86400"})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"[user_image] dicebear 异常: {e}")
 
+    logger.warning(f"[user_image] 全部失败 user_id={user_id}")
     return Response(status_code=404)
