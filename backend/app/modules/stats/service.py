@@ -77,14 +77,11 @@ async def _resolve_poster_ids(items: list[dict]) -> None:
         except Exception as ex:
             logger.warning("批量 ID 转换失败: %s", ex)
 
-    # 就地更新 item_id 和 poster_url
+    # 就地更新 item_id（poster_url 后面由各调用方构建，用原始 ID 让 proxy 做转换）
     for item in items:
         iid = item.get("item_id")
         if iid and str(iid) in id_map:
-            resolved = id_map[str(iid)]
-            item["item_id"] = resolved
-            if "poster_url" in item:
-                item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={resolved}&type=Primary&name={urllib.parse.quote(item.get('name', ''))}"
+            item["item_id"] = id_map[str(iid)]
 
 
 def _period_filter(period: str) -> str:
@@ -207,11 +204,11 @@ async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
         agg[clean]["total_duration_hours"] += round(r.get("total_duration", 0) / 3600, 1)
 
     result = sorted(agg.values(), key=lambda x: x["total_duration_hours"], reverse=True)[:limit]
+    await _resolve_poster_ids(result)
     for item in result:
         iid = item.get("item_id")
         if iid:
             item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary&name={urllib.parse.quote(item.get('name', ''))}"
-    await _resolve_poster_ids(result)
     return result
 
 
