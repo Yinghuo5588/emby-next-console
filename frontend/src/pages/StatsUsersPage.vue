@@ -3,13 +3,8 @@
     <PageHeader title="用户分析" desc="谁在看？怎么看的？" />
     <StatsTabs />
 
-    <!-- 顶部操作栏 -->
+    <!-- 顶部搜索 -->
     <div class="top-bar">
-      <div class="segment-group">
-        <button v-for="p in periodOptions" :key="p.value"
-          class="seg-btn" :class="{ active: period === p.value }"
-          @click="period = p.value">{{ p.label }}</button>
-      </div>
       <n-select
         v-model:value="selectedUserId"
         :options="userOptions"
@@ -77,7 +72,15 @@
           </div>
         </div>
 
-        <div class="age-text">入驻服务器第 <b>{{ userDetail.account_age_days }}</b> 天</div>
+        <!-- 时间筛选 + 入驻天数 -->
+        <div class="header-row">
+          <div class="segment-group small">
+            <button v-for="p in periodOptions" :key="p.value"
+              class="seg-btn" :class="{ active: detailPeriod === p.value }"
+              @click="detailPeriod = p.value">{{ p.label }}</button>
+          </div>
+          <span class="age-text">入驻 <b>{{ userDetail.account_age_days }}</b> 天</span>
+        </div>
 
         <!-- 内容偏好 -->
         <div class="section-sub">
@@ -139,7 +142,6 @@ import { statsApiV3 } from '@/api/stats-v3'
 const { width: winWidth } = useWindowSize()
 const isMobile = computed(() => winWidth.value < 768)
 
-const period = ref('30d')
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
@@ -154,6 +156,10 @@ const selectedUserId = ref<string | null>(null)
 const userOptions = ref<{ label: string; value: string }[]>([])
 const searchingUsers = ref(false)
 let searchTimer: any = null
+
+// 抽屉内时间筛选（默认7天）
+const detailPeriod = ref('7d')
+const periodOptions = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 
 function onSearchUser(query: string) {
   clearTimeout(searchTimer)
@@ -176,15 +182,12 @@ function onSelectUser(uid: string | null) {
   if (uid) selectUser(uid)
 }
 
-const periodOptions = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 const maxDuration = computed(() => Math.max(...items.value.map(i => i.total_duration_hours), 1))
 
-// trend
 const trendXData = computed(() => Object.keys(userDetail.value?.trend || {}))
 const trendYData = computed(() => Object.values(userDetail.value?.trend || {}) as number[])
 const trendHasData = computed(() => Object.keys(userDetail.value?.trend || {}).length > 0)
 
-// heatmap
 const heatmapHasData = computed(() => {
   const hm = userDetail.value?.heatmap
   return hm?.some((row: number[]) => row.some((v: number) => v > 0))
@@ -195,32 +198,36 @@ function barWidth(val: number, max: number) { return max > 0 ? (val / max) * 100
 async function loadRankings() {
   loading.value = true
   try {
-    const res = await statsApiV3.userRankings({ period: period.value, page: page.value, size: size.value })
+    const res = await statsApiV3.userRankings({ period: '30d', page: page.value, size: size.value })
     const data = res.data?.data ?? res.data ?? {}
     items.value = data.items || []
     total.value = data.total || 0
   } finally { loading.value = false }
 }
 
-async function selectUser(uid: string) {
-  selectedDetailUserId.value = uid
-  const res = await statsApiV3.userDetail(uid)
+async function loadUserDetail() {
+  if (!selectedDetailUserId.value) return
+  const res = await statsApiV3.userDetail(selectedDetailUserId.value, detailPeriod.value)
   userDetail.value = res.data?.data ?? res.data
-  showDrawer.value = true
 }
 
-watch(period, () => { page.value = 1; loadRankings() })
+async function selectUser(uid: string) {
+  selectedDetailUserId.value = uid
+  showDrawer.value = true
+  const res = await statsApiV3.userDetail(uid, detailPeriod.value)
+  userDetail.value = res.data?.data ?? res.data
+}
+
+// 时间筛选变化重新加载详情
+watch(detailPeriod, loadUserDetail)
 watch(page, loadRankings)
-onMounted(() => { loadRankings() })
+onMounted(loadRankings)
 </script>
 
 <style scoped>
 .stats-page { padding: 0.5rem 0; }
-.top-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
-.segment-group { display: inline-flex; background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 3px; }
-.seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
-.seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.user-search { width: 200px; }
+.top-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.user-search { width: 100%; max-width: 300px; }
 .ranking-card { background: var(--surface); border-radius: var(--radius-lg); padding: 0.5rem; border: 1px solid var(--border); }
 .ranking-list { display: flex; flex-direction: column; }
 .ranking-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.5rem; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
@@ -240,7 +247,12 @@ onMounted(() => { loadRankings() })
 .kpi-item { flex: 1; text-align: center; background: var(--bg-secondary); border-radius: var(--radius); padding: 0.6rem 0.25rem; }
 .kpi-val { font-size: 1.3rem; font-weight: 700; color: var(--text); }
 .kpi-lbl { font-size: 0.7rem; color: var(--text-muted); }
-.age-text { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem; }
+.header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; gap: 0.5rem; }
+.segment-group { display: inline-flex; background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 3px; }
+.segment-group.small .seg-btn { padding: 4px 10px; font-size: 0.75rem; }
+.seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.age-text { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
 .age-text b { color: var(--brand); }
 .section-sub { margin-bottom: 1.25rem; }
 .section-sub h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--text); }
@@ -255,7 +267,6 @@ onMounted(() => { loadRankings() })
 @media (max-width: 767px) {
   .desktop-only { display: none; }
   .dist-row { grid-template-columns: 1fr; }
-  .user-search { width: 100%; }
-  .top-bar { flex-direction: column; align-items: stretch; }
+  .user-search { max-width: 100%; }
 }
 </style>
