@@ -203,6 +203,7 @@ async def get_content_rankings(
     sort: str = "duration",
     page: int = 1,
     size: int = 20,
+    user_id: str = None,
 ) -> dict:
     """内容排行榜（筛选+分页）"""
     pf = _period_filter(period)
@@ -213,12 +214,14 @@ async def get_content_rankings(
     elif content_type == "series":
         type_filter = " AND ItemType IN ('Series', 'Episode')"
 
+    user_filter = f" AND UserId = '{user_id}'" if user_id else ""
+
     order = "total_duration DESC" if sort == "duration" else "play_count DESC"
 
     rows = await _query(
         f"SELECT ItemName, ItemId, ItemType, "
         f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
-        f"FROM PlaybackActivity WHERE {pf}{type_filter} "
+        f"FROM PlaybackActivity WHERE {pf}{type_filter}{user_filter} "
         f"GROUP BY ItemName ORDER BY {order} LIMIT 500"
     )
 
