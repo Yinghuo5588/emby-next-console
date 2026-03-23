@@ -39,7 +39,7 @@ class SystemService:
         # 数据库覆盖
         try:
             stmt = select(SystemSetting)
-            result = await db.execute(stmt)
+            result = await self.db.execute(stmt)
             db_settings = {s.setting_key: s for s in result.scalars().all()}
             for item in defaults:
                 if item.setting_key in db_settings:
@@ -59,7 +59,7 @@ class SystemService:
         from datetime import datetime, timezone
 
         stmt = select(SystemSetting).where(SystemSetting.setting_key == key)
-        result = await db.execute(stmt)
+        result = await self.db.execute(stmt)
         setting = result.scalar_one_or_none()
 
         now = datetime.now(timezone.utc)
@@ -76,7 +76,7 @@ class SystemService:
             )
             db.add(setting)
 
-        await db.flush()
+        await self.db.flush()
 
         # 同步到 settings 对象
         if key == "TMDB_API_KEY":
