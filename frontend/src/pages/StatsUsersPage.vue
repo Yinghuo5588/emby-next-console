@@ -61,8 +61,9 @@
     </n-drawer>
 
     <!-- 用户画像抽屉 -->
-    <n-drawer v-model:show="showDrawer" :width="isMobile ? undefined : 480" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '90vh' : undefined">
+    <n-drawer v-model:show="showDrawer" :width="isMobile ? undefined : 560" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '90vh' : undefined">
       <n-drawer-content v-if="userDetail" :title="userDetail.username" closable>
+
         <!-- KPI -->
         <div class="kpi-row">
           <div class="kpi-item">
@@ -97,20 +98,34 @@
           </div>
         </div>
 
-        <!-- 时段柱状图 — BarChart -->
-        <div class="section-sub" v-if="hourlyHasData">
-          <h4>时段分布</h4>
-          <BarChart :yData="hourLabels" :data="userDetail.hourly" :horizontal="false" height="180px" />
+        <!-- 播放趋势 -->
+        <div class="section-sub" v-if="trendHasData">
+          <h4>播放趋势</h4>
+          <AreaChart :xData="trendXData" :series="[{ name: '播放时长', data: trendYData }]" height="200px" />
         </div>
 
-        <!-- 设备环形图 — PieChart -->
-        <div class="section-sub" v-if="userDetail.devices.length > 0">
-          <h4>设备分布</h4>
-          <PieChart :data="pieDevices" height="240px" />
+        <!-- 观影生物钟 -->
+        <div class="section-sub" v-if="heatmapHasData">
+          <h4>观影生物钟</h4>
+          <HeatmapChart :data="userDetail.heatmap" height="240px" />
+        </div>
+
+        <!-- 软件分布 + 硬件分布 -->
+        <div class="section-sub dist-row">
+          <div>
+            <h4>软件分布</h4>
+            <PieChart v-if="userDetail.client_dist?.length > 0" :data="userDetail.client_dist" height="200px" />
+            <div v-else class="empty-chart">暂无数据</div>
+          </div>
+          <div>
+            <h4>硬件分布</h4>
+            <PieChart v-if="userDetail.device_dist?.length > 0" :data="userDetail.device_dist" height="200px" />
+            <div v-else class="empty-chart">暂无数据</div>
+          </div>
         </div>
 
         <!-- 最近播放 -->
-        <div class="section-sub" v-if="userDetail.recent_plays.length > 0">
+        <div class="section-sub" v-if="userDetail.recent_plays?.length > 0">
           <h4>最近播放</h4>
           <div class="recent-list">
             <div v-for="r in userDetail.recent_plays" :key="r.item_id" class="recent-item">
@@ -134,7 +149,8 @@ import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
 import PieChart from '@/components/charts/PieChart.vue'
-import BarChart from '@/components/charts/BarChart.vue'
+import AreaChart from '@/components/charts/AreaChart.vue'
+import HeatmapChart from '@/components/charts/HeatmapChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
 const { width: winWidth } = useWindowSize()
@@ -155,13 +171,15 @@ const periodOptions = [{ label: '30天', value: '30d' }, { label: '90天', value
 const periodLabel = computed(() => periodOptions.find(p => p.value === period.value)?.label || '')
 const maxDuration = computed(() => Math.max(...items.value.map(i => i.total_duration_hours), 1))
 
-const hourLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
-const hourlyHasData = computed(() => userDetail.value?.hourly?.some((h: number) => h > 0))
+// trend
+const trendXData = computed(() => Object.keys(userDetail.value?.trend || {}))
+const trendYData = computed(() => Object.values(userDetail.value?.trend || {}) as number[])
+const trendHasData = computed(() => Object.keys(userDetail.value?.trend || {}).length > 0)
 
-// BarChart 需要 yData + data（垂直柱状图用 yData 作为 x 轴标签）
-const pieDevices = computed(() => {
-  if (!userDetail.value?.devices?.length) return []
-  return userDetail.value.devices.map((d: any) => ({ name: d.device, value: d.count }))
+// heatmap
+const heatmapHasData = computed(() => {
+  const hm = userDetail.value?.heatmap
+  return hm?.some((row: number[]) => row.some((v: number) => v > 0))
 })
 
 function barWidth(val: number, max: number) { return max > 0 ? (val / max) * 100 : 0 }
@@ -216,11 +234,8 @@ onMounted(() => { loadRankings() })
 .age-text { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem; }
 .age-text b { color: var(--brand); }
 .section-sub { margin-bottom: 1.25rem; }
-.section-sub h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; }
-.badge-grid { display: flex; flex-direction: column; gap: 0.4rem; }
-.badge-item { padding: 0.4rem 0.5rem; background: var(--bg-secondary); border-radius: var(--radius); }
-.badge-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
-.badge-desc { font-size: 0.7rem; color: var(--text-muted); }
+.section-sub h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--text); }
+.dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .pref-row { display: flex; align-items: center; gap: 0.75rem; }
 .pref-tag { display: inline-block; padding: 0.15rem 0.6rem; background: var(--brand); color: #fff; border-radius: 1rem; font-size: 0.75rem; font-weight: 600; }
 .pref-stats { font-size: 0.75rem; color: var(--text-muted); }
@@ -232,5 +247,6 @@ onMounted(() => { loadRankings() })
 .recent-body { flex: 1; min-width: 0; }
 .recent-name { font-size: 0.8rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .recent-meta { font-size: 0.7rem; color: var(--text-muted); }
-@media (max-width: 767px) { .desktop-only { display: none; } }
+.empty-chart { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.8rem; }
+@media (max-width: 767px) { .desktop-only { display: none; } .dist-row { grid-template-columns: 1fr; } }
 </style>
