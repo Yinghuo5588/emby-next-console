@@ -170,7 +170,7 @@ async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
     for item in result:
         iid = item.get("item_id")
         if iid:
-            item["poster_url"] = f"/api/proxy/smart_image?item_id={iid}&type=Primary"
+            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
     return result
 
 
@@ -256,7 +256,7 @@ async def get_content_rankings(
     for item in page_items:
         iid = item.get("item_id")
         if iid:
-            item["poster_url"] = f"/api/proxy/smart_image?item_id={iid}&type=Primary"
+            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
 
     return {"total": total, "items": page_items}
 
@@ -306,7 +306,7 @@ async def get_content_detail(item_id: str) -> dict:
         "type": item_type,
         "trend": trend,
         "viewers": viewers,
-        "poster_url": f"/api/proxy/smart_image?item_id={item_id}&type=Primary",
+        "poster_url": f"/api/v1/proxy/smart_image?item_id={item_id}&type=Primary",
     }
 
 
@@ -403,7 +403,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
         top_fav = {
             "name": _clean_name(f.get("ItemName", ""), f.get("ItemType", "")),
             "hours": round(f["dur"] / 3600, 1),
-            "poster_url": f"/api/proxy/smart_image?item_id={f['ItemId']}&type=Primary" if f.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary" if f.get("ItemId") else "",
         }
 
     # 播放趋势（近30天按天）
@@ -456,7 +456,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "item_id": r.get("ItemId"),
             "date": r.get("DateCreated", "")[:16].replace("T", " "),
             "duration_min": round((r.get("PlayDuration") or 0) / 60, 1),
-            "poster_url": f"/api/proxy/smart_image?item_id={r['ItemId']}&type=Primary" if r.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary" if r.get("ItemId") else "",
         })
 
     # 成就徽章
