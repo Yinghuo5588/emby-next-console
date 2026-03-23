@@ -8,18 +8,21 @@
         </n-button>
       </template>
     </PageHeader>
+    <StatsTabs />
 
     <!-- 当前筛选标签 -->
     <div class="active-filters" v-if="activeFilterCount > 0">
-      <n-tag v-if="contentType !== 'all'" size="small" closable @close="contentType = 'all'">
-        {{ typeLabel }}
-      </n-tag>
-      <n-tag v-if="period !== '30d'" size="small" closable @close="period = '30d'">
-        {{ periodLabel }}
-      </n-tag>
-      <n-tag v-if="sortBy !== 'duration'" size="small" closable @close="sortBy = 'duration'">
-        {{ sortLabel }}
-      </n-tag>
+      <n-tag v-if="contentType !== 'all'" size="small" closable @close="contentType = 'all'">{{ typeLabel }}</n-tag>
+      <n-tag v-if="period !== '30d'" size="small" closable @close="period = '30d'">{{ periodLabel }}</n-tag>
+      <n-tag v-if="sortBy !== 'duration'" size="small" closable @close="sortBy = 'duration'">{{ sortLabel }}</n-tag>
+    </div>
+
+    <!-- 概览图表：热门内容条形图 -->
+    <div class="section-card" v-if="chartItems.length > 0">
+      <div class="section-header">
+        <h3 class="section-title">热门内容排行</h3>
+      </div>
+      <v-chart :option="contentBarOption" autoresize style="height: 260px" />
     </div>
 
     <!-- 排行表 -->
@@ -32,7 +35,7 @@
           :class="{ active: selectedItem?.item_id === item.item_id }"
           @click="selectItem(item)">
           <span class="ranking-num" :class="{ 'num-top': i < 3 }">{{ (page - 1) * size + i + 1 }}</span>
-          <n-avatar :src="item.poster_url" :size="44" round class="ranking-avatar" fallback-src="" />
+          <n-avatar :src="item.poster_url" :size="40" round class="ranking-avatar" fallback-src="" />
           <div class="ranking-body">
             <div class="ranking-name">{{ item.name }}</div>
             <div class="ranking-meta">
@@ -89,24 +92,39 @@
     <!-- 内容详情抽屉 -->
     <n-drawer v-model:show="showDetail" :width="480" placement="right">
       <n-drawer-content v-if="detail" :title="detail.name" closable>
-        <div class="detail-section">
-          <div class="detail-header">
-            <n-avatar :src="detail.poster_url" :size="64" round />
-            <div>
-              <h3>{{ detail.name }}</h3>
-              <div class="detail-meta">{{ detail.type === 'Movie' ? '电影' : '剧集' }}</div>
-            </div>
+        <div class="detail-hero">
+          <n-avatar :src="detail.poster_url" :size="56" round />
+          <div>
+            <h3>{{ detail.name }}</h3>
+            <span class="detail-type-badge">{{ detail.type === 'Movie' ? '电影' : '剧集' }}</span>
           </div>
         </div>
+
+        <div class="detail-kpi-row">
+          <div class="detail-kpi">
+            <div class="dk-val">{{ detail.total_plays }}</div>
+            <div class="dk-lbl">播放次数</div>
+          </div>
+          <div class="detail-kpi">
+            <div class="dk-val">{{ detail.total_hours }}h</div>
+            <div class="dk-lbl">总时长</div>
+          </div>
+          <div class="detail-kpi">
+            <div class="dk-val">{{ detail.unique_viewers }}</div>
+            <div class="dk-lbl">观看人数</div>
+          </div>
+        </div>
+
         <div class="detail-section" v-if="Object.keys(detail.trend).length > 0">
           <h4>30 天播放趋势</h4>
           <v-chart :option="detailTrendOption" autoresize style="height: 180px" />
         </div>
+
         <div class="detail-section" v-if="detail.viewers.length > 0">
           <h4>观看用户</h4>
           <div class="viewer-list">
             <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-item">
-              <span>{{ v.username }}</span>
+              <span class="viewer-name">{{ v.username }}</span>
               <span class="viewer-meta">{{ v.play_count }} 次 · {{ v.duration_hours }}h</span>
             </div>
           </div>
@@ -118,19 +136,18 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
 import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent } from 'naive-ui'
 import { use } from 'echarts/core'
-import { LineChart } from 'echarts/charts'
+import { LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import PageHeader from '@/components/common/PageHeader.vue'
+import StatsTabs from '@/components/stats/StatsTabs.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
-use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
+use([LineChart, BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
-const route = useRoute()
 const showFilter = ref(false)
 const contentType = ref('all')
 const period = ref('30d')
@@ -154,8 +171,35 @@ const sortLabel = computed(() => sortOptions.find(s => s.value === sortBy.value)
 const activeFilterCount = computed(() => (contentType.value !== 'all' ? 1 : 0) + (period.value !== '30d' ? 1 : 0) + (sortBy.value !== 'duration' ? 1 : 0))
 const maxDuration = computed(() => Math.max(...items.value.map(i => i.total_duration_min), 1))
 
+// 前5条用于图表
+const chartItems = computed(() => {
+  const sorted = [...items.value].slice(0, 8).reverse()
+  return sorted
+})
+
 function barWidth(val: number, max: number) { return max > 0 ? (val / max) * 100 : 0 }
 function formatDuration(min: number) { return min >= 60 ? `${(min / 60).toFixed(1)}h` : `${Math.round(min)}m` }
+
+// 水平条形图
+const contentBarOption = computed(() => {
+  const names = chartItems.value.map(c => {
+    const n = c.name || ''
+    return n.length > 14 ? n.slice(0, 14) + '…' : n
+  })
+  const vals = chartItems.value.map(c => sortBy.value === 'count' ? c.play_count : c.total_duration_hours)
+  const unit = sortBy.value === 'count' ? '次' : 'h'
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (v: number) => `${v} ${unit}` },
+    grid: { top: 8, right: 20, bottom: 10, left: 10, containLabel: true },
+    xAxis: { type: 'value', show: false },
+    yAxis: { type: 'category', data: names, axisLabel: { fontSize: 11, color: '#333', overflow: 'truncate', width: 120 }, axisLine: { show: false }, axisTick: { show: false } },
+    series: [{
+      type: 'bar', data: vals, barMaxWidth: 14,
+      itemStyle: { borderRadius: [0, 4, 4, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#3b82f6' }, { offset: 1, color: '#60a5fa' }] } },
+      label: { show: true, position: 'right', fontSize: 10, color: '#8e8e93', formatter: `{c}${unit}` },
+    }],
+  }
+})
 
 async function loadRankings() {
   loading.value = true
@@ -181,9 +225,14 @@ const detailTrendOption = computed(() => {
   return {
     tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v} 小时` },
     grid: { top: 10, right: 10, bottom: 24, left: 36 },
-    xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 10, color: '#8e8e93' } },
+    xAxis: { type: 'category', data: labels, boundaryGap: false, axisLabel: { fontSize: 10, color: '#8e8e93' }, axisLine: { show: false }, axisTick: { show: false } },
     yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#8e8e93' }, splitLine: { lineStyle: { type: 'dashed', color: '#f0f0f0' } } },
-    series: [{ type: 'line', data: values, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#3b82f6' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.2)' }, { offset: 1, color: 'rgba(59,130,246,0.02)' }] } } }],
+    series: [{
+      type: 'line', data: values, smooth: true, symbol: 'circle', symbolSize: 3,
+      lineStyle: { width: 2, color: '#3b82f6' },
+      itemStyle: { color: '#3b82f6' },
+      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.3)' }, { offset: 1, color: 'rgba(59,130,246,0.02)' }] } },
+    }],
   }
 })
 
@@ -196,6 +245,9 @@ onMounted(() => { loadRankings() })
 .stats-page { padding: 0.5rem 0; }
 .active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
 .filter-badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 0.65rem; margin-left: 4px; }
+.section-card { background: var(--surface); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border); margin-bottom: 1rem; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0; }
 .ranking-card { background: var(--surface); border-radius: var(--radius-lg); padding: 0.5rem; border: 1px solid var(--border); }
 .ranking-list { display: flex; flex-direction: column; }
 .ranking-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.5rem; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
@@ -213,13 +265,18 @@ onMounted(() => { loadRankings() })
 .empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
 .filter-group { margin-bottom: 1rem; }
 .filter-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-.detail-section { margin-bottom: 1.5rem; }
-.detail-header { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
-.detail-header h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
-.detail-meta { font-size: 0.8rem; color: var(--text-muted); }
-.detail-section h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem; }
+.detail-hero { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+.detail-hero h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
+.detail-type-badge { font-size: 0.7rem; color: var(--text-muted); background: var(--bg-secondary); padding: 2px 8px; border-radius: 1rem; }
+.detail-kpi-row { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+.detail-kpi { flex: 1; text-align: center; background: var(--bg-secondary); border-radius: var(--radius); padding: 0.6rem 0.25rem; }
+.dk-val { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+.dk-lbl { font-size: 0.7rem; color: var(--text-muted); }
+.detail-section { margin-bottom: 1.25rem; }
+.detail-section h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
 .viewer-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .viewer-item { display: flex; justify-content: space-between; padding: 0.5rem; background: var(--bg-secondary); border-radius: var(--radius); font-size: 0.85rem; }
+.viewer-name { font-weight: 600; }
 .viewer-meta { color: var(--text-muted); font-size: 0.8rem; }
 @media (max-width: 767px) {
   .desktop-only { display: none; }
