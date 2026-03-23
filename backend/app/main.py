@@ -26,6 +26,7 @@ from app.modules.invites.api import router as invites_router
 from app.modules.templates.api import router as templates_router
 from app.modules.portal.api import router as portal_router
 from app.modules.media.api import router as media_router
+from app.modules.media.proxy import router as proxy_router
 from app.modules.calendar.api import router as calendar_router
 
 logging.basicConfig(level=logging.INFO)
@@ -71,6 +72,7 @@ app.include_router(invites_router, prefix=API_PREFIX)
 app.include_router(templates_router, prefix=API_PREFIX)
 app.include_router(portal_router, prefix=API_PREFIX)
 app.include_router(media_router, prefix=API_PREFIX)
+app.include_router(proxy_router, prefix=API_PREFIX)
 app.include_router(calendar_router, prefix=API_PREFIX)
 
 
