@@ -121,7 +121,7 @@ const heatmapData = ref<number[][]>([])
 const clientDist = ref<{ name: string; value: number }[]>([])
 const hardwareDist = ref<{ name: string; value: number }[]>([])
 
-const showTime = ref(true) // 默认展开
+const showTime = ref(false) // 默认收起，点击总览tab弹出
 const period = ref('30d')
 const periods = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 
