@@ -1,17 +1,29 @@
 <template>
   <div class="stats-page">
-    <PageHeader title="用户分析" desc="谁在看？怎么看的？">
-      <template #actions>
-        <n-button size="small" @click="showFilter = true">
-          <span>筛选</span>
-          <span v-if="period !== '30d'" class="filter-badge">1</span>
-        </n-button>
-      </template>
-    </PageHeader>
+    <PageHeader title="用户分析" desc="谁在看？怎么看的？" />
     <StatsTabs />
 
-    <div class="active-filters" v-if="period !== '30d'">
-      <n-tag size="small" closable @close="period = '30d'">{{ periodLabel }}</n-tag>
+    <!-- 顶部操作栏 -->
+    <div class="top-bar">
+      <div class="segment-group">
+        <button v-for="p in periodOptions" :key="p.value"
+          class="seg-btn" :class="{ active: period === p.value }"
+          @click="period = p.value">{{ p.label }}</button>
+      </div>
+      <n-select
+        v-model:value="selectedUserId"
+        :options="userOptions"
+        filterable
+        placeholder="搜索用户..."
+        clearable
+        :loading="searchingUsers"
+        :filter="() => true"
+        remote
+        @search="onSearchUser"
+        @update:value="onSelectUser"
+        size="small"
+        class="user-search"
+      />
     </div>
 
     <!-- 用户列表 -->
@@ -21,7 +33,7 @@
       <div v-else class="ranking-list">
         <div v-for="(item, i) in items" :key="i"
           class="ranking-item"
-          :class="{ active: selectedUserId === item.user_id }"
+          :class="{ active: selectedDetailUserId === item.user_id }"
           @click="selectUser(item.user_id)">
           <span class="ranking-num" :class="{ 'num-top': i < 3 }">{{ (page - 1) * size + i + 1 }}</span>
           <n-avatar :size="36" round class="ranking-avatar">{{ item.username?.charAt(0) || '?' }}</n-avatar>
@@ -44,21 +56,6 @@
         <n-button size="small" :disabled="page >= Math.ceil(total / size)" @click="page++">下一页</n-button>
       </div>
     </div>
-
-    <!-- 筛选抽屉 -->
-    <n-drawer v-model:show="showFilter" :width="320" placement="bottom" :height="'auto'">
-      <n-drawer-content title="筛选" closable :body-content-style="{ padding: '16px' }">
-        <div class="filter-group">
-          <div class="filter-label">时间范围</div>
-          <n-button-group size="small">
-            <n-button v-for="p in periodOptions" :key="p.value"
-              :type="period === p.value ? 'primary' : 'default'"
-              @click="period = p.value">{{ p.label }}</n-button>
-          </n-button-group>
-        </div>
-        <n-button block type="primary" @click="showFilter = false" style="margin-top: 16px">确定</n-button>
-      </n-drawer-content>
-    </n-drawer>
 
     <!-- 用户画像抽屉 -->
     <n-drawer v-model:show="showDrawer" :width="isMobile ? undefined : 560" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '90vh' : undefined">
@@ -123,20 +120,6 @@
             <div v-else class="empty-chart">暂无数据</div>
           </div>
         </div>
-
-        <!-- 最近播放 -->
-        <div class="section-sub" v-if="userDetail.recent_plays?.length > 0">
-          <h4>最近播放</h4>
-          <div class="recent-list">
-            <div v-for="r in userDetail.recent_plays" :key="r.item_id" class="recent-item">
-              <n-avatar :src="r.poster_url" :size="28" round />
-              <div class="recent-body">
-                <div class="recent-name">{{ r.name }}</div>
-                <div class="recent-meta">{{ r.date }} · {{ r.duration_min }}m</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </n-drawer-content>
     </n-drawer>
   </div>
@@ -144,7 +127,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent } from 'naive-ui'
+import { NButton, NAvatar, NDrawer, NDrawerContent, NSelect } from 'naive-ui'
 import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
@@ -156,19 +139,44 @@ import { statsApiV3 } from '@/api/stats-v3'
 const { width: winWidth } = useWindowSize()
 const isMobile = computed(() => winWidth.value < 768)
 
-const showFilter = ref(false)
 const period = ref('30d')
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
 const items = ref<any[]>([])
 const loading = ref(false)
-const selectedUserId = ref<string | null>(null)
+const selectedDetailUserId = ref<string | null>(null)
 const showDrawer = ref(false)
 const userDetail = ref<any>(null)
 
-const periodOptions = [{ label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
-const periodLabel = computed(() => periodOptions.find(p => p.value === period.value)?.label || '')
+// 搜索用户
+const selectedUserId = ref<string | null>(null)
+const userOptions = ref<{ label: string; value: string }[]>([])
+const searchingUsers = ref(false)
+let searchTimer: any = null
+
+function onSearchUser(query: string) {
+  clearTimeout(searchTimer)
+  if (!query) { userOptions.value = []; return }
+  searchTimer = setTimeout(async () => {
+    searchingUsers.value = true
+    try {
+      const res = await statsApiV3.searchUsers(query)
+      const users = res.data?.data ?? res.data ?? res.users ?? []
+      userOptions.value = (Array.isArray(users) ? users : []).map((u: any) => ({
+        label: u.username || u.name || u.display_name,
+        value: u.user_id || u.id,
+      }))
+    } catch { userOptions.value = [] }
+    finally { searchingUsers.value = false }
+  }, 300)
+}
+
+function onSelectUser(uid: string | null) {
+  if (uid) selectUser(uid)
+}
+
+const periodOptions = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 const maxDuration = computed(() => Math.max(...items.value.map(i => i.total_duration_hours), 1))
 
 // trend
@@ -195,7 +203,7 @@ async function loadRankings() {
 }
 
 async function selectUser(uid: string) {
-  selectedUserId.value = uid
+  selectedDetailUserId.value = uid
   const res = await statsApiV3.userDetail(uid)
   userDetail.value = res.data?.data ?? res.data
   showDrawer.value = true
@@ -208,8 +216,11 @@ onMounted(() => { loadRankings() })
 
 <style scoped>
 .stats-page { padding: 0.5rem 0; }
-.active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
-.filter-badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 0.65rem; margin-left: 4px; }
+.top-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.segment-group { display: inline-flex; background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 3px; }
+.seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.user-search { width: 200px; }
 .ranking-card { background: var(--surface); border-radius: var(--radius-lg); padding: 0.5rem; border: 1px solid var(--border); }
 .ranking-list { display: flex; flex-direction: column; }
 .ranking-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.5rem; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
@@ -225,8 +236,6 @@ onMounted(() => { loadRankings() })
 .pagination-row { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 0; }
 .page-info { font-size: 0.8rem; color: var(--text-muted); }
 .empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
-.filter-group { margin-bottom: 1rem; }
-.filter-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
 .kpi-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
 .kpi-item { flex: 1; text-align: center; background: var(--bg-secondary); border-radius: var(--radius); padding: 0.6rem 0.25rem; }
 .kpi-val { font-size: 1.3rem; font-weight: 700; color: var(--text); }
@@ -242,11 +251,11 @@ onMounted(() => { loadRankings() })
 .fav-item { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
 .fav-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
 .fav-sub { font-size: 0.7rem; color: var(--text-muted); }
-.recent-list { display: flex; flex-direction: column; gap: 0.4rem; }
-.recent-item { display: flex; align-items: center; gap: 0.5rem; }
-.recent-body { flex: 1; min-width: 0; }
-.recent-name { font-size: 0.8rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.recent-meta { font-size: 0.7rem; color: var(--text-muted); }
 .empty-chart { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.8rem; }
-@media (max-width: 767px) { .desktop-only { display: none; } .dist-row { grid-template-columns: 1fr; } }
+@media (max-width: 767px) {
+  .desktop-only { display: none; }
+  .dist-row { grid-template-columns: 1fr; }
+  .user-search { width: 100%; }
+  .top-bar { flex-direction: column; align-items: stretch; }
+}
 </style>
