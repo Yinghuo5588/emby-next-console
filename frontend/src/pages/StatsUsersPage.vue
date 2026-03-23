@@ -1,6 +1,6 @@
 <template>
   <div class="stats-page">
-    <PageHeader title="用户分析" desc="谁在看？怎么看的？" />
+    <PageHeader title="用户分析" />
     <StatsTabs />
 
     <!-- 顶部搜索 -->
