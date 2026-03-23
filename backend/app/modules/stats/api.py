@@ -75,11 +75,12 @@ async def content_rankings(
     sort: str = Query("duration", regex=r"^(duration|count)$"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=50),
+    user_id: str = Query(None),
     _: str = Depends(get_current_user_id),
 ):
     """内容排行榜（筛选+分页）"""
     data = await service.get_content_rankings(
-        content_type=type, period=period, sort=sort, page=page, size=size
+        content_type=type, period=period, sort=sort, page=page, size=size, user_id=user_id
     )
     return ApiResponse.ok(data=data)
 
@@ -115,9 +116,24 @@ async def user_detail(
     user_id: str,
     _: str = Depends(get_current_user_id),
 ):
-    """单个用户画像：KPI + 徽章 + 偏好 + 时段 + 设备 + 最近播放"""
+    """单个用户画像：KPI + 偏好 + 趋势 + 热力图 + 设备"""
     data = await service.get_user_detail(user_id)
     return ApiResponse.ok(data=data)
+
+
+@router.get("/search-users")
+async def search_users(
+    q: str = Query(..., min_length=1),
+    _: str = Depends(get_current_user_id),
+):
+    """搜索用户（按用户名模糊匹配）"""
+    user_map = await service._get_user_map()
+    results = [
+        {"user_id": uid, "username": name}
+        for uid, name in user_map.items()
+        if q.lower() in name.lower()
+    ]
+    return ApiResponse.ok(data=results[:20])
 
 
 # ════════════════════════════════════════════════════════════
