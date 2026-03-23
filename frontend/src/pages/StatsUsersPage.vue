@@ -81,19 +81,6 @@
 
         <div class="age-text">入驻服务器第 <b>{{ userDetail.account_age_days }}</b> 天</div>
 
-        <!-- 徽章 -->
-        <div class="section-sub" v-if="userDetail.badges.length > 0">
-          <h4>成就徽章</h4>
-          <div class="badge-grid">
-            <div v-for="b in userDetail.badges" :key="b.id" class="badge-item">
-              <div>
-                <div class="badge-name">{{ b.name }}</div>
-                <div class="badge-desc">{{ b.desc }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- 内容偏好 -->
         <div class="section-sub">
           <h4>内容偏好</h4>
