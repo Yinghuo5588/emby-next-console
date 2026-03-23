@@ -174,7 +174,7 @@ class PortalService:
                     r["clean_name"] = _clean_name(r.get("ItemName", ""), r.get("ItemType", ""))
                     iid = r.get("ItemId")
                     if iid:
-                        r["poster_url"] = f"/api/proxy/smart_image?item_id={iid}&type=Primary"
+                        r["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
                 top_media = [dict(r) for r in rows]
         except Exception:
             pass
@@ -193,7 +193,7 @@ class PortalService:
                     r["clean_name"] = _clean_name(r.get("ItemName", ""), r.get("ItemType", ""))
                     iid = r.get("ItemId")
                     if iid:
-                        r["poster_url"] = f"/api/proxy/smart_image?item_id={iid}&type=Primary"
+                        r["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary"
                 recent = [dict(r) for r in rows]
         except Exception:
             pass
