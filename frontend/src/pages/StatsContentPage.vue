@@ -81,7 +81,7 @@
     </n-drawer>
 
     <!-- 内容详情抽屉 -->
-    <n-drawer v-model:show="showDetail" :width="480" placement="right">
+    <n-drawer v-model:show="showDetail" :width="isMobile ? undefined : 480" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '90vh' : undefined">
       <n-drawer-content v-if="detail" :title="detail.name" closable>
         <div class="detail-hero">
           <n-avatar :src="detail.poster_url" :size="56" round />
@@ -128,10 +128,14 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent } from 'naive-ui'
+import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
 import AreaChart from '@/components/charts/AreaChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
+
+const { width: winWidth } = useWindowSize()
+const isMobile = computed(() => winWidth.value < 768)
 
 const showFilter = ref(false)
 const contentType = ref('all')
