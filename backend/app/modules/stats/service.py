@@ -566,11 +566,13 @@ async def get_heatmap(period: str = "30d") -> list[list[int]]:
     return grid
 
 
-async def get_device_dist(period: str = "30d") -> list[dict]:
-    """设备分布"""
+async def get_device_dist(period: str = "30d", dist_type: str = "client") -> list[dict]:
+    """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)"""
     pf = _period_filter(period)
+    col = "DeviceName" if dist_type == "hardware" else "ClientName"
+    label = "硬件" if dist_type == "hardware" else "软件"
     rows = await _query(
-        f"SELECT COALESCE(ClientName, DeviceName, '未知') as device, COUNT(*) as cnt "
+        f"SELECT COALESCE({col}, '未知') as device, COUNT(*) as cnt "
         f"FROM PlaybackActivity WHERE {pf} GROUP BY device ORDER BY cnt DESC LIMIT 8"
     )
     return [{"name": r["device"], "value": r["cnt"]} for r in rows]
