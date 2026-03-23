@@ -1,5 +1,5 @@
 """
-统计服务 — 全部走 Emby Playback Reporting 插件 API
+统计服务 V3 — 全部走 Emby Playback Reporting 插件 API
 """
 from __future__ import annotations
 
@@ -8,13 +8,14 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.emby import emby
-from app.core.emby_data import data as emby_data
 
 logger = logging.getLogger("app.stats")
 
+
+# ════════════════════════════════════════════════════════════
+# 工具函数
+# ════════════════════════════════════════════════════════════
 
 async def _query(sql: str) -> list[dict]:
     """统一走 Playback Reporting 插件 API"""
@@ -32,7 +33,6 @@ def _clean_name(name: str, item_type: str = "") -> str:
     name = str(name)
     if str(item_type) != "Episode":
         return name.split(" - ")[0]
-    # 剧集: "系列名 - S01E05" or "系列名 - 第5集"
     parts = [p.strip() for p in name.split(" - ")]
     series = parts[0]
     cn_map = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
@@ -47,6 +47,18 @@ def _clean_name(name: str, item_type: str = "") -> str:
     return series
 
 
+def _period_filter(period: str) -> str:
+    """时间范围条件"""
+    if period == "7d":
+        return "DateCreated >= date('now', '-7 days')"
+    elif period == "30d":
+        return "DateCreated >= date('now', '-30 days')"
+    elif period == "90d":
+        return "DateCreated >= date('now', '-90 days')"
+    else:  # all
+        return "1=1"
+
+
 async def _get_user_map() -> dict:
     """获取 UserId → UserName 映射"""
     try:
@@ -58,11 +70,12 @@ async def _get_user_map() -> dict:
 
 
 # ════════════════════════════════════════════════════════════
-# 统计服务 — 公开方法
+# 总览页
 # ════════════════════════════════════════════════════════════
 
 async def get_overview() -> dict:
-    """概览数据"""
+    """核心指标 + 媒体库总量"""
+    # 播放统计
     rows = await _query(
         "SELECT COUNT(*) as total_plays, "
         "COALESCE(SUM(PlayDuration), 0) as total_duration, "
@@ -70,255 +83,388 @@ async def get_overview() -> dict:
         "FROM PlaybackActivity"
     )
     r = rows[0] if rows else {}
-    today_rows = await _query(
-        "SELECT COUNT(*) as cnt FROM PlaybackActivity "
-        "WHERE DateCreated >= date('now', 'start of day')"
-    )
-    return {
-        "total_plays": r.get("total_plays", 0),
-        "total_duration_sec": r.get("total_duration", 0),
-        "unique_users": r.get("unique_users", 0),
-        "today_plays": today_rows[0].get("cnt", 0) if today_rows else 0,
-    }
 
-
-async def get_trend(days: int = 7) -> list[dict]:
-    """播放趋势"""
-    return await _query(
-        f"SELECT DATE(DateCreated) as date, COUNT(*) as play_count, "
-        f"COUNT(DISTINCT UserId) as active_users, "
-        f"COALESCE(SUM(PlayDuration), 0) as total_duration "
-        f"FROM PlaybackActivity WHERE DateCreated >= date('now', '-{days} days') "
-        f"GROUP BY DATE(DateCreated) ORDER BY date ASC"
+    # 30 天活跃用户
+    active_rows = await _query(
+        "SELECT COUNT(DISTINCT UserId) as cnt FROM PlaybackActivity "
+        "WHERE DateCreated >= date('now', '-30 days')"
     )
 
-
-async def get_top_users(limit: int = 10) -> list[dict]:
-    """用户排行"""
-    rows = await _query(
-        f"SELECT UserId as user_id, UserName as username, "
-        f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
-        f"FROM PlaybackActivity GROUP BY UserId ORDER BY play_count DESC LIMIT {limit}"
-    )
-    # 补充用户名
-    user_map = await _get_user_map()
-    for r in rows:
-        uid = str(r.get("user_id", ""))
-        r["username"] = user_map.get(uid, r.get("username", f"用户 {uid[:6]}"))
-    return rows
-
-
-async def get_top_media(limit: int = 10, days: int = 30) -> list[dict]:
-    """热门媒体排行"""
-    rows = await _query(
-        f"SELECT ItemName as item_name, ItemId as item_id, ItemType as item_type, "
-        f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
-        f"FROM PlaybackActivity "
-        f"WHERE DateCreated >= date('now', '-{days} days') "
-        f"GROUP BY ItemName ORDER BY play_count DESC LIMIT {limit}"
-    )
-    # 智能名称清洗 + 海报
-    for r in rows:
-        r["clean_name"] = _clean_name(r.get("item_name", ""), r.get("item_type", ""))
-        iid = r.get("item_id")
-        if iid:
-            r["poster_url"] = f"/api/proxy/smart_image?item_id={iid}&type=Primary"
-    return rows
-
-
-async def get_watch_history(
-    user_id: Optional[str] = None, limit: int = 50, days: int = 30
-) -> list[dict]:
-    """观看历史"""
-    where = f"DateCreated >= date('now', '-{days} days')"
-    if user_id:
-        where += f" AND UserId = '{user_id}'"
-    return await _query(
-        f"SELECT DateCreated, ItemName, ItemId, ItemType, PlayDuration, "
-        f"COALESCE(ClientName, DeviceName) as client, UserId "
-        f"FROM PlaybackActivity WHERE {where} ORDER BY DateCreated DESC LIMIT {limit}"
-    )
-
-
-async def get_clock_heatmap(days: int = 30) -> list[list[int]]:
-    """生物钟热力图 (24x7)"""
-    rows = await _query(
-        f"SELECT DateCreated FROM PlaybackActivity "
-        f"WHERE DateCreated >= date('now', '-{days} days')"
-    )
-    grid = [[0] * 7 for _ in range(24)]
-    for r in rows:
-        dc = r.get("DateCreated")
-        if dc:
-            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2})", str(dc))
-            if m:
-                hour = int(m.group(4))
-                try:
-                    dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-                    dow = dt.weekday()  # 0=Mon, 6=Sun
-                except ValueError:
-                    continue
-                if 0 <= hour < 24 and 0 <= dow < 7:
-                    grid[hour][dow] += 1
-    return grid
-
-
-async def get_device_distribution(days: int = 30) -> list[dict]:
-    """设备分布"""
-    return await _query(
-        f"SELECT COALESCE(ClientName, '未知') as device, COUNT(*) as count "
-        f"FROM PlaybackActivity "
-        f"WHERE DateCreated >= date('now', '-{days} days') "
-        f"GROUP BY ClientName ORDER BY count DESC LIMIT 10"
-    )
-
-
-async def get_genre_preference(days: int = 30) -> list[dict]:
-    """类型偏好（需要配合 Emby API 查询 genres）"""
-    # 先从 PlaybackActivity 获取热门内容
-    top = await _query(
-        f"SELECT DISTINCT ItemId FROM PlaybackActivity "
-        f"WHERE DateCreated >= date('now', '-{days} days') LIMIT 100"
-    )
-    if not top:
-        return []
-
-    # 批量查询 Emby 获取 genres
-    ids = ",".join(str(r["ItemId"]) for r in top if r.get("ItemId"))
-    if not ids:
-        return []
+    # 媒体库总量
+    library = {"movie": 0, "series": 0, "episode": 0}
     try:
-        resp = await emby.get("/Items", params={"Ids": ids, "Fields": "Genres"})
+        resp = await emby.get("/Items/Counts")
         resp.raise_for_status()
-        items = resp.json().get("Items", [])
-    except Exception:
-        return []
-
-    genre_counts: dict[str, int] = {}
-    for item in items:
-        for g in item.get("Genres", []):
-            genre_counts[g] = genre_counts.get(g, 0) + 1
-
-    total = sum(genre_counts.values()) or 1
-    sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:15]
-    return [
-        {"genre": g, "count": c, "percentage": round(c / total * 100, 1)}
-        for g, c in sorted_genres
-    ]
-
-
-# ── 质量盘点缓存（24h） ──────────────────────────────────
-_quality_cache: dict | None = None
-_quality_cache_time: float = 0
-_QUALITY_CACHE_TTL = 86400  # 24 小时
-
-
-async def get_quality_analysis(days: int = 30, force_refresh: bool = False) -> dict:
-    """质量盘点：分辨率 + 编码 + HDR + 转码率（参考 Emby Pulse）"""
-    import time
-    global _quality_cache, _quality_cache_time
-
-    now = time.time()
-    if not force_refresh and _quality_cache and (now - _quality_cache_time < _QUALITY_CACHE_TTL):
-        return _quality_cache
-
-    # 转码率：查当前会话
-    transcode_rate = 0.0
-    try:
-        resp = await emby.get("/Sessions")
-        resp.raise_for_status()
-        sessions = resp.json()
-        total_s = len(sessions) or 1
-        transcode = sum(1 for s in sessions if s.get("PlayState", {}).get("PlayMethod") == "Transcode")
-        transcode_rate = round(transcode / total_s * 100, 1)
+        d = resp.json()
+        library = {
+            "movie": d.get("MovieCount", 0),
+            "series": d.get("SeriesCount", 0),
+            "episode": d.get("EpisodeCount", 0),
+        }
     except Exception:
         pass
 
-    # 扫描所有电影的 MediaStreams
-    stats: dict = {
-        "total_count": 0,
-        "transcoding_rate": transcode_rate,
-        "scan_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "resolution": {"4k": 0, "1080p": 0, "720p": 0, "sd": 0},
-        "codec": {"hevc": 0, "h264": 0, "av1": 0, "other": 0},
-        "hdr": {"dolby_vision": 0, "hdr10": 0, "sdr": 0},
+    return {
+        "total_plays": r.get("total_plays", 0),
+        "total_duration_hours": round(r.get("total_duration", 0) / 3600, 1),
+        "active_users_30d": active_rows[0].get("cnt", 0) if active_rows else 0,
+        "library": library,
     }
 
-    try:
-        resp = await emby.get("/Items", params={
-            "IncludeItemTypes": "Movie",
-            "Recursive": "true",
-            "Fields": "MediaSources,MediaStreams",
+
+async def get_trend_by_period(period: str = "30d") -> dict:
+    """播放趋势：只有播放时长"""
+    if period == "12w":
+        rows = await _query(
+            "SELECT strftime('%Y-%W', substr(replace(DateCreated, 'T', ' '), 1, 19)) as label, "
+            "COALESCE(SUM(PlayDuration), 0) as duration "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-84 days') "
+            "GROUP BY label ORDER BY label"
+        )
+    elif period == "12m":
+        rows = await _query(
+            "SELECT substr(replace(DateCreated, 'T', ' '), 1, 7) as label, "
+            "COALESCE(SUM(PlayDuration), 0) as duration "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-365 days') "
+            "GROUP BY label ORDER BY label"
+        )
+    else:  # 30d
+        rows = await _query(
+            "SELECT DATE(DateCreated) as label, "
+            "COALESCE(SUM(PlayDuration), 0) as duration "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-30 days') "
+            "GROUP BY label ORDER BY label"
+        )
+
+    return {r["label"]: round(r["duration"] / 3600, 1) for r in rows} if rows else {}
+
+
+async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
+    """Top 内容（按时长排）"""
+    pf = _period_filter(period)
+    rows = await _query(
+        f"SELECT ItemName, ItemId, ItemType, "
+        f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
+        f"FROM PlaybackActivity WHERE {pf} "
+        f"GROUP BY ItemName ORDER BY total_duration DESC LIMIT {limit * 3}"
+    )
+    # 按作品级聚合
+    agg: dict[str, dict] = {}
+    for r in rows:
+        clean = _clean_name(r.get("ItemName", ""), r.get("ItemType", ""))
+        if clean not in agg:
+            agg[clean] = {
+                "item_id": r.get("ItemId"),
+                "name": clean,
+                "type": r.get("ItemType", ""),
+                "play_count": 0,
+                "total_duration_hours": 0,
+            }
+        agg[clean]["play_count"] += r.get("play_count", 0)
+        agg[clean]["total_duration_hours"] += round(r.get("total_duration", 0) / 3600, 1)
+
+    result = sorted(agg.values(), key=lambda x: x["total_duration_hours"], reverse=True)[:limit]
+    for item in result:
+        iid = item.get("item_id")
+        if iid:
+            item["poster_url"] = f"/api/proxy/smart_image?item_id={iid}&type=Primary"
+    return result
+
+
+async def get_top_users_ranked(limit: int = 5, period: str = "7d") -> list[dict]:
+    """Top 用户（按时长排）"""
+    pf = _period_filter(period)
+    rows = await _query(
+        f"SELECT UserId as user_id, "
+        f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
+        f"FROM PlaybackActivity WHERE {pf} "
+        f"GROUP BY UserId ORDER BY total_duration DESC LIMIT {limit}"
+    )
+    user_map = await _get_user_map()
+    result = []
+    for r in rows:
+        uid = str(r.get("user_id", ""))
+        result.append({
+            "user_id": uid,
+            "username": user_map.get(uid, f"用户 {uid[:6]}"),
+            "play_count": r.get("play_count", 0),
+            "total_duration_hours": round(r.get("total_duration", 0) / 3600, 1),
         })
-        resp.raise_for_status()
-        items = resp.json().get("Items", [])
-        stats["total_count"] = len(items)
-
-        for item in items:
-            media_sources = item.get("MediaSources")
-            if not media_sources or not isinstance(media_sources, list):
-                continue
-
-            streams = media_sources[0].get("MediaStreams", [])
-            video_stream = next((s for s in streams if s.get("Type") == "Video"), None)
-            if not video_stream:
-                continue
-
-            width = video_stream.get("Width", 0) or 0
-            height = video_stream.get("Height", 0) or 0
-            if width == 0 and height == 0:
-                continue
-
-            # 分辨率
-            w = max(width, height)
-            if w >= 3800:
-                stats["resolution"]["4k"] += 1
-            elif w >= 1900:
-                stats["resolution"]["1080p"] += 1
-            elif w >= 1200:
-                stats["resolution"]["720p"] += 1
-            else:
-                stats["resolution"]["sd"] += 1
-
-            # 编码
-            codec = (video_stream.get("Codec") or "").lower()
-            if "hevc" in codec or "h265" in codec:
-                stats["codec"]["hevc"] += 1
-            elif "h264" in codec or "avc" in codec:
-                stats["codec"]["h264"] += 1
-            elif "av1" in codec:
-                stats["codec"]["av1"] += 1
-            else:
-                stats["codec"]["other"] += 1
-
-            # HDR
-            video_range = (video_stream.get("VideoRange") or "").lower()
-            display_title = (video_stream.get("DisplayTitle") or "").lower()
-            if "dolby" in display_title or "dv" in display_title or "dolby" in video_range:
-                stats["hdr"]["dolby_vision"] += 1
-            elif "hdr" in video_range or "hdr" in display_title or "pq" in video_range:
-                stats["hdr"]["hdr10"] += 1
-            else:
-                stats["hdr"]["sdr"] += 1
-
-    except Exception as e:
-        logger.warning("质量盘点扫描失败: %s", e)
-
-    _quality_cache = stats
-    _quality_cache_time = now
-    return stats
+    return result
 
 
-async def get_badges(user_id: Optional[str] = None) -> list[dict]:
-    """趣味成就徽章"""
-    where = "1=1"
-    if user_id:
-        where += f" AND UserId = '{user_id}'"
+# ════════════════════════════════════════════════════════════
+# 内容分析页
+# ════════════════════════════════════════════════════════════
+
+async def get_content_rankings(
+    content_type: str = "all",
+    period: str = "30d",
+    sort: str = "duration",
+    page: int = 1,
+    size: int = 20,
+) -> dict:
+    """内容排行榜（筛选+分页）"""
+    pf = _period_filter(period)
+
+    type_filter = ""
+    if content_type == "movie":
+        type_filter = " AND ItemType = 'Movie'"
+    elif content_type == "series":
+        type_filter = " AND ItemType IN ('Series', 'Episode')"
+
+    order = "total_duration DESC" if sort == "duration" else "play_count DESC"
 
     rows = await _query(
-        f"SELECT DateCreated, PlayDuration, COALESCE(ClientName, DeviceName) as client, "
-        f"ItemId, ItemName, ItemType "
+        f"SELECT ItemName, ItemId, ItemType, "
+        f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
+        f"FROM PlaybackActivity WHERE {pf}{type_filter} "
+        f"GROUP BY ItemName ORDER BY {order} LIMIT 500"
+    )
+
+    # 按作品级聚合
+    agg: dict[str, dict] = {}
+    for r in rows:
+        clean = _clean_name(r.get("ItemName", ""), r.get("ItemType", ""))
+        if clean not in agg:
+            agg[clean] = {
+                "item_id": r.get("ItemId"),
+                "name": clean,
+                "type": r.get("ItemType", ""),
+                "play_count": 0,
+                "total_duration_min": 0,
+            }
+        agg[clean]["play_count"] += r.get("play_count", 0)
+        agg[clean]["total_duration_min"] += round(r.get("total_duration", 0) / 60, 1)
+
+    all_items = sorted(
+        agg.values(),
+        key=lambda x: x["total_duration_min"] if sort == "duration" else x["play_count"],
+        reverse=True,
+    )
+
+    total = len(all_items)
+    start = (page - 1) * size
+    page_items = all_items[start : start + size]
+
+    for item in page_items:
+        iid = item.get("item_id")
+        if iid:
+            item["poster_url"] = f"/api/proxy/smart_image?item_id={iid}&type=Primary"
+
+    return {"total": total, "items": page_items}
+
+
+async def get_content_detail(item_id: str) -> dict:
+    """单个内容详情"""
+    # 基本信息
+    try:
+        resp = await emby.get(f"/Items/{item_id}")
+        resp.raise_for_status()
+        info = resp.json()
+        name = info.get("Name", "未知")
+        item_type = info.get("Type", "")
+    except Exception:
+        name = "未知"
+        item_type = ""
+
+    # 播放趋势（近 30 天，按天）
+    rows = await _query(
+        f"SELECT DATE(DateCreated) as date, COUNT(*) as play_count, "
+        f"COALESCE(SUM(PlayDuration), 0) as duration "
+        f"FROM PlaybackActivity WHERE ItemId = '{item_id}' "
+        f"AND DateCreated >= date('now', '-30 days') "
+        f"GROUP BY date ORDER BY date"
+    )
+    trend = {r["date"]: {"plays": r["play_count"], "hours": round(r["duration"] / 3600, 1)} for r in rows} if rows else {}
+
+    # 观看用户
+    user_rows = await _query(
+        f"SELECT UserId, COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as duration "
+        f"FROM PlaybackActivity WHERE ItemId = '{item_id}' "
+        f"GROUP BY UserId ORDER BY duration DESC"
+    )
+    user_map = await _get_user_map()
+    viewers = []
+    for r in user_rows:
+        uid = str(r.get("UserId", ""))
+        viewers.append({
+            "user_id": uid,
+            "username": user_map.get(uid, f"用户 {uid[:6]}"),
+            "play_count": r.get("play_count", 0),
+            "duration_hours": round(r.get("duration", 0) / 3600, 1),
+        })
+
+    return {
+        "name": name,
+        "type": item_type,
+        "trend": trend,
+        "viewers": viewers,
+        "poster_url": f"/api/proxy/smart_image?item_id={item_id}&type=Primary",
+    }
+
+
+# ════════════════════════════════════════════════════════════
+# 用户分析页
+# ════════════════════════════════════════════════════════════
+
+async def get_user_rankings(
+    period: str = "30d",
+    page: int = 1,
+    size: int = 20,
+) -> dict:
+    """用户排行榜（分页）"""
+    pf = _period_filter(period)
+
+    rows = await _query(
+        f"SELECT UserId as user_id, "
+        f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
+        f"FROM PlaybackActivity WHERE {pf} "
+        f"GROUP BY UserId ORDER BY total_duration DESC"
+    )
+
+    user_map = await _get_user_map()
+    all_users = []
+    for r in rows:
+        uid = str(r.get("user_id", ""))
+        all_users.append({
+            "user_id": uid,
+            "username": user_map.get(uid, f"用户 {uid[:6]}"),
+            "play_count": r.get("play_count", 0),
+            "total_duration_hours": round(r.get("total_duration", 0) / 3600, 1),
+        })
+
+    total = len(all_users)
+    start = (page - 1) * size
+    page_items = all_users[start : start + size]
+
+    return {"total": total, "items": page_items}
+
+
+async def get_user_detail(user_id: str) -> dict:
+    """单个用户画像"""
+    pf = "1=1"
+    where = f"UserId = '{user_id}'"
+
+    # KPI
+    kpi_rows = await _query(
+        f"SELECT COUNT(*) as total_plays, "
+        f"COALESCE(SUM(PlayDuration), 0) as total_duration, "
+        f"COUNT(DISTINCT ItemId) as unique_items "
         f"FROM PlaybackActivity WHERE {where}"
+    )
+    kpi = kpi_rows[0] if kpi_rows else {}
+    total_plays = kpi.get("total_plays", 0)
+    total_dur = kpi.get("total_duration", 0)
+    avg_min = round(total_dur / total_plays / 60, 1) if total_plays else 0
+
+    # 用户信息
+    username = f"用户 {user_id[:6]}"
+    account_age_days = 1
+    try:
+        resp = await emby.get(f"/Users/{user_id}")
+        resp.raise_for_status()
+        u = resp.json()
+        username = u.get("Name", username)
+        dc = u.get("DateCreated", "")
+        if dc:
+            m = re.search(r"(\d{4})-(\d{2})-(\d{2})", str(dc))
+            if m:
+                fd = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                account_age_days = max(1, (datetime.now() - fd).days)
+    except Exception:
+        pass
+
+    # 内容偏好
+    pref_rows = await _query(
+        f"SELECT ItemType, COUNT(*) as cnt FROM PlaybackActivity WHERE {where} GROUP BY ItemType"
+    )
+    movie_plays = episode_plays = 0
+    for r in pref_rows:
+        if r["ItemType"] == "Movie":
+            movie_plays = r["cnt"]
+        elif r["ItemType"] == "Episode":
+            episode_plays = r["cnt"]
+
+    # Top 最爱
+    fav_rows = await _query(
+        f"SELECT ItemName, ItemId, ItemType, COALESCE(SUM(PlayDuration), 0) as dur "
+        f"FROM PlaybackActivity WHERE {where} GROUP BY ItemName ORDER BY dur DESC LIMIT 1"
+    )
+    top_fav = None
+    if fav_rows:
+        f = fav_rows[0]
+        top_fav = {
+            "name": _clean_name(f.get("ItemName", ""), f.get("ItemType", "")),
+            "hours": round(f["dur"] / 3600, 1),
+            "poster_url": f"/api/proxy/smart_image?item_id={f['ItemId']}&type=Primary" if f.get("ItemId") else "",
+        }
+
+    # 时段热力图
+    dc_rows = await _query(
+        f"SELECT DateCreated FROM PlaybackActivity WHERE {where}"
+    )
+    hourly = [0] * 24
+    for r in dc_rows:
+        dc = r.get("DateCreated")
+        if dc:
+            m = re.search(r"[T\s](\d{2}):", str(dc))
+            if m:
+                h = int(m.group(1))
+                if 0 <= h < 24:
+                    hourly[h] += 1
+
+    # 设备分布
+    dev_rows = await _query(
+        f"SELECT COALESCE(ClientName, DeviceName, '未知') as device, COUNT(*) as cnt "
+        f"FROM PlaybackActivity WHERE {where} GROUP BY device ORDER BY cnt DESC LIMIT 5"
+    )
+
+    # 最近播放
+    recent_rows = await _query(
+        f"SELECT ItemName, ItemId, ItemType, DateCreated, PlayDuration "
+        f"FROM PlaybackActivity WHERE {where} ORDER BY DateCreated DESC LIMIT 10"
+    )
+    recent = []
+    for r in recent_rows:
+        recent.append({
+            "name": _clean_name(r.get("ItemName", ""), r.get("ItemType", "")),
+            "item_id": r.get("ItemId"),
+            "date": r.get("DateCreated", "")[:16].replace("T", " "),
+            "duration_min": round((r.get("PlayDuration") or 0) / 60, 1),
+            "poster_url": f"/api/proxy/smart_image?item_id={r['ItemId']}&type=Primary" if r.get("ItemId") else "",
+        })
+
+    # 成就徽章
+    badges = await _get_badges(where)
+
+    return {
+        "user_id": user_id,
+        "username": username,
+        "account_age_days": account_age_days,
+        "kpis": {
+            "total_plays": total_plays,
+            "total_duration_hours": round(total_dur / 3600, 1),
+            "avg_session_min": avg_min,
+        },
+        "preference": {
+            "movie_plays": movie_plays,
+            "episode_plays": episode_plays,
+            "tag": "电影党" if movie_plays > episode_plays else "追剧党" if episode_plays > 0 else "未知",
+        },
+        "top_fav": top_fav,
+        "hourly": hourly,
+        "devices": [{"device": r["device"], "count": r["cnt"]} for r in dev_rows],
+        "recent_plays": recent,
+        "badges": badges,
+    }
+
+
+async def _get_badges(where: str) -> list[dict]:
+    """趣味成就徽章"""
+    rows = await _query(
+        f"SELECT DateCreated, PlayDuration, COALESCE(ClientName, DeviceName) as client, "
+        f"ItemId, ItemName, ItemType FROM PlaybackActivity WHERE {where}"
     )
     if not rows:
         return []
@@ -366,29 +512,27 @@ async def get_badges(user_id: Optional[str] = None) -> list[dict]:
 
     badges = []
     if night_c >= 2:
-        badges.append({"id": "night", "name": "深夜修仙", "icon": "fa-moon", "color": "text-indigo-500", "bg": "bg-indigo-100", "desc": "深夜是灵魂最自由的时刻"})
+        badges.append({"id": "night", "name": "深夜修仙", "icon": "fa-moon", "color": "text-indigo-500", "desc": "深夜是灵魂最自由的时刻"})
     if weekend_c >= 5:
-        badges.append({"id": "weekend", "name": "周末狂欢", "icon": "fa-champagne-glasses", "color": "text-pink-500", "bg": "bg-pink-100", "desc": "工作日唯唯诺诺，周末重拳出击"})
+        badges.append({"id": "weekend", "name": "周末狂欢", "icon": "fa-champagne-glasses", "color": "text-pink-500", "desc": "工作日唯唯诺诺，周末重拳出击"})
     if dur_total > 180000:
-        badges.append({"id": "liver", "name": "核心肝帝", "icon": "fa-fire", "color": "text-red-500", "bg": "bg-red-100", "desc": "阅片无数，肝度爆表"})
+        badges.append({"id": "liver", "name": "核心肝帝", "icon": "fa-fire", "color": "text-red-500", "desc": "阅片无数，肝度爆表"})
     if fish_c >= 5:
-        badges.append({"id": "fish", "name": "带薪观影", "icon": "fa-fish", "color": "text-cyan-500", "bg": "bg-cyan-100", "desc": "工作是老板的，快乐是自己的"})
+        badges.append({"id": "fish", "name": "带薪观影", "icon": "fa-fish", "color": "text-cyan-500", "desc": "工作是老板的，快乐是自己的"})
     if morning_c >= 2:
-        badges.append({"id": "morning", "name": "晨练追剧", "icon": "fa-sun", "color": "text-amber-500", "bg": "bg-amber-100", "desc": "比你优秀的人，连看片都比你早"})
+        badges.append({"id": "morning", "name": "晨练追剧", "icon": "fa-sun", "color": "text-amber-500", "desc": "比你优秀的人，连看片都比你早"})
     if len(devices) >= 2:
-        badges.append({"id": "device", "name": "全平台制霸", "icon": "fa-gamepad", "color": "text-emerald-500", "bg": "bg-emerald-100", "desc": "手机、平板、电视，哪里都能看"})
-
+        badges.append({"id": "device", "name": "全平台制霸", "icon": "fa-gamepad", "color": "text-emerald-500", "desc": "手机、平板、电视，哪里都能看"})
     if items:
         loyal = max(items.values(), key=lambda x: x["c"])
         if loyal["c"] >= 3:
             safe = str(loyal.get("name") or "未知").split(" - ")[0][:10]
-            badges.append({"id": "loyal", "name": "N刷狂魔", "icon": "fa-repeat", "color": "text-teal-500", "bg": "bg-teal-100", "desc": f"对《{safe}》爱得深沉"})
-
+            badges.append({"id": "loyal", "name": "N刷狂魔", "icon": "fa-repeat", "color": "text-teal-500", "desc": f"对《{safe}》爱得深沉"})
     total = movies + eps
     if total > 10:
         if movies / total > 0.6:
-            badges.append({"id": "movie_lover", "name": "电影鉴赏家", "icon": "fa-film", "color": "text-blue-500", "bg": "bg-blue-100", "desc": "沉浸在两小时的艺术光影世界"})
+            badges.append({"id": "movie_lover", "name": "电影鉴赏家", "icon": "fa-film", "color": "text-blue-500", "desc": "沉浸在两小时的艺术光影世界"})
         elif eps / total > 0.6:
-            badges.append({"id": "tv_lover", "name": "追剧狂魔", "icon": "fa-tv", "color": "text-purple-500", "bg": "bg-purple-100", "desc": "一集接一集，根本停不下来"})
+            badges.append({"id": "tv_lover", "name": "追剧狂魔", "icon": "fa-tv", "color": "text-purple-500", "desc": "一集接一集，根本停不下来"})
 
     return badges
