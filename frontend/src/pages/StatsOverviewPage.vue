@@ -1,6 +1,6 @@
 <template>
   <div class="stats-page">
-    <PageHeader title="分析总览" desc="一眼看全局" />
+    <PageHeader title="分析总览" />
     <StatsTabs />
 
     <!-- 统一时间筛选 -->
