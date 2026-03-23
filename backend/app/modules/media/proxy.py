@@ -270,8 +270,18 @@ async def smart_image(
 # ═══════════════════════════════════════════════════════════
 
 @router.get("/user_image/{user_id}")
+async def user_image_path(user_id: str):
+    """用户头像（路径格式）"""
+    return await _get_user_image(user_id)
+
+
 @router.get("/user_image")
-async def user_image(user_id: str = Query("", alias="user_id")):
+async def user_image_query(user_id: str = Query("")):
+    """用户头像（query格式）"""
+    return await _get_user_image(user_id)
+
+
+async def _get_user_image(user_id: str):
     """用户头像代理：Emby → dicebear 回退"""
     if not user_id:
         return Response(status_code=400)
