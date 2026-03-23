@@ -16,11 +16,79 @@ class SystemService:
         self.db = db
 
     async def get_settings(self) -> list[SettingItem]:
-        # TODO: SELECT system_settings
-        return []
+        """返回默认配置项 + 数据库覆盖项"""
+        from app.db.models.system import SystemSetting
+        from sqlalchemy import select
+
+        # 默认配置项
+        defaults = [
+            SettingItem(
+                setting_key="TMDB_API_KEY",
+                setting_group="api",
+                value=settings.TMDB_API_KEY or "",
+                description="TMDB API Key，用于获取媒体封面回退",
+            ),
+            SettingItem(
+                setting_key="EMBY_HOST",
+                setting_group="emby",
+                value=str(settings.EMBY_HOST),
+                description="Emby 服务器地址（只读，需改环境变量）",
+            ),
+        ]
+
+        # 数据库覆盖
+        try:
+            stmt = select(SystemSetting)
+            result = await db.execute(stmt)
+            db_settings = {s.setting_key: s for s in result.scalars().all()}
+            for item in defaults:
+                if item.setting_key in db_settings:
+                    db_s = db_settings[item.setting_key]
+                    if db_s.value_json is not None:
+                        item.value = db_s.value_json
+                    elif db_s.value_str is not None:
+                        item.value = db_s.value_str
+        except Exception:
+            pass
+
+        return defaults
 
     async def update_setting(self, key: str, value) -> SettingItem:
-        # TODO: UPSERT system_settings
+        """更新配置项"""
+        from app.db.models.system import SystemSetting
+        from sqlalchemy import select
+        from datetime import datetime, timezone
+
+        stmt = select(SystemSetting).where(SystemSetting.setting_key == key)
+        result = await db.execute(stmt)
+        setting = result.scalar_one_or_none()
+
+        now = datetime.now(timezone.utc)
+        if setting:
+            if isinstance(value, str):
+                setting.value_str = value
+                setting.value_json = None
+            else:
+                setting.value_json = value
+                setting.value_str = None
+            setting.updated_at = now
+        else:
+            setting = SystemSetting(
+                setting_key=key,
+                setting_group="general",
+                value_str=value if isinstance(value, str) else None,
+                value_json=value if not isinstance(value, str) else None,
+                updated_at=now,
+            )
+            db.add(setting)
+
+        await db.flush()
+
+        # 同步到 settings 对象
+        if key == "TMDB_API_KEY":
+            from app.core.settings import settings as _s
+            _s.TMDB_API_KEY = value or ""
+
         return SettingItem(setting_key=key, setting_group="general", value=value, description=None)
 
     async def health(self) -> HealthResponse:
