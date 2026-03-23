@@ -1,14 +1,7 @@
 <template>
   <div class="stats-page">
-    <PageHeader title="内容分析" desc="看了什么？谁在看？">
-      <template #actions>
-        <n-button size="small" @click="showFilter = true">
-          <span>筛选</span>
-          <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
-        </n-button>
-      </template>
-    </PageHeader>
-    <StatsTabs />
+    <PageHeader title="内容分析" />
+    <StatsTabs :filterActive="activeFilterCount > 0" @toggle-filter="showFilter = !showFilter" />
 
     <div class="active-filters" v-if="activeFilterCount > 0">
       <n-tag v-if="contentType !== 'all'" size="small" closable @close="contentType = 'all'">{{ contentTypeLabel }}</n-tag>
