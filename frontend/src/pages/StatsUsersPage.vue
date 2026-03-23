@@ -31,7 +31,7 @@
           :class="{ active: selectedDetailUserId === item.user_id }"
           @click="selectUser(item.user_id)">
           <span class="ranking-num" :class="{ 'num-top': i < 3 }">{{ (page - 1) * size + i + 1 }}</span>
-          <n-avatar :size="36" round class="ranking-avatar" :src="`/api/proxy/user_image?user_id=${item.user_id}`" fallback-src="">{{ item.username?.charAt(0) || '?' }}</n-avatar>
+          <n-avatar :size="36" round class="ranking-avatar" :src="`/api/v1/proxy/user_image?user_id=${item.user_id}`" fallback-src="">{{ item.username?.charAt(0) || '?' }}</n-avatar>
           <div class="ranking-body">
             <div class="ranking-name">{{ item.username }}</div>
             <div class="ranking-meta">
