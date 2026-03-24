@@ -22,10 +22,8 @@ const apiClient: AxiosInstance = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 优先读 portal_token，其次读 admin token
-    const portalToken = localStorage.getItem('portal_token')
-    const adminToken = localStorage.getItem('token')
-    const token = portalToken || adminToken
+    // 统一用 admin token（Emby 认证，不再区分 admin/portal）
+    const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -38,14 +36,8 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => response,
   (error) => {
     if (error.response?.status === 401) {
-      const isPortal = window.location.pathname.startsWith('/portal')
-      if (isPortal) {
-        localStorage.removeItem('portal_token')
-        window.location.href = '/portal/login'
-      } else {
-        localStorage.removeItem('token')
-        window.location.href = '/login'
-      }
+      localStorage.removeItem('token')
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }
