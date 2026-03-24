@@ -9,12 +9,16 @@ export interface UserListItem {
   expire_at: string | null
   is_vip: boolean
   created_at: string
+  max_concurrent: number | null
+  note: string | null
 }
 
 export interface UserDetail extends UserListItem {
-  note: string | null
-  max_concurrent: number | null
   emby_user_id: string | null
+  concurrent_limit: number | null
+  max_bitrate: number | null
+  allow_transcode: boolean | null
+  client_blacklist: string[] | null
 }
 
 export interface UserListResponse {
@@ -22,6 +26,11 @@ export interface UserListResponse {
   total: number
   page: number
   page_size: number
+}
+
+export interface BatchResult {
+  success: string[]
+  failed: { user_id: string; error: string }[]
 }
 
 export const usersApi = {
@@ -79,6 +88,18 @@ export const usersApi = {
   // 强制下线
   async forceLogout(userId: string): Promise<ApiResponse<void>> {
     const res = await apiClient.post(`/admin/users/${userId}/force-logout`)
+    return res.data
+  },
+
+  // 批量操作
+  async batch(data: {
+    action: 'delete' | 'enable' | 'disable' | 'renew' | 'apply_template'
+    user_ids: string[]
+    days?: number | null
+    expires_at?: string | null
+    template_id?: string | null
+  }): Promise<ApiResponse<BatchResult>> {
+    const res = await apiClient.post('/admin/users/batch', data)
     return res.data
   },
 }
