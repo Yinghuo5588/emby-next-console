@@ -11,6 +11,7 @@ from app.core.emby import emby
 from app.db.session import AsyncSessionFactory
 
 # 仅保留可用模块
+from app.modules.auth.api import router as auth_router
 from app.modules.stats.api import router as stats_router
 from app.modules.media.proxy import router as proxy_router
 from app.modules.system.api import router as system_router
@@ -41,6 +42,7 @@ register_exception_handlers(app)
 
 API_PREFIX = "/api/v1"
 
+app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(stats_router, prefix=API_PREFIX)
 app.include_router(proxy_router, prefix=API_PREFIX)
 app.include_router(system_router, prefix=API_PREFIX)
