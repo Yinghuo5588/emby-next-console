@@ -32,6 +32,18 @@ const router = createRouter({
       meta: { title: '用户分析' },
     },
     {
+      path: '/users',
+      name: 'Users',
+      component: () => import('@/pages/UsersPage.vue'),
+      meta: { title: '用户管理' },
+    },
+    {
+      path: '/users/:id',
+      name: 'UserDetail',
+      component: () => import('@/pages/UserDetailPage.vue'),
+      meta: { title: '用户详情' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/stats',
     },
