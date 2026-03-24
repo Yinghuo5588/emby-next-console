@@ -34,7 +34,11 @@ async def get_current_admin(
     user_id: str = Depends(get_current_user_id),
 ) -> User:
     """获取当前管理员用户"""
-    result = await db.execute(select(User).where(User.id == int(user_id)))
+    # 兼容两种 token: auth token sub=int(User.id), portal token sub=emby_user_id(UUID)
+    if user_id.isdigit():
+        result = await db.execute(select(User).where(User.id == int(user_id)))
+    else:
+        result = await db.execute(select(User).where(User.emby_user_id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise UnauthorizedError("用户不存在")
