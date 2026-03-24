@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.db.session import AsyncSessionDep
@@ -150,3 +151,33 @@ async def force_logout_user(user_id: str, admin=Depends(get_current_admin)):
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+class BatchRequest(BaseModel):
+    action: str  # delete / enable / disable / renew / apply_template
+    user_ids: list[str]
+    days: int | None = None       # renew 时续期天数
+    expires_at: str | None = None  # renew 时绝对过期时间
+    template_id: str | None = None # apply_template 时模板用户ID
+
+
+@admin_router.post("/batch")
+async def batch_users(req: BatchRequest, db: AsyncSessionDep, admin=Depends(get_current_admin)):
+    """批量操作：delete / enable / disable / renew / apply_template"""
+    if req.action not in ("delete", "enable", "disable", "renew", "apply_template"):
+        raise HTTPException(status_code=400, detail=f"不支持的操作: {req.action}")
+    if not req.user_ids:
+        raise HTTPException(status_code=400, detail="user_ids 不能为空")
+    svc = UsersService(db)
+    expires_at = None
+    if req.expires_at:
+        from datetime import datetime
+        expires_at = datetime.fromisoformat(req.expires_at)
+    result = await svc.batch_operations(
+        action=req.action,
+        user_ids=req.user_ids,
+        days=req.days,
+        expires_at=expires_at,
+        template_id=req.template_id,
+    )
+    return ApiResponse.ok(data=result)
