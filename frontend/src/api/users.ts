@@ -44,6 +44,11 @@ export const usersApi = {
     return response.data
   },
 
+  async delete(id: string): Promise<ApiResponse<any>> {
+    const res = await apiClient.delete(`/admin/users/${id}`)
+    return res.data
+  },
+
   // 手动创建用户
   async createUser(data: {
     username: string
