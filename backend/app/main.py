@@ -16,6 +16,7 @@ from app.modules.stats.api import router as stats_router
 from app.modules.media.proxy import router as proxy_router
 from app.modules.system.api import router as system_router
 from app.modules.dashboard.api import router as dashboard_router
+from app.modules.users.api import router as users_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("app")
@@ -47,6 +48,7 @@ app.include_router(stats_router, prefix=API_PREFIX)
 app.include_router(proxy_router, prefix=API_PREFIX)
 app.include_router(system_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
+app.include_router(users_router, prefix=API_PREFIX)
 
 
 @app.get("/healthz", tags=["health"])
