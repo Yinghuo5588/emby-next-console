@@ -8,3 +8,4 @@ from app.db.models.webhook import EmbyWebhookEvent  # noqa: F401
 from app.db.models.invite import InviteCode, InviteUsage, PermissionTemplate, UserOverride  # noqa: F401
 from app.db.models.calendar import CalendarEntry, ContentSubscription  # noqa: F401
 from app.db.models.poster import PosterTemplate, GeneratedPoster  # noqa: F401
+from app.db.models.users_meta import UsersMeta  # noqa: F401
