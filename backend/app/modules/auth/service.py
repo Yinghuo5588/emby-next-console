@@ -24,7 +24,7 @@ class AuthService:
 
         # 同步到本地 User 表（upsert）
         result = await self.db.execute(
-            select(User).where(User.emby_user_id == emby_user_id)
+            select(User).where(User.emby_user_id == emby_user_id).order_by(User.id).limit(1)
         )
         user = result.scalar_one_or_none()
         if not user:
@@ -55,7 +55,7 @@ class AuthService:
     async def get_user_info(self, user_id: str) -> dict:
         """获取当前用户信息"""
         result = await self.db.execute(
-            select(User).where(User.emby_user_id == user_id).options(selectinload(User.profile))
+            select(User).where(User.emby_user_id == user_id).order_by(User.id).limit(1).options(selectinload(User.profile))
         )
         user = result.scalar_one_or_none()
         if not user:
