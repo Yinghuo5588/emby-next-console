@@ -657,7 +657,7 @@ async def get_heatmap(period: str = "30d") -> list[list[int]]:
 
 async def get_device_dist(period: str = "30d", dist_type: str = "client") -> list[dict]:
     """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)
-    优先走 Playback Reporting 插件数据，查不到 fallback 到 Emby /Devices API
+    合并 Playback Reporting（历史播放数据）+ Emby /Devices API（完整设备清单）
     """
     pf = _period_filter(period)
     col = "DeviceName" if dist_type == "hardware" else "ClientName"
@@ -665,29 +665,25 @@ async def get_device_dist(period: str = "30d", dist_type: str = "client") -> lis
         f"SELECT COALESCE({col}, '未知') as device, COUNT(*) as cnt "
         f"FROM PlaybackActivity GROUP BY device ORDER BY cnt DESC LIMIT 8"
     )
-    result = [{"name": r["device"], "value": r["cnt"]} for r in rows if r.get("device") and r["device"].strip()]
+    counter: dict[str, int] = {}
+    for r in rows:
+        name = r.get("device")
+        if name and name.strip():
+            counter[name] = counter.get(name, 0) + r.get("cnt", 0)
 
-    # Playback Reporting 有数据就直接返回
-    if result and len(result) > 0 and not (len(result) == 1 and result[0]["name"] == "未知"):
-        return result
-
-    # fallback: Emby /Devices API
+    # /Devices API 补充：Playback 里没出现过的设备也加上
     try:
         devices = await emby.get_devices()
-        if devices:
+        for d in devices:
             if dist_type == "client":
-                counter: dict[str, int] = {}
-                for d in devices:
-                    name = d.get("AppName") or "未知客户端"
-                    counter[name] = counter.get(name, 0) + 1
+                name = d.get("AppName")
             else:
-                counter = {}
-                for d in devices:
-                    name = d.get("Name") or "未知设备"
-                    counter[name] = counter.get(name, 0) + 1
-            if counter:
-                return [{"name": k, "value": v} for k, v in sorted(counter.items(), key=lambda x: -x[1])[:8]]
+                name = d.get("Name")
+            if name and name.strip() and name not in counter:
+                counter[name] = 0
     except Exception:
         pass
 
-    return []
+    if not counter:
+        return []
+    return [{"name": k, "value": v} for k, v in sorted(counter.items(), key=lambda x: -x[1])[:8]]
