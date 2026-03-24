@@ -143,13 +143,12 @@ async def proxy_image(item_id: str, img_type: str):
 
 async def _find_backdrop_source(item_id: str) -> tuple[str, str | None]:
     """
-    找到拥有 BackdropImageTags 的 item，返回 (target_id, tag)。
-    episode → season → series → 原始 item，逐级上溯。
-    找不到 backdrop 返回 (resolved_id, None)。
+    找到 backdrop 图片源，返回 (target_id, tag)。
+    利用 Emby 原生图片继承：ParentBackdropItemId + ParentBackdropImageTags
+    找不到 backdrop 返回 (item_id, None)。
     """
-    fields = "ImageTags,BackdropImageTags,BackdropItemId,SeriesId,SeasonId,ParentId,Type"
+    fields = "BackdropImageTags,ParentBackdropItemId,ParentBackdropImageTags"
 
-    # 获取 item 基础信息
     try:
         resp = await emby.get(f"/Items/{item_id}", params={"Fields": fields})
         if resp.status_code != 200:
@@ -158,64 +157,16 @@ async def _find_backdrop_source(item_id: str) -> tuple[str, str | None]:
     except Exception:
         return item_id, None
 
-    # 自己有 BackdropImageTags → 直接用
-    tags = info.get("BackdropImageTags") or []
-    if tags:
-        return item_id, tags[0]
+    # 1. 自己有 BackdropImageTags → 直接用
+    own_tags = info.get("BackdropImageTags") or []
+    if own_tags:
+        return item_id, own_tags[0]
 
-    # 自己有 BackdropItemId（某些 Emby 版本）
-    bid = info.get("BackdropItemId")
-    if bid:
-        try:
-            r2 = await emby.get(f"/Items/{bid}", params={"Fields": fields})
-            if r2.status_code == 200:
-                t2 = r2.json().get("BackdropImageTags") or []
-                if t2:
-                    return bid, t2[0]
-        except Exception:
-            pass
-
-    # 上溯：先查 Season，再查 Series
-    item_type = info.get("Type", "")
-
-    if item_type in ("Episode", "Season"):
-        # 查 Season
-        season_id = info.get("SeasonId") or info.get("ParentId")
-        if season_id and str(season_id) != str(item_id):
-            try:
-                s_resp = await emby.get(f"/Items/{season_id}", params={"Fields": fields})
-                if s_resp.status_code == 200:
-                    s_tags = s_resp.json().get("BackdropImageTags") or []
-                    if s_tags:
-                        return season_id, s_tags[0]
-            except Exception:
-                pass
-
-        # 查 Series
-        series_id = info.get("SeriesId") or info.get("ParentId")
-        if series_id and str(series_id) != str(item_id):
-            try:
-                sr_resp = await emby.get(f"/Items/{series_id}", params={"Fields": fields})
-                if sr_resp.status_code == 200:
-                    sr_tags = sr_resp.json().get("BackdropImageTags") or []
-                    if sr_tags:
-                        return series_id, sr_tags[0]
-            except Exception:
-                pass
-
-    # 兜底：找祖先
-    try:
-        anc_resp = await emby.get(f"/Items/{item_id}/Ancestors")
-        if anc_resp.status_code == 200:
-            for ancestor in anc_resp.json():
-                if ancestor.get("Type") in ("Series", "Movie"):
-                    a_resp = await emby.get(f"/Items/{ancestor['Id']}", params={"Fields": fields})
-                    if a_resp.status_code == 200:
-                        a_tags = a_resp.json().get("BackdropImageTags") or []
-                        if a_tags:
-                            return ancestor["Id"], a_tags[0]
-    except Exception:
-        pass
+    # 2. Emby 图片继承：ParentBackdropItemId + ParentBackdropImageTags
+    parent_id = info.get("ParentBackdropItemId")
+    parent_tags = info.get("ParentBackdropImageTags") or []
+    if parent_id and parent_tags:
+        return str(parent_id), parent_tags[0]
 
     return item_id, None
 
