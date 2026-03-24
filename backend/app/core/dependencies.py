@@ -43,7 +43,7 @@ async def get_current_admin(
     if payload.get("role") != "admin":
         raise ForbiddenError("需要管理员权限")
     emby_user_id = payload["sub"]
-    result = await db.execute(select(User).where(User.emby_user_id == emby_user_id))
+    result = await db.execute(select(User).where(User.emby_user_id == emby_user_id).order_by(User.id).limit(1))
     user = result.scalar_one_or_none()
     if not user:
         raise UnauthorizedError("用户不存在")
