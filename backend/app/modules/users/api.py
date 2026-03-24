@@ -68,13 +68,13 @@ async def create_user(
 async def get_user_permissions(user_id: str, admin=Depends(get_current_admin)):
     """从 Emby 获取用户库权限 + 媒体库列表"""
     from app.core.emby_users import EmbyUserService
-    from app.core.emby_data import data as emby_data
+    from app.core import emby_client as emby
     svc = EmbyUserService()
     try:
         policy = await svc.get_user_policy(user_id)
         config = await svc.get_user_configuration(user_id)
         # 获取媒体库列表
-        libraries = await emby_data.get_library_virtual_folders()
+        libraries = await emby.get_library_virtual_folders()
         lib_list = [{"id": v.get("ItemId") or v.get("Guid"), "name": v.get("Name"), "type": v.get("CollectionType", "unknown")} for v in libraries]
         return ApiResponse.ok(data={"policy": policy, "configuration": config, "libraries": lib_list})
     except Exception as e:
@@ -102,7 +102,17 @@ async def get_user_override(user_id: str, db: AsyncSessionDep, admin=Depends(get
     """获取用户级覆盖配置"""
     result = await db.execute(select(UserOverride).where(UserOverride.emby_user_id == user_id))
     override = result.scalar_one_or_none()
-    return {"success": True, "data": override}
+    if not override:
+        return ApiResponse.ok(data=None)
+    return ApiResponse.ok(data={
+        "concurrent_limit": override.concurrent_limit,
+        "max_bitrate": override.max_bitrate,
+        "allow_transcode": override.allow_transcode,
+        "client_blacklist": override.client_blacklist,
+        "note": override.note,
+        "expires_at": override.expires_at.isoformat() if override.expires_at else None,
+        "updated_at": override.updated_at.isoformat() if override.updated_at else None,
+    })
 
 
 @admin_router.put("/{user_id}/override")
