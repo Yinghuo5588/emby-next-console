@@ -14,12 +14,12 @@ class AuthService:
 
     async def login(self, username: str, password: str) -> dict:
         """Emby 直接认证，返回 JWT"""
-        emby_user = await emby.auth_with_password(username, password)
-        if not emby_user:
+        emby_resp = await emby.auth_with_password(username, password)
+        if not emby_resp:
             raise UnauthorizedError("用户名或密码错误")
 
         # Emby AuthenticateByName returns { User: {...}, AccessToken: "..." }
-        user_data = emby_user.get("User", emby_user)
+        user_data = emby_resp.get("User", emby_resp)
         emby_user_id = user_data.get("Id")
         emby_role = user_data.get("Policy", {}).get("IsAdministrator", False)
         display_name = user_data.get("Name") or username
@@ -47,6 +47,7 @@ class AuthService:
         token = create_access_token(
             subject=emby_user_id,
             role=user.role,
+            is_admin=bool(emby_role),
         )
         return {
             "access_token": token,
