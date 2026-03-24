@@ -500,8 +500,8 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
 
     # 设备分布：软件 + 硬件
     client_rows = await _query(
-        f"SELECT COALESCE(ClientName, Client, '未知客户端') as device, COUNT(*) as cnt "
-        f"FROM PlaybackActivity WHERE {where} AND COALESCE(ClientName, Client, '未知客户端') IS NOT NULL "
+        f"SELECT COALESCE(NULLIF(ClientName,''), NULLIF(Client,''), '未知客户端') as device, COUNT(*) as cnt "
+        f"FROM PlaybackActivity WHERE {where} "
         f"GROUP BY device ORDER BY cnt DESC LIMIT 5"
     )
     device_rows = await _query(
@@ -660,10 +660,10 @@ async def get_heatmap(period: str = "30d") -> list[list[int]]:
 async def get_device_dist(period: str = "30d", dist_type: str = "client") -> list[dict]:
     """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)"""
     pf = _period_filter(period)
-    col = "DeviceName" if dist_type == "hardware" else "COALESCE(ClientName, Client, '未知客户端')"
+    col = "DeviceName" if dist_type == "hardware" else "COALESCE(NULLIF(ClientName,''), NULLIF(Client,''), '未知客户端')"
     rows = await _query(
         f"SELECT {col} as device, COUNT(*) as cnt "
-        f"FROM PlaybackActivity WHERE {col} IS NOT NULL AND {col} != '' "
+        f"FROM PlaybackActivity WHERE {col} IS NOT NULL "
         f"GROUP BY device ORDER BY cnt DESC LIMIT 8"
     )
     return [{"name": r["device"], "value": r["cnt"]} for r in rows]
