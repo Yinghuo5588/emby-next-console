@@ -14,15 +14,22 @@ const router = createRouter({
       meta: { title: '分析总览' },
     },
     {
+      path: '/stats/content',
+      name: 'StatsContent',
+      component: () => import('@/pages/StatsContentPage.vue'),
+      meta: { title: '内容分析' },
+    },
+    {
+      path: '/stats/users',
+      name: 'StatsUsers',
+      component: () => import('@/pages/StatsUsersPage.vue'),
+      meta: { title: '用户分析' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/stats',
     },
   ],
-})
-
-router.beforeEach((to, _from, next) => {
-  // 直接放行所有路由（暂无登录）
-  next()
 })
 
 export default router
