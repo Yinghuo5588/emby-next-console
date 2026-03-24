@@ -44,6 +44,12 @@ const router = createRouter({
       meta: { title: '用户详情' },
     },
     {
+      path: '/settings',
+      name: 'Settings',
+      component: () => import('@/pages/SettingsPage.vue'),
+      meta: { title: '设置' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/stats',
     },
