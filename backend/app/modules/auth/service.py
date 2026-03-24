@@ -22,11 +22,11 @@ class AuthService:
         return create_access_token(str(user.id))
 
     async def get_user_info(self, user_id: str) -> dict:
-        stmt = (
-            select(User)
-            .where(User.id == int(user_id))
-            .options(selectinload(User.profile))
-        )
+        # 兼容两种 token: auth token sub=int(User.id), portal token sub=emby_user_id(UUID)
+        if user_id.isdigit():
+            stmt = select(User).where(User.id == int(user_id)).options(selectinload(User.profile))
+        else:
+            stmt = select(User).where(User.emby_user_id == user_id).options(selectinload(User.profile))
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
         if not user:
