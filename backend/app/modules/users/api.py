@@ -66,13 +66,17 @@ async def create_user(
 
 @admin_router.get("/{user_id}/permissions")
 async def get_user_permissions(user_id: str, admin=Depends(get_current_admin)):
-    """从 Emby 获取用户库权限"""
+    """从 Emby 获取用户库权限 + 媒体库列表"""
     from app.core.emby_users import EmbyUserService
+    from app.core.emby_data import data as emby_data
     svc = EmbyUserService()
     try:
         policy = await svc.get_user_policy(user_id)
         config = await svc.get_user_configuration(user_id)
-        return {"success": True, "data": {"policy": policy, "configuration": config}}
+        # 获取媒体库列表
+        libraries = await emby_data.get_library_virtual_folders()
+        lib_list = [{"id": v.get("ItemId") or v.get("Guid"), "name": v.get("Name"), "type": v.get("CollectionType", "unknown")} for v in libraries]
+        return ApiResponse.ok(data={"policy": policy, "configuration": config, "libraries": lib_list})
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -151,6 +155,25 @@ async def force_logout_user(user_id: str, admin=Depends(get_current_admin)):
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@admin_router.delete("/{user_id}")
+async def delete_user(user_id: str, db: AsyncSessionDep, admin=Depends(get_current_admin)):
+    """删除用户（Emby + 本地数据）"""
+    from app.core.emby_users import EmbyUserService
+    emby_svc = EmbyUserService()
+    try:
+        await emby_svc.delete_emby_user(user_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"删除 Emby 用户失败: {e}")
+    # 清理本地数据
+    from app.db.models.invite import UserOverride
+    result = await db.execute(select(UserOverride).where(UserOverride.emby_user_id == user_id))
+    ov = result.scalar_one_or_none()
+    if ov:
+        await db.delete(ov)
+    await db.commit()
+    return ApiResponse.ok(data={"deleted": user_id})
 
 
 class BatchRequest(BaseModel):
