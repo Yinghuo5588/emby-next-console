@@ -304,7 +304,6 @@ async def get_content_rankings(
 
     rows = await _query(
         f"SELECT ItemName, ItemId, ItemType, "
-        f"MAX(FileName) as file_name, "
         f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
         f"FROM PlaybackActivity WHERE {pf}{type_filter}{user_filter} "
         f"GROUP BY ItemName ORDER BY {order} LIMIT 500"
