@@ -25,7 +25,7 @@
           @click="selectItem(item.item_id)"
         >
           <!-- 排名 -->
-          <div class="card-rank" :class="{ 'rank-top': i < 3 }">
+          <div class="card-rank" :class="{ 'rank-1': i === 0, 'rank-2': i === 1, 'rank-3': i === 2 }">
             <span>{{ (page - 1) * size + i + 1 }}</span>
           </div>
 
@@ -50,16 +50,8 @@
               <span class="card-type" :class="item.type === 'Movie' ? 'type-movie' : 'type-series'">
                 {{ item.type === 'Movie' ? '电影' : '剧集' }}
               </span>
-              <span class="card-stat">{{ item.play_count }} 次播放</span>
-            </div>
-            <div class="card-duration">
-              <div class="duration-bar-bg">
-                <div
-                  class="duration-bar"
-                  :style="{ width: barWidth(item.total_duration_min, maxDuration) + '%' }"
-                ></div>
-              </div>
-              <span class="duration-text">{{ formatDuration(item.total_duration_min) }}</span>
+              <span class="tag-pill tag-plays">{{ item.play_count }} 次</span>
+              <span class="tag-pill tag-duration">{{ formatDuration(item.total_duration_min) }}</span>
             </div>
           </div>
         </div>
@@ -319,22 +311,35 @@ onMounted(() => { loadRankings() })
 
 /* ── 排名 ── */
 .card-rank {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  font-size: 0.8rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-muted);
   background: var(--bg-secondary);
   flex-shrink: 0;
 }
 
-.card-rank.rank-top {
-  background: var(--brand);
+.card-rank.rank-1 {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);
+}
+
+.card-rank.rank-2 {
+  background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(160, 160, 160, 0.3);
+}
+
+.card-rank.rank-3 {
+  background: linear-gradient(135deg, #CD7F32, #B87333);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(205, 127, 50, 0.3);
 }
 
 /* ── 封面 ── */
@@ -389,9 +394,8 @@ onMounted(() => { loadRankings() })
 .card-sub {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .card-type {
@@ -414,36 +418,25 @@ onMounted(() => { loadRankings() })
   color: #28a745;
 }
 
-/* ── 时长条 ── */
-.card-duration {
-  display: flex;
+/* ── 彩色小标签 ── */
+.tag-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.6;
 }
 
-.duration-bar-bg {
-  flex: 1;
-  height: 4px;
-  background: var(--bg-secondary);
-  border-radius: 2px;
-  overflow: hidden;
+.tag-plays {
+  background: rgba(0, 122, 255, 0.1);
+  color: #007AFF;
 }
 
-.duration-bar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--brand), var(--teal));
-  border-radius: 2px;
-  transition: width 0.5s ease;
-  min-width: 2px;
-}
-
-.duration-text {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-soft);
-  flex-shrink: 0;
-  min-width: 48px;
-  text-align: right;
+.tag-duration {
+  background: rgba(175, 82, 222, 0.1);
+  color: #AF52DE;
 }
 
 /* ── 分页 ── */
@@ -549,6 +542,16 @@ onMounted(() => { loadRankings() })
 :root.dark .type-series {
   background: rgba(52, 199, 89, 0.15);
   color: #51cf66;
+}
+
+:root.dark .tag-plays {
+  background: rgba(0, 122, 255, 0.18);
+  color: #5AC8FA;
+}
+
+:root.dark .tag-duration {
+  background: rgba(175, 82, 222, 0.18);
+  color: #BF7FEF;
 }
 
 /* ── 移动端 ── */
