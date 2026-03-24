@@ -68,7 +68,7 @@ async def create_user(
 async def get_user_permissions(user_id: str, admin=Depends(get_current_admin)):
     """从 Emby 获取用户库权限 + 媒体库列表"""
     from app.core.emby_users import EmbyUserService
-    from app.core import emby_client as emby
+    from app.core.emby import emby
     svc = EmbyUserService()
     try:
         policy = await svc.get_user_policy(user_id)
