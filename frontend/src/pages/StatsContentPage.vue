@@ -3,37 +3,69 @@
     <PageHeader title="内容分析" />
     <StatsTabs :filterActive="activeFilterCount > 0" @toggle-filter="showFilter = !showFilter" />
 
+    <!-- 激活的筛选标签 -->
     <div class="active-filters" v-if="activeFilterCount > 0">
       <n-tag v-if="contentType !== 'all'" size="small" closable @close="contentType = 'all'">{{ contentTypeLabel }}</n-tag>
       <n-tag v-if="period !== '30d'" size="small" closable @close="period = '30d'">{{ periodLabel }}</n-tag>
       <n-tag v-if="sortBy !== 'duration'" size="small" closable @close="sortBy = 'duration'">{{ sortLabel }}</n-tag>
-      <n-tag v-if="selectedUserId" size="small" closable @close="clearUserFilter">👤 {{ selectedUserName }}</n-tag>
+      <n-tag v-if="selectedUserId" size="small" closable @click="clearUserFilter">👤 {{ selectedUserName }}</n-tag>
     </div>
 
-    <div class="ranking-card">
+    <!-- 列表 -->
+    <div class="content-list">
       <div v-if="loading" class="empty-text">加载中...</div>
       <div v-else-if="items.length === 0" class="empty-text">暂无数据</div>
-      <div v-else class="ranking-list">
-        <div v-for="(item, i) in items" :key="i"
-          class="ranking-item"
+
+      <div v-else class="card-list">
+        <div
+          v-for="(item, i) in items"
+          :key="item.item_id"
+          class="content-card"
           :class="{ active: selectedItemId === item.item_id }"
-          @click="selectItem(item.item_id)">
-          <span class="ranking-num" :class="{ 'num-top': i < 3 }">{{ (page - 1) * size + i + 1 }}</span>
-          <img v-if="item.poster_url" :src="item.poster_url" class="ranking-poster" loading="lazy" />
-          <n-avatar v-else :size="36" class="ranking-avatar">{{ item.name?.charAt(0) || '?' }}</n-avatar>
-          <div class="ranking-body">
-            <div class="ranking-name">{{ item.name }}</div>
-            <div class="ranking-meta">
-              <span>{{ item.total_duration_min }}m</span>
-              <span>·</span>
-              <span>{{ item.play_count }} 次</span>
+          @click="selectItem(item.item_id)"
+        >
+          <!-- 排名 -->
+          <div class="card-rank" :class="{ 'rank-top': i < 3 }">
+            <span>{{ (page - 1) * size + i + 1 }}</span>
+          </div>
+
+          <!-- 封面 -->
+          <div class="card-cover">
+            <img
+              v-if="item.poster_url"
+              :src="item.poster_url"
+              class="cover-img"
+              loading="lazy"
+              @error="($event.target as HTMLImageElement).style.display='none'"
+            />
+            <div v-if="!item.poster_url" class="cover-fallback">
+              {{ item.name?.charAt(0) || '?' }}
             </div>
           </div>
-          <div class="ranking-bars desktop-only">
-            <div class="bar" :style="{ width: barWidth(item.total_duration_min, maxDuration) + '%' }"></div>
+
+          <!-- 信息 -->
+          <div class="card-info">
+            <div class="card-title">{{ item.name }}</div>
+            <div class="card-sub">
+              <span class="card-type" :class="item.type === 'Movie' ? 'type-movie' : 'type-series'">
+                {{ item.type === 'Movie' ? '电影' : '剧集' }}
+              </span>
+              <span class="card-stat">{{ item.play_count }} 次播放</span>
+            </div>
+            <div class="card-duration">
+              <div class="duration-bar-bg">
+                <div
+                  class="duration-bar"
+                  :style="{ width: barWidth(item.total_duration_min, maxDuration) + '%' }"
+                ></div>
+              </div>
+              <span class="duration-text">{{ formatDuration(item.total_duration_min) }}</span>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- 分页 -->
       <div v-if="total > size" class="pagination-row">
         <n-button size="small" :disabled="page <= 1" @click="page--">上一页</n-button>
         <span class="page-info">{{ page }} / {{ Math.ceil(total / size) }}</span>
@@ -202,6 +234,15 @@ const trendSeries = computed(() => {
 
 function barWidth(val: number, max: number) { return max > 0 ? (val / max) * 100 : 0 }
 
+function formatDuration(min: number): string {
+  if (!min) return '0m'
+  const h = Math.floor(min / 60)
+  const m = Math.round(min % 60)
+  if (h === 0) return `${m}m`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
 async function loadRankings() {
   loading.value = true
   try {
@@ -233,37 +274,301 @@ onMounted(() => { loadRankings() })
 </script>
 
 <style scoped>
-.stats-page { padding: 0.5rem 0; }
-.active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
-.filter-badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 0.65rem; margin-left: 4px; }
-.ranking-card { background: var(--surface); border-radius: var(--radius-lg); padding: 0.5rem; border: 1px solid var(--border); }
-.ranking-list { display: flex; flex-direction: column; }
-.ranking-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.5rem; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
-.ranking-item:hover, .ranking-item.active { background: var(--bg-secondary); }
-.ranking-poster { width: 36px; height: 50px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
-.detail-poster { width: 56px; height: 80px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
-.ranking-num { width: 24px; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-align: center; flex-shrink: 0; }
-.num-top { color: var(--brand); }
-.ranking-avatar { flex-shrink: 0; }
-.ranking-body { flex: 1; min-width: 0; }
-.ranking-name { font-size: 0.9rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ranking-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 0.25rem; }
-.ranking-bars { width: 80px; flex-shrink: 0; }
-.bar { height: 4px; background: var(--brand); border-radius: 2px; transition: width 0.3s; }
-.pagination-row { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 0; }
-.page-info { font-size: 0.8rem; color: var(--text-muted); }
-.empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
-.filter-group { margin-bottom: 1rem; }
-.filter-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-.detail-hero { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
-.detail-hero h3 { margin: 0; font-size: 1rem; }
-.detail-meta { font-size: 0.8rem; color: var(--text-muted); }
-.detail-section { margin-bottom: 1.25rem; }
-.detail-section h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; }
-.viewer-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.viewer-row { display: flex; align-items: center; gap: 0.5rem; }
-.viewer-body { flex: 1; }
-.viewer-name { font-size: 0.8rem; font-weight: 600; }
-.viewer-meta { font-size: 0.7rem; color: var(--text-muted); }
-@media (max-width: 767px) { .desktop-only { display: none; } }
+.stats-page {
+  padding: 0.5rem 0;
+}
+
+.active-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ── 卡片列表 ── */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.content-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.content-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.content-card.active {
+  background: var(--brand-light);
+  border-color: var(--brand);
+}
+
+/* ── 排名 ── */
+.card-rank {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.card-rank.rank-top {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* ── 封面 ── */
+.card-cover {
+  width: 56px;
+  height: 78px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  position: relative;
+}
+
+.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+}
+
+/* ── 信息区 ── */
+.card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.card-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.card-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.type-movie {
+  background: rgba(255, 149, 0, 0.1);
+  color: #e68a00;
+}
+
+.type-series {
+  background: rgba(52, 199, 89, 0.1);
+  color: #28a745;
+}
+
+/* ── 时长条 ── */
+.card-duration {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.duration-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.duration-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--teal));
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+.duration-text {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  flex-shrink: 0;
+  min-width: 48px;
+  text-align: right;
+}
+
+/* ── 分页 ── */
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+}
+
+.page-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.empty-text {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ── 筛选 ── */
+.filter-group {
+  margin-bottom: 1rem;
+}
+
+.filter-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* ── 详情抽屉 ── */
+.detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.detail-hero h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.detail-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.detail-poster {
+  width: 56px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.detail-section {
+  margin-bottom: 1.25rem;
+}
+
+.detail-section h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.viewer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.viewer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.viewer-body {
+  flex: 1;
+}
+
+.viewer-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.viewer-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ── 暗色主题 ── */
+:root.dark .type-movie {
+  background: rgba(255, 149, 0, 0.15);
+  color: #ffa940;
+}
+
+:root.dark .type-series {
+  background: rgba(52, 199, 89, 0.15);
+  color: #51cf66;
+}
+
+/* ── 移动端 ── */
+@media (max-width: 767px) {
+  .content-card {
+    padding: 8px 10px;
+    gap: 10px;
+  }
+
+  .card-cover {
+    width: 48px;
+    height: 67px;
+  }
+
+  .card-title {
+    font-size: 0.85rem;
+  }
+
+  .duration-bar-bg {
+    display: none;
+  }
+}
 </style>
