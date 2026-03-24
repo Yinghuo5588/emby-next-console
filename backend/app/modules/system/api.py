@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 
 from app.db.session import AsyncSessionDep
-from app.core.dependencies import get_current_user_id
 from app.shared.responses import ApiResponse
 from .schemas import SettingItem, SettingUpdateRequest, HealthResponse, JobRunItem
 from .service import SystemService
@@ -15,24 +14,24 @@ async def health(db: AsyncSessionDep):
 
 
 @router.get("/settings", response_model=ApiResponse[list[SettingItem]])
-async def get_settings(db: AsyncSessionDep, _: str = Depends(get_current_user_id)):
+async def get_settings(db: AsyncSessionDep, ):
     return ApiResponse.ok(data=await SystemService(db).get_settings())
 
 
 @router.patch("/settings/{key}", response_model=ApiResponse[SettingItem])
-async def update_setting(key: str, body: SettingUpdateRequest, db: AsyncSessionDep, _: str = Depends(get_current_user_id)):
+async def update_setting(key: str, body: SettingUpdateRequest, db: AsyncSessionDep, ):
     return ApiResponse.ok(data=await SystemService(db).update_setting(key, body.value))
 
 
 @router.get("/jobs", response_model=ApiResponse[list[JobRunItem]])
-async def list_jobs(db: AsyncSessionDep, _: str = Depends(get_current_user_id)):
+async def list_jobs(db: AsyncSessionDep, ):
     return ApiResponse.ok(data=await SystemService(db).list_jobs())
 
 
 # ── 客户端黑名单 ─────────────────────────────────────────────
 
 @router.get("/client-blacklist")
-async def get_client_blacklist(db: AsyncSessionDep, _: str = Depends(get_current_user_id)):
+async def get_client_blacklist(db: AsyncSessionDep, ):
     from app.db.models.system import SystemSetting
     from sqlalchemy import select
 
@@ -49,7 +48,7 @@ class BlacklistItem:
 
 
 @router.post("/client-blacklist")
-async def add_client_blacklist(app_name: str, db: AsyncSessionDep, _: str = Depends(get_current_user_id)):
+async def add_client_blacklist(app_name: str, db: AsyncSessionDep, ):
     from app.db.models.system import SystemSetting
     from sqlalchemy import select
     from datetime import datetime, timezone
@@ -80,7 +79,7 @@ async def add_client_blacklist(app_name: str, db: AsyncSessionDep, _: str = Depe
 
 
 @router.delete("/client-blacklist/{app_name}")
-async def remove_client_blacklist(app_name: str, db: AsyncSessionDep, _: str = Depends(get_current_user_id)):
+async def remove_client_blacklist(app_name: str, db: AsyncSessionDep, ):
     from app.db.models.system import SystemSetting
     from sqlalchemy import select
     from datetime import datetime, timezone
@@ -99,7 +98,7 @@ async def remove_client_blacklist(app_name: str, db: AsyncSessionDep, _: str = D
 # ── 实时会话 ─────────────────────────────────────────────
 
 @router.get("/sessions")
-async def get_active_sessions(_: str = Depends(get_current_user_id)):
+async def get_active_sessions():
     """获取 Emby 实时播放会话"""
     from app.core.emby import emby
     try:
