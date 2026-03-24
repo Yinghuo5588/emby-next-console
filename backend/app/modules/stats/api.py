@@ -43,8 +43,6 @@ async def trend(
     """播放趋势：播放时长"""
     data = await service.get_trend_by_period(period)
     return ApiResponse.ok(data=data)
-    data = await service.get_trend_by_period(period)
-    return ApiResponse.ok(data=data)
 
 
 @router.get("/top-content")
