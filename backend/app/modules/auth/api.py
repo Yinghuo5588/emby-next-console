@@ -12,8 +12,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/login", response_model=ApiResponse[TokenResponse])
 async def login(body: LoginRequest, db: AsyncSessionDep):
     service = AuthService(db)
-    token = await service.login(body.username, body.password)
-    return ApiResponse.ok(data=TokenResponse(access_token=token))
+    result = await service.login(body.username, body.password)
+    return ApiResponse.ok(data=TokenResponse(
+        access_token=result["access_token"],
+        is_admin=result.get("is_admin", False),
+        username=result.get("username"),
+    ))
 
 
 @router.get("/me", response_model=ApiResponse[MeResponse])
