@@ -505,7 +505,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
         f"GROUP BY device ORDER BY cnt DESC LIMIT 5"
     )
     device_rows = await _query(
-        f"SELECT DeviceName, COUNT(*) as cnt "
+        f"SELECT DeviceName as device, COUNT(*) as cnt "
         f"FROM PlaybackActivity WHERE {where} AND DeviceName IS NOT NULL AND DeviceName != '' "
         f"GROUP BY DeviceName ORDER BY cnt DESC LIMIT 5"
     )
