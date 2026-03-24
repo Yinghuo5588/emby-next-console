@@ -81,9 +81,8 @@ def _extract_quality_tags(file_name: str | None) -> list[str]:
 
 
 async def _enrich_media_cards(items: list[dict]) -> None:
-    """补充媒体卡片常用字段：poster/backdrop/title/meta/quality_tags"""
-    await _resolve_poster_ids(items)
-
+    """补充媒体卡片常用字段：poster/backdrop/title/meta/quality_tags
+    不修改 item_id，让 proxy 按原始 ID 自己解析上溯源码"""
     for item in items:
         iid = item.get("item_id")
         name = item.get("name", "")
@@ -398,9 +397,6 @@ async def get_content_detail(item_id: str) -> dict:
         "production_year": production_year,
         "quality_tags": quality_tags,
     }
-    await _resolve_poster_ids([result])
-    result["poster_url"] = _build_proxy_image(result.get("item_id"), "Primary", name)
-    result["backdrop_url"] = _build_proxy_image(result.get("item_id"), "Backdrop", name)
     return result
 
 
