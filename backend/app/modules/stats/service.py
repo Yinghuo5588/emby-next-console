@@ -656,13 +656,38 @@ async def get_heatmap(period: str = "30d") -> list[list[int]]:
 
 
 async def get_device_dist(period: str = "30d", dist_type: str = "client") -> list[dict]:
-    """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)"""
+    """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)
+    优先走 Playback Reporting 插件数据，查不到 fallback 到 Emby /Devices API
+    """
     pf = _period_filter(period)
     col = "DeviceName" if dist_type == "hardware" else "ClientName"
     rows = await _query(
         f"SELECT COALESCE({col}, '未知') as device, COUNT(*) as cnt "
         f"FROM PlaybackActivity GROUP BY device ORDER BY cnt DESC LIMIT 8"
     )
-    # 过滤空值，保留至少一个兜底
     result = [{"name": r["device"], "value": r["cnt"]} for r in rows if r.get("device") and r["device"].strip()]
-    return result if result else [{"name": "未知", "value": 0}]
+
+    # Playback Reporting 有数据就直接返回
+    if result and len(result) > 0 and not (len(result) == 1 and result[0]["name"] == "未知"):
+        return result
+
+    # fallback: Emby /Devices API
+    try:
+        devices = await emby.get_devices()
+        if devices:
+            if dist_type == "client":
+                counter: dict[str, int] = {}
+                for d in devices:
+                    name = d.get("AppName") or "未知客户端"
+                    counter[name] = counter.get(name, 0) + 1
+            else:
+                counter = {}
+                for d in devices:
+                    name = d.get("Name") or "未知设备"
+                    counter[name] = counter.get(name, 0) + 1
+            if counter:
+                return [{"name": k, "value": v} for k, v in sorted(counter.items(), key=lambda x: -x[1])[:8]]
+    except Exception:
+        pass
+
+    return []
