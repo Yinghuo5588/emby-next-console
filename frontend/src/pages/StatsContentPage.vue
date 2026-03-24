@@ -6,7 +6,7 @@
     <div class="active-filters" v-if="activeFilterCount > 0">
       <n-tag v-if="contentType !== 'all'" size="small" closable @close="contentType = 'all'">{{ contentTypeLabel }}</n-tag>
       <n-tag v-if="period !== '30d'" size="small" closable @close="period = '30d'">{{ periodLabel }}</n-tag>
-      <n-tag v-if="sortBy !== 'duration'" size="small" closable @close="sortBy = 'duration'">{{ sortLabel }}</n-tag>
+      <n-tag v-if="sortBy !== 'duration'" size="small" closable @click="sortBy = 'duration'">{{ sortLabel }}</n-tag>
       <n-tag v-if="selectedUserId" size="small" closable @click="clearUserFilter">👤 {{ selectedUserName }}</n-tag>
     </div>
 
@@ -20,17 +20,15 @@
           :key="item.item_id"
           class="media-card"
           :class="{ active: selectedItemId === item.item_id }"
-          :style="heroStyle(item)"
           @click="selectItem(item.item_id)"
         >
-          <div class="media-card-overlay"></div>
-          <div class="media-card-glow"></div>
-
+          <!-- 排名 -->
           <div class="card-rank" :class="{ 'rank-1': i === 0, 'rank-2': i === 1, 'rank-3': i === 2 }">
             <span>{{ (page - 1) * size + i + 1 }}</span>
           </div>
 
-          <div class="poster-float">
+          <!-- 海报 -->
+          <div class="poster-wrap">
             <img
               v-if="item.poster_url"
               :src="item.poster_url"
@@ -38,27 +36,31 @@
               loading="lazy"
               @error="($event.target as HTMLImageElement).style.display='none'"
             />
-            <div v-if="!item.poster_url" class="poster-fallback">
-              {{ item.name?.charAt(0) || '?' }}
+            <div v-else class="poster-fallback">{{ item.name?.charAt(0) || '?' }}</div>
+          </div>
+
+          <!-- 信息 -->
+          <div class="card-body">
+            <div class="card-title">{{ item.display_title || item.name }}</div>
+            <div class="card-tags">
+              <span class="tag" :class="item.type === 'Movie' ? 'tag-movie' : 'tag-series'">
+                {{ item.type === 'Movie' ? '电影' : '剧集' }}
+              </span>
+              <span v-for="tag in (item.quality_tags || []).slice(0, 3)" :key="tag" class="tag tag-quality">{{ tag }}</span>
             </div>
           </div>
 
-          <div class="media-card-body">
-            <div class="media-card-topline">
-              <span class="media-type" :class="item.type === 'Movie' ? 'type-movie' : 'type-series'">
-                {{ item.type === 'Movie' ? '电影' : '剧集' }}
-              </span>
-              <span v-for="tag in (item.quality_tags || []).slice(0, 3)" :key="tag" class="glass-pill quality-pill">{{ tag }}</span>
+          <!-- 右侧统计 -->
+          <div class="card-stats">
+            <div class="stat-play">
+              <span class="stat-icon">▶</span>
+              <span>{{ item.play_count }}</span>
             </div>
-
-            <div class="media-title">{{ item.display_title || item.name }}</div>
-            <div class="media-subtitle">{{ item.display_subtitle || defaultSubtitle(item.type) }}</div>
-
-            <div class="media-footer-bar">
-              <div class="footer-metrics">
-                <span class="glass-pill stat-pill-blue">{{ item.play_count }} 次播放</span>
-                <span class="glass-pill stat-pill-purple">{{ formatDuration(item.total_duration_min) }}</span>
+            <div class="stat-duration">
+              <div class="duration-bar">
+                <div class="duration-fill" :style="{ width: durPct(item.total_duration_min) + '%' }"></div>
               </div>
+              <span class="duration-text">{{ formatDuration(item.total_duration_min) }}</span>
             </div>
           </div>
         </div>
@@ -71,6 +73,7 @@
       </div>
     </div>
 
+    <!-- 筛选抽屉 -->
     <n-drawer v-model:show="showFilter" :width="320" placement="bottom" height="420px">
       <n-drawer-content title="筛选" closable :body-content-style="{ padding: '16px' }">
         <div class="filter-group">
@@ -116,6 +119,7 @@
       </n-drawer-content>
     </n-drawer>
 
+    <!-- 详情抽屉（保留 hero 风格） -->
     <n-drawer v-model:show="showDetail" :width="isMobile ? undefined : 520" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '92vh' : undefined">
       <n-drawer-content v-if="detail" :title="detail.name" closable>
         <div class="detail-hero" :style="detailHeroStyle(detail)">
@@ -127,9 +131,9 @@
           <div class="detail-hero-info">
             <h3>{{ detail.name }}</h3>
             <div class="detail-meta-row">
-              <span class="glass-pill">{{ detail.type === 'Movie' ? '电影' : '剧集' }}</span>
-              <span v-if="detail.production_year" class="glass-pill">{{ detail.production_year }}</span>
-              <span v-for="tag in (detail.quality_tags || []).slice(0, 3)" :key="tag" class="glass-pill">{{ tag }}</span>
+              <span class="tag" :class="detail.type === 'Movie' ? 'tag-movie' : 'tag-series'">{{ detail.type === 'Movie' ? '电影' : '剧集' }}</span>
+              <span v-if="detail.production_year" class="tag tag-quality">{{ detail.production_year }}</span>
+              <span v-for="tag in (detail.quality_tags || []).slice(0, 3)" :key="tag" class="tag tag-quality">{{ tag }}</span>
             </div>
             <p v-if="detail.overview" class="detail-overview">{{ detail.overview }}</p>
           </div>
@@ -233,10 +237,6 @@ const trendSeries = computed(() => {
   ]
 })
 
-function defaultSubtitle(type: string): string {
-  return type === 'Movie' ? '电影' : '剧集'
-}
-
 function formatDuration(min: number): string {
   if (!min) return '0m'
   const h = Math.floor(min / 60)
@@ -246,12 +246,9 @@ function formatDuration(min: number): string {
   return `${h}h ${m}m`
 }
 
-function heroStyle(item: any) {
-  const bg = item.backdrop_url || item.poster_url || ''
-  const gradient = 'linear-gradient(90deg, rgba(8,10,18,0.30) 0%, rgba(8,10,18,0.45) 22%, rgba(8,10,18,0.72) 52%, rgba(8,10,18,0.92) 100%)'
-  return {
-    backgroundImage: bg ? `${gradient}, url(${bg})` : 'linear-gradient(135deg, #1f2937 0%, #0f172a 60%, #020617 100%)',
-  }
+const maxDur = computed(() => Math.max(...items.value.map(i => i.total_duration_min || 1), 1))
+function durPct(min: number): number {
+  return Math.round((min / maxDur.value) * 100)
 }
 
 function detailHeroStyle(item: any) {
@@ -295,156 +292,165 @@ onMounted(() => { loadRankings() })
 <style scoped>
 .stats-page { padding: 0.5rem 0; }
 .active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
-.card-list { display: flex; flex-direction: column; gap: 14px; }
+.card-list { display: flex; flex-direction: column; gap: 10px; }
 
+/* ===== 简洁卡片 ===== */
 .media-card {
-  position: relative;
-  min-height: 186px;
-  border-radius: 22px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-  background-size: cover;
-  background-position: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
   cursor: pointer;
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.18);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.media-card:hover { transform: translateY(-2px); box-shadow: 0 18px 46px rgba(15, 23, 42, 0.24); }
-.media-card.active { border-color: rgba(99, 102, 241, 0.55); box-shadow: 0 18px 50px rgba(79, 70, 229, 0.24); }
-.media-card-overlay,
-.media-card-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+.media-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.22);
+  border-color: rgba(255,255,255,0.12);
 }
-.media-card-glow {
-  background: radial-gradient(circle at 18% 22%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 34%);
+.media-card.active {
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3), 0 8px 28px rgba(79, 70, 229, 0.15);
 }
+
+/* 排名 */
 .card-rank {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 4;
-  width: 34px;
-  height: 34px;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  font-size: 0.86rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
   font-weight: 800;
-  color: #fff;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
 }
-.card-rank.rank-1 { background: linear-gradient(135deg, #FFD700, #FFA500); }
-.card-rank.rank-2 { background: linear-gradient(135deg, #C0C0C0, #A0A0A0); }
-.card-rank.rank-3 { background: linear-gradient(135deg, #CD7F32, #B87333); }
-.poster-float {
-  position: absolute;
-  left: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 3;
-  width: 100px;
+.card-rank.rank-1 { background: linear-gradient(135deg, #FFD700, #FFA500); color: #1a1a1a; border-color: rgba(255,215,0,0.4); }
+.card-rank.rank-2 { background: linear-gradient(135deg, #C0C0C0, #9CA3AF); color: #1a1a1a; border-color: rgba(192,192,192,0.4); }
+.card-rank.rank-3 { background: linear-gradient(135deg, #CD7F32, #B87333); color: #1a1a1a; border-color: rgba(205,127,50,0.4); }
+
+/* 海报 */
+.poster-wrap {
+  flex-shrink: 0;
+  width: 56px;
   aspect-ratio: 2 / 3;
-  border-radius: 16px;
+  border-radius: 10px;
   overflow: hidden;
-  background: rgba(255,255,255,0.08);
-  box-shadow: 0 18px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.22);
-  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
 }
 .poster-img { width: 100%; height: 100%; object-fit: cover; display: block; aspect-ratio: 2 / 3; }
 .poster-fallback {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  font-size: 1.6rem; font-weight: 800; color: rgba(255,255,255,0.88);
-  background: linear-gradient(135deg, rgba(99,102,241,.55), rgba(30,41,59,.95));
+  font-size: 1.2rem; font-weight: 800; color: rgba(255,255,255,0.7);
+  background: linear-gradient(135deg, rgba(99,102,241,.4), rgba(30,41,59,.7));
 }
-.media-card-body {
-  position: relative;
-  z-index: 3;
-  margin-left: 144px;
-  min-height: 186px;
-  padding: 22px 20px 18px 0;
+
+/* 信息区 */
+.card-body {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 6px;
 }
-.media-card-topline { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.media-title {
-  font-size: 1.28rem;
-  font-weight: 800;
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
   color: #fff;
-  line-height: 1.25;
-  text-shadow: 0 3px 14px rgba(0,0,0,0.45);
-  max-width: 92%;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.media-subtitle {
-  margin-top: 6px;
-  font-size: 0.88rem;
-  color: rgba(255,255,255,0.72);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.35);
-}
-.media-footer-bar {
-  margin-top: 16px;
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  backdrop-filter: blur(14px);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
-}
-.footer-metrics { display: flex; gap: 8px; flex-wrap: wrap; }
-.glass-pill {
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* 标签 */
+.tag {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.68rem;
   font-weight: 700;
-  color: rgba(255,255,255,0.88);
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.10);
-  backdrop-filter: blur(10px);
+  line-height: 1.4;
 }
-.media-type.type-movie { background: rgba(245, 158, 11, 0.20); }
-.media-type.type-series { background: rgba(16, 185, 129, 0.20); }
-.stat-pill-blue { background: rgba(59, 130, 246, 0.20); }
-.stat-pill-purple { background: rgba(168, 85, 247, 0.20); }
-.quality-pill { background: rgba(15, 23, 42, 0.35); }
+.tag-movie { background: rgba(245, 158, 11, 0.18); color: #F59E0B; }
+.tag-series { background: rgba(16, 185, 129, 0.18); color: #10B981; }
+.tag-quality { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.65); }
 
+/* 右侧统计 */
+.card-stats {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 90px;
+}
+.stat-play {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(96, 165, 250, 0.9);
+}
+.stat-icon { font-size: 0.65rem; }
+.stat-duration {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.duration-bar {
+  width: 50px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.duration-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #3B82F6, #06B6D4);
+  transition: width .4s ease;
+}
+.duration-text {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgba(168, 85, 247, 0.9);
+  min-width: 45px;
+  text-align: right;
+}
+
+/* 分页 & 空状态 */
 .pagination-row { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 0; }
 .page-info { font-size: 0.8rem; color: var(--text-muted); }
 .empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
 .filter-group { margin-bottom: 1rem; }
 .filter-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
 
+/* ===== 详情抽屉 hero 风格 ===== */
 .detail-hero {
-  position: relative;
-  overflow: hidden;
-  border-radius: 22px;
-  min-height: 220px;
-  background-size: cover;
-  background-position: center;
-  margin-bottom: 1rem;
-  border: 1px solid rgba(255,255,255,0.08);
+  position: relative; overflow: hidden; border-radius: 22px;
+  min-height: 220px; background-size: cover; background-position: center;
+  margin-bottom: 1rem; border: 1px solid rgba(255,255,255,0.08);
 }
 .detail-hero-overlay { position: absolute; inset: 0; background: radial-gradient(circle at 18% 22%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 34%); }
 .detail-poster-wrap {
   position: absolute; left: 18px; bottom: 18px; z-index: 2;
   width: 92px; aspect-ratio: 2 / 3; border-radius: 16px; overflow: hidden;
   box-shadow: 0 18px 40px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.22);
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08);
 }
 .detail-poster { width: 100%; height: 100%; object-fit: cover; display: block; aspect-ratio: 2 / 3; }
-.detail-hero-info {
-  position: relative; z-index: 2; margin-left: 128px; padding: 22px 18px 20px 0; color: #fff;
-}
+.detail-hero-info { position: relative; z-index: 2; margin-left: 128px; padding: 22px 18px 20px 0; color: #fff; }
 .detail-hero-info h3 { margin: 0 0 10px; font-size: 1.3rem; line-height: 1.25; text-shadow: 0 3px 14px rgba(0,0,0,0.45); }
 .detail-meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .detail-overview {
@@ -460,13 +466,14 @@ onMounted(() => { loadRankings() })
 .viewer-name { font-size: 0.8rem; font-weight: 600; }
 .viewer-meta { font-size: 0.7rem; color: var(--text-muted); }
 
+/* 移动端 */
 @media (max-width: 767px) {
-  .media-card { min-height: 170px; border-radius: 18px; }
-  .poster-float { width: 78px; aspect-ratio: 2 / 3; left: 16px; }
-  .media-card-body { margin-left: 112px; min-height: 170px; padding: 18px 14px 16px 0; }
-  .media-title { font-size: 1.02rem; max-width: 100%; }
-  .media-subtitle { font-size: 0.8rem; }
-  .media-footer-bar { margin-top: 12px; border-radius: 16px; }
+  .media-card { padding: 8px 10px; gap: 10px; border-radius: 12px; }
+  .poster-wrap { width: 48px; aspect-ratio: 2 / 3; border-radius: 8px; }
+  .card-title { font-size: 0.88rem; }
+  .card-stats { min-width: 76px; }
+  .duration-bar { width: 40px; }
+  .duration-text { font-size: 0.7rem; min-width: 38px; }
   .detail-hero { min-height: 200px; }
   .detail-poster-wrap { width: 76px; aspect-ratio: 2 / 3; }
   .detail-hero-info { margin-left: 108px; padding: 18px 14px 18px 0; }
