@@ -347,15 +347,15 @@ onMounted(() => { loadRankings() })
   top: 50%;
   transform: translateY(-50%);
   z-index: 3;
-  width: 98px;
-  height: 138px;
+  width: 100px;
+  aspect-ratio: 2 / 3;
   border-radius: 16px;
   overflow: hidden;
   background: rgba(255,255,255,0.08);
   box-shadow: 0 18px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.22);
   border: 1px solid rgba(255,255,255,0.14);
 }
-.poster-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.poster-img { width: 100%; height: 100%; object-fit: cover; display: block; aspect-ratio: 2 / 3; }
 .poster-fallback {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
   font-size: 1.6rem; font-weight: 800; color: rgba(255,255,255,0.88);
@@ -436,12 +436,12 @@ onMounted(() => { loadRankings() })
 .detail-hero-overlay { position: absolute; inset: 0; background: radial-gradient(circle at 18% 22%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 34%); }
 .detail-poster-wrap {
   position: absolute; left: 18px; bottom: 18px; z-index: 2;
-  width: 92px; height: 132px; border-radius: 16px; overflow: hidden;
+  width: 92px; aspect-ratio: 2 / 3; border-radius: 16px; overflow: hidden;
   box-shadow: 0 18px 40px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.22);
   border: 1px solid rgba(255,255,255,.14);
   background: rgba(255,255,255,.08);
 }
-.detail-poster { width: 100%; height: 100%; object-fit: cover; display: block; }
+.detail-poster { width: 100%; height: 100%; object-fit: cover; display: block; aspect-ratio: 2 / 3; }
 .detail-hero-info {
   position: relative; z-index: 2; margin-left: 128px; padding: 22px 18px 20px 0; color: #fff;
 }
@@ -462,13 +462,13 @@ onMounted(() => { loadRankings() })
 
 @media (max-width: 767px) {
   .media-card { min-height: 170px; border-radius: 18px; }
-  .poster-float { width: 78px; height: 112px; left: 16px; }
+  .poster-float { width: 78px; aspect-ratio: 2 / 3; left: 16px; }
   .media-card-body { margin-left: 112px; min-height: 170px; padding: 18px 14px 16px 0; }
   .media-title { font-size: 1.02rem; max-width: 100%; }
   .media-subtitle { font-size: 0.8rem; }
   .media-footer-bar { margin-top: 12px; border-radius: 16px; }
   .detail-hero { min-height: 200px; }
-  .detail-poster-wrap { width: 76px; height: 108px; }
+  .detail-poster-wrap { width: 76px; aspect-ratio: 2 / 3; }
   .detail-hero-info { margin-left: 108px; padding: 18px 14px 18px 0; }
   .detail-overview { -webkit-line-clamp: 3; }
 }
