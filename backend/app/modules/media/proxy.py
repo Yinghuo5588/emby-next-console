@@ -138,8 +138,86 @@ async def proxy_image(item_id: str, img_type: str):
 
 
 # ═══════════════════════════════════════════════════════════
-# 智能封面（Emby → 内库再搜 → TMDB 三重兜底）
+# Backdrop 上溯源码：找有 BackdropImageTags 的父级
 # ═══════════════════════════════════════════════════════════
+
+async def _find_backdrop_source(item_id: str) -> tuple[str, str | None]:
+    """
+    找到拥有 BackdropImageTags 的 item，返回 (target_id, tag)。
+    episode → season → series → 原始 item，逐级上溯。
+    找不到 backdrop 返回 (resolved_id, None)。
+    """
+    fields = "ImageTags,BackdropImageTags,BackdropItemId,SeriesId,SeasonId,ParentId,Type"
+
+    # 获取 item 基础信息
+    try:
+        resp = await emby.get(f"/Items/{item_id}", params={"Fields": fields})
+        if resp.status_code != 200:
+            return item_id, None
+        info = resp.json()
+    except Exception:
+        return item_id, None
+
+    # 自己有 BackdropImageTags → 直接用
+    tags = info.get("BackdropImageTags") or []
+    if tags:
+        return item_id, tags[0]
+
+    # 自己有 BackdropItemId（某些 Emby 版本）
+    bid = info.get("BackdropItemId")
+    if bid:
+        try:
+            r2 = await emby.get(f"/Items/{bid}", params={"Fields": fields})
+            if r2.status_code == 200:
+                t2 = r2.json().get("BackdropImageTags") or []
+                if t2:
+                    return bid, t2[0]
+        except Exception:
+            pass
+
+    # 上溯：先查 Season，再查 Series
+    item_type = info.get("Type", "")
+
+    if item_type in ("Episode", "Season"):
+        # 查 Season
+        season_id = info.get("SeasonId") or info.get("ParentId")
+        if season_id and str(season_id) != str(item_id):
+            try:
+                s_resp = await emby.get(f"/Items/{season_id}", params={"Fields": fields})
+                if s_resp.status_code == 200:
+                    s_tags = s_resp.json().get("BackdropImageTags") or []
+                    if s_tags:
+                        return season_id, s_tags[0]
+            except Exception:
+                pass
+
+        # 查 Series
+        series_id = info.get("SeriesId") or info.get("ParentId")
+        if series_id and str(series_id) != str(item_id):
+            try:
+                sr_resp = await emby.get(f"/Items/{series_id}", params={"Fields": fields})
+                if sr_resp.status_code == 200:
+                    sr_tags = sr_resp.json().get("BackdropImageTags") or []
+                    if sr_tags:
+                        return series_id, sr_tags[0]
+            except Exception:
+                pass
+
+    # 兜底：找祖先
+    try:
+        anc_resp = await emby.get(f"/Items/{item_id}/Ancestors")
+        if anc_resp.status_code == 200:
+            for ancestor in anc_resp.json():
+                if ancestor.get("Type") in ("Series", "Movie"):
+                    a_resp = await emby.get(f"/Items/{ancestor['Id']}", params={"Fields": fields})
+                    if a_resp.status_code == 200:
+                        a_tags = a_resp.json().get("BackdropImageTags") or []
+                        if a_tags:
+                            return ancestor["Id"], a_tags[0]
+    except Exception:
+        pass
+
+    return item_id, None
 
 @router.get("/smart_image")
 async def smart_image(
@@ -178,21 +256,43 @@ async def smart_image(
     else:
         params = {"maxHeight": 800, "maxWidth": 600, "quality": 90}
 
-    # ── 第1级：Emby 原生（带剧集 ID 转换）──
-    target_id = await _get_real_image_id(item_id) if img_type.lower() == "primary" else item_id
-    logger.info(f"[smart_image] item_id={item_id} target_id={target_id} type={img_type} name={name or ''}")
-
-    try:
-        resp = await emby.get(f"/Items/{target_id}/Images/{img_type}", params=params)
-        logger.info(f"[smart_image] Emby L1: status={resp.status_code} size={len(resp.content)}")
-        if resp.status_code == 200 and len(resp.content) > 100:
-            return Response(
-                content=resp.content,
-                media_type=resp.headers.get("Content-Type", "image/jpeg"),
-                headers={"Cache-Control": "public, max-age=86400"},
-            )
-    except Exception:
-        pass
+    # ── 第1级：Emby 原生 ──
+    if img_type.lower() == "backdrop":
+        # Backdrop 上溯：找有 BackdropImageTags 的父级
+        target_id, backdrop_tag = await _find_backdrop_source(item_id)
+        logger.info(f"[smart_image] backdrop: item={item_id} source={target_id} tag={backdrop_tag}")
+        if backdrop_tag:
+            try:
+                resp = await emby.get(f"/Items/{target_id}/Images/{img_type}", params={**params, "tag": backdrop_tag})
+                logger.info(f"[smart_image] Emby L1 (backdrop tagged): status={resp.status_code} size={len(resp.content)}")
+                if resp.status_code == 200 and len(resp.content) > 100:
+                    return Response(content=resp.content, media_type="image/jpeg",
+                                    headers={"Cache-Control": "public, max-age=86400"})
+            except Exception:
+                pass
+        # 没有 Backdrop → 退回 Primary
+        logger.info(f"[smart_image] no backdrop found, fallback to Primary for {item_id}")
+        primary_id = await _get_real_image_id(item_id)
+        try:
+            resp = await emby.get(f"/Items/{primary_id}/Images/Primary",
+                                  params={"maxHeight": 800, "maxWidth": 600, "quality": 90})
+            if resp.status_code == 200 and len(resp.content) > 100:
+                return Response(content=resp.content, media_type="image/jpeg",
+                                headers={"Cache-Control": "public, max-age=86400"})
+        except Exception:
+            pass
+    else:
+        # Primary：保持原有剧集 ID 转换逻辑
+        target_id = await _get_real_image_id(item_id) if img_type.lower() == "primary" else item_id
+        logger.info(f"[smart_image] item_id={item_id} target_id={target_id} type={img_type} name={name or ''}")
+        try:
+            resp = await emby.get(f"/Items/{target_id}/Images/{img_type}", params=params)
+            logger.info(f"[smart_image] Emby L1: status={resp.status_code} size={len(resp.content)}")
+            if resp.status_code == 200 and len(resp.content) > 100:
+                return Response(content=resp.content, media_type="image/jpeg",
+                                headers={"Cache-Control": "public, max-age=86400"})
+        except Exception:
+            pass
 
     # ── 第2级：Emby 内库搜索兜底 ──
     # 优先从 name 参数取（前端传的），再从 Emby 获取
@@ -216,17 +316,30 @@ async def smart_image(
                 items = s_resp.json().get("Items", [])
                 if items:
                     new_id = items[0]["Id"]
-                    if items[0].get("Type") in ("Episode", "Season", "Series"):
-                        new_id = await _get_real_image_id(new_id)
-                    smart_image_cache[item_id] = new_id
-
-                    n_resp = await emby.get(f"/Items/{new_id}/Images/{img_type}", params=params)
-                    if n_resp.status_code == 200 and len(n_resp.content) > 100:
-                        return Response(
-                            content=n_resp.content,
-                            media_type=n_resp.headers.get("Content-Type", "image/jpeg"),
-                            headers={"Cache-Control": "public, max-age=86400"},
-                        )
+                    if img_type.lower() == "backdrop":
+                        # Backdrop：上溯源
+                        new_id, new_tag = await _find_backdrop_source(new_id)
+                        if new_tag:
+                            smart_image_cache[item_id] = new_id
+                            n_resp = await emby.get(f"/Items/{new_id}/Images/{img_type}", params={**params, "tag": new_tag})
+                            if n_resp.status_code == 200 and len(n_resp.content) > 100:
+                                return Response(
+                                    content=n_resp.content,
+                                    media_type="image/jpeg",
+                                    headers={"Cache-Control": "public, max-age=86400"},
+                                )
+                    else:
+                        # Primary：剧集 ID 转换
+                        if items[0].get("Type") in ("Episode", "Season", "Series"):
+                            new_id = await _get_real_image_id(new_id)
+                        smart_image_cache[item_id] = new_id
+                        n_resp = await emby.get(f"/Items/{new_id}/Images/{img_type}", params=params)
+                        if n_resp.status_code == 200 and len(n_resp.content) > 100:
+                            return Response(
+                                content=n_resp.content,
+                                media_type="image/jpeg",
+                                headers={"Cache-Control": "public, max-age=86400"},
+                            )
         except Exception:
             pass
 
