@@ -17,6 +17,10 @@ export interface TopContentItem {
   play_count: number
   total_duration_hours: number
   poster_url: string
+  backdrop_url?: string
+  display_title?: string
+  display_subtitle?: string
+  quality_tags?: string[]
 }
 
 export interface TopUserItem {
@@ -33,6 +37,10 @@ export interface ContentRankingItem {
   play_count: number
   total_duration_min: number
   poster_url: string
+  backdrop_url?: string
+  display_title?: string
+  display_subtitle?: string
+  quality_tags?: string[]
 }
 
 export interface ContentRankings {
@@ -46,6 +54,10 @@ export interface ContentDetail {
   trend: Record<string, { plays: number; hours: number }>
   viewers: { user_id: string; username: string; play_count: number; duration_hours: number }[]
   poster_url: string
+  backdrop_url?: string
+  overview?: string
+  production_year?: number
+  quality_tags?: string[]
 }
 
 export interface UserRankings {
