@@ -1,9 +1,12 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
+from sqlalchemy import select
 
 from app.core.security import decode_access_token
 from app.core.exceptions import UnauthorizedError, ForbiddenError
+from app.db.session import AsyncSessionDep
+from app.db.models.user import User
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -11,7 +14,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> dict:
-    """从 JWT 中提取当前用户（返回 payload dict）"""
+    """从 JWT 中提取当前用户 payload"""
     if not credentials:
         raise UnauthorizedError()
     try:
@@ -26,7 +29,6 @@ async def get_current_user(
 async def get_current_user_id(
     payload: dict = Depends(get_current_user),
 ) -> str:
-    """获取当前用户 ID（Emby UUID）"""
     return payload["sub"]
 
 
@@ -34,12 +36,18 @@ CurrentUserIdDep = Depends(get_current_user_id)
 
 
 async def get_current_admin(
+    db: AsyncSessionDep,
     payload: dict = Depends(get_current_user),
-) -> dict:
-    """校验管理员权限（从 JWT role 字段判断，不查库）"""
+) -> User:
+    """校验管理员权限（JWT role 字段）并返回 User 对象"""
     if payload.get("role") != "admin":
         raise ForbiddenError("需要管理员权限")
-    return payload
+    emby_user_id = payload["sub"]
+    result = await db.execute(select(User).where(User.emby_user_id == emby_user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise UnauthorizedError("用户不存在")
+    return user
 
 
 CurrentAdminDep = Depends(get_current_admin)
