@@ -14,11 +14,20 @@ from fastapi import APIRouter, Query, Response
 from app.core.emby import emby
 from app.core.settings import settings
 
+from collections import OrderedDict
+
 logger = logging.getLogger("app.proxy")
 router = APIRouter(prefix="/proxy", tags=["proxy"])
 
-# 缓存：item_id → resolved_id 或 TMDB URL
-smart_image_cache: dict[str, str] = {}
+# 缓存：item_id → resolved_id 或 TMDB URL（LRU 限制 500 条）
+_CACHE_MAX = 500
+smart_image_cache: OrderedDict[str, str] = OrderedDict()
+
+
+def _cache_set(key: str, value: str):
+    if len(smart_image_cache) >= _CACHE_MAX:
+        smart_image_cache.popitem(last=False)
+    smart_image_cache[key] = value
 
 
 # ═══════════════════════════════════════════════════════════
@@ -271,7 +280,7 @@ async def smart_image(
                         # Backdrop：上溯源
                         new_id, new_tag = await _find_backdrop_source(new_id)
                         if new_tag:
-                            smart_image_cache[item_id] = new_id
+                            _cache_set(item_id, new_id)
                             n_resp = await emby.get(f"/Items/{new_id}/Images/{img_type}", params={**params, "tag": new_tag})
                             if n_resp.status_code == 200 and len(n_resp.content) > 100:
                                 return Response(
@@ -283,7 +292,7 @@ async def smart_image(
                         # Primary：剧集 ID 转换
                         if items[0].get("Type") in ("Episode", "Season", "Series"):
                             new_id = await _get_real_image_id(new_id)
-                        smart_image_cache[item_id] = new_id
+                        _cache_set(item_id, new_id)
                         n_resp = await emby.get(f"/Items/{new_id}/Images/{img_type}", params=params)
                         if n_resp.status_code == 200 and len(n_resp.content) > 100:
                             return Response(
@@ -317,7 +326,7 @@ async def smart_image(
                                     s_data = s_resp.json()
                                     if s_data.get("poster_path"):
                                         final_url = f"https://image.tmdb.org/t/p/w500{s_data['poster_path']}"
-                                        smart_image_cache[item_id] = final_url
+                                        _cache_set(item_id, final_url)
                                         img_resp = await client.get(final_url)
                                         if img_resp.status_code == 200:
                                             return Response(
@@ -336,7 +345,7 @@ async def smart_image(
                                 img_path = res.get("poster_path")
                             if img_path:
                                 tmdb_img_url = f"https://image.tmdb.org/t/p/w500{img_path}"
-                                smart_image_cache[item_id] = tmdb_img_url
+                                _cache_set(item_id, tmdb_img_url)
                                 img_resp = await client.get(tmdb_img_url)
                                 if img_resp.status_code == 200:
                                     return Response(
