@@ -48,6 +48,53 @@ def _clean_name(name: str, item_type: str = "") -> str:
     return series
 
 
+def _build_proxy_image(item_id: str | None, img_type: str, name: str = "") -> str:
+    if not item_id:
+        return ""
+    return f"/api/v1/proxy/smart_image?item_id={item_id}&type={img_type}&name={urllib.parse.quote(name or '')}"
+
+
+def _extract_quality_tags(file_name: str | None) -> list[str]:
+    if not file_name:
+        return []
+    fn = str(file_name).upper()
+    tags: list[str] = []
+    if "2160P" in fn or "4K" in fn:
+        tags.append("4K")
+    elif "1080P" in fn:
+        tags.append("1080P")
+    elif "720P" in fn:
+        tags.append("720P")
+
+    if "HDR10+" in fn:
+        tags.append("HDR10+")
+    elif "HDR" in fn and "SDR" not in fn:
+        tags.append("HDR")
+    elif "DV" in fn or "DOLBY.VISION" in fn or "DOLBYVISION" in fn:
+        tags.append("DV")
+
+    if "H.265" in fn or "HEVC" in fn or "X265" in fn:
+        tags.append("H.265")
+    elif "H.264" in fn or "AVC" in fn or "X264" in fn:
+        tags.append("H.264")
+    return tags
+
+
+async def _enrich_media_cards(items: list[dict]) -> None:
+    """补充媒体卡片常用字段：poster/backdrop/title/meta/quality_tags"""
+    await _resolve_poster_ids(items)
+
+    for item in items:
+        iid = item.get("item_id")
+        name = item.get("name", "")
+        item_type = item.get("type", "")
+        item["poster_url"] = _build_proxy_image(iid, "Primary", name)
+        item["backdrop_url"] = _build_proxy_image(iid, "Backdrop", name)
+        item["display_title"] = name
+        item["display_subtitle"] = "剧集" if item_type in ("Series", "Episode") else "电影" if item_type == "Movie" else item_type or "媒体"
+        item.setdefault("quality_tags", [])
+
+
 # ── 批量 ID 转换（参考 emby-pulse resolve_poster_ids）──
 
 async def _resolve_poster_ids(items: list[dict]) -> None:
@@ -204,11 +251,7 @@ async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
         agg[clean]["total_duration_hours"] += round(r.get("total_duration", 0) / 3600, 1)
 
     result = sorted(agg.values(), key=lambda x: x["total_duration_hours"], reverse=True)[:limit]
-    await _resolve_poster_ids(result)
-    for item in result:
-        iid = item.get("item_id")
-        if iid:
-            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary&name={urllib.parse.quote(item.get('name', ''))}"
+    await _enrich_media_cards(result)
     return result
 
 
@@ -261,6 +304,7 @@ async def get_content_rankings(
 
     rows = await _query(
         f"SELECT ItemName, ItemId, ItemType, "
+        f"MAX(FileName) as file_name, "
         f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
         f"FROM PlaybackActivity WHERE {pf}{type_filter}{user_filter} "
         f"GROUP BY ItemName ORDER BY {order} LIMIT 500"
@@ -277,6 +321,7 @@ async def get_content_rankings(
                 "type": r.get("ItemType", ""),
                 "play_count": 0,
                 "total_duration_min": 0,
+                "quality_tags": _extract_quality_tags(r.get("file_name")),
             }
         agg[clean]["play_count"] += r.get("play_count", 0)
         agg[clean]["total_duration_min"] += round(r.get("total_duration", 0) / 60, 1)
@@ -291,24 +336,26 @@ async def get_content_rankings(
     start = (page - 1) * size
     page_items = all_items[start : start + size]
 
-    for item in page_items:
-        iid = item.get("item_id")
-        if iid:
-            item["poster_url"] = f"/api/v1/proxy/smart_image?item_id={iid}&type=Primary&name={urllib.parse.quote(item.get('name', ''))}"
-    await _resolve_poster_ids(page_items)
-
+    await _enrich_media_cards(page_items)
     return {"total": total, "items": page_items}
 
 
 async def get_content_detail(item_id: str) -> dict:
     """单个内容详情"""
     # 基本信息
+    overview = ""
+    production_year = None
+    quality_tags: list[str] = []
     try:
         resp = await emby.get(f"/Items/{item_id}")
         resp.raise_for_status()
         info = resp.json()
         name = info.get("Name", "未知")
         item_type = info.get("Type", "")
+        overview = info.get("Overview", "") or ""
+        production_year = info.get("ProductionYear")
+        path_or_name = info.get("Path") or info.get("FileName") or ""
+        quality_tags = _extract_quality_tags(path_or_name)
     except Exception:
         name = "未知"
         item_type = ""
@@ -345,10 +392,16 @@ async def get_content_detail(item_id: str) -> dict:
         "type": item_type,
         "trend": trend,
         "viewers": viewers,
-        "poster_url": f"/api/v1/proxy/smart_image?item_id={item_id}&type=Primary&name={urllib.parse.quote(name)}",
+        "poster_url": _build_proxy_image(item_id, "Primary", name),
+        "backdrop_url": _build_proxy_image(item_id, "Backdrop", name),
         "item_id": item_id,
+        "overview": overview,
+        "production_year": production_year,
+        "quality_tags": quality_tags,
     }
     await _resolve_poster_ids([result])
+    result["poster_url"] = _build_proxy_image(result.get("item_id"), "Primary", name)
+    result["backdrop_url"] = _build_proxy_image(result.get("item_id"), "Backdrop", name)
     return result
 
 
