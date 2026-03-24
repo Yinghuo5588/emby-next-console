@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app.core.emby import emby
 from app.core.security import create_access_token
-from app.core.exceptions import BadRequestError, UnauthorizedError
+from app.core.exceptions import UnauthorizedError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
