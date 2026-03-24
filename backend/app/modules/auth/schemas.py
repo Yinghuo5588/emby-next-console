@@ -10,6 +10,8 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    is_admin: bool = False
+    username: str | None = None
 
 
 class MeResponse(BaseModel):
@@ -17,5 +19,6 @@ class MeResponse(BaseModel):
     username: str
     display_name: str | None
     role: str
+    emby_user_id: str | None
     avatar_url: str | None
     created_at: datetime | None
