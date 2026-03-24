@@ -6,7 +6,7 @@ import client from './client'
 export interface OverviewData {
   total_plays: number
   total_duration_hours: number
-  active_users_30d: number
+  active_users: number
   library: { movie: number; series: number; episode: number }
 }
 
