@@ -94,42 +94,6 @@ async def _enrich_media_cards(items: list[dict]) -> None:
         item.setdefault("quality_tags", [])
 
 
-# ── 批量 ID 转换（参考 emby-pulse resolve_poster_ids）──
-
-async def _resolve_poster_ids(items: list[dict]) -> None:
-    """批量查询 Emby，将单集/节目 ID 转为剧集/季 ID（就地修改 items）"""
-    id_set: set[str] = set()
-    for item in items:
-        iid = item.get("item_id")
-        if iid:
-            id_set.add(str(iid))
-    if not id_set:
-        return
-
-    # 分批，每批最多 50 个 ID
-    id_list = list(id_set)
-    id_map: dict[str, str] = {}
-
-    for i in range(0, len(id_list), 50):
-        batch = id_list[i:i+50]
-        ids_param = ",".join(batch)
-        try:
-            resp = await emby.get("/Items", params={"Ids": ids_param, "Fields": "SeriesId,SeasonId,ParentId"})
-            if resp.status_code == 200:
-                for e in resp.json().get("Items", []):
-                    orig_id = str(e.get("Id", ""))
-                    best_id = e.get("SeriesId") or e.get("SeasonId") or orig_id
-                    id_map[orig_id] = best_id
-        except Exception as ex:
-            logger.warning("批量 ID 转换失败: %s", ex)
-
-    # 就地更新 item_id（poster_url 后面由各调用方构建，用原始 ID 让 proxy 做转换）
-    for item in items:
-        iid = item.get("item_id")
-        if iid and str(iid) in id_map:
-            item["item_id"] = id_map[str(iid)]
-
-
 def _period_filter(period: str) -> str:
     """时间范围条件"""
     if period == "7d":
@@ -297,7 +261,7 @@ async def get_content_rankings(
     elif content_type == "series":
         type_filter = " AND ItemType IN ('Series', 'Episode')"
 
-    user_filter = f" AND UserId = '{user_id}'" if user_id else ""
+    user_filter = f" AND UserId = '{str(user_id).replace(chr(39), chr(39)+chr(39))}'" if user_id else ""
 
     order = "total_duration DESC" if sort == "duration" else "play_count DESC"
 
@@ -340,14 +304,14 @@ async def get_content_rankings(
 
 async def get_content_detail(item_id: str) -> dict:
     """单个内容详情"""
+    # 安全转义 item_id
+    safe_id = str(item_id).replace("'", "''")
+
     # 先从数据库拿名称作为兜底
     db_rows = await _query(
-        f"SELECT ItemName, SUM(PlayCount) as pc, COALESCE(SUM(PlayDuration),0) as td "
-        f"FROM PlaybackActivity WHERE ItemId = '{item_id}' GROUP BY ItemName"
+        f"SELECT ItemName FROM PlaybackActivity WHERE ItemId = '{safe_id}' LIMIT 1"
     )
     db_name = db_rows[0]["ItemName"] if db_rows and db_rows[0].get("ItemName") else "未知"
-    db_play_count = db_rows[0]["pc"] if db_rows else 0
-    db_duration_min = round((db_rows[0]["td"] if db_rows else 0) / 60)
 
     # 基本信息（Emby）
     overview = ""
@@ -372,7 +336,7 @@ async def get_content_detail(item_id: str) -> dict:
     rows = await _query(
         f"SELECT DATE(DateCreated) as date, COUNT(*) as play_count, "
         f"COALESCE(SUM(PlayDuration), 0) as duration "
-        f"FROM PlaybackActivity WHERE ItemId = '{item_id}' "
+        f"FROM PlaybackActivity WHERE ItemId = '{safe_id}' "
         f"AND DateCreated >= date('now', '-30 days') "
         f"GROUP BY date ORDER BY date"
     )
@@ -381,7 +345,7 @@ async def get_content_detail(item_id: str) -> dict:
     # 观看用户
     user_rows = await _query(
         f"SELECT UserId, COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as duration "
-        f"FROM PlaybackActivity WHERE ItemId = '{item_id}' "
+        f"FROM PlaybackActivity WHERE ItemId = '{safe_id}' "
         f"GROUP BY UserId ORDER BY duration DESC"
     )
     user_map = await _get_user_map()
@@ -561,17 +525,6 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
 
     # 成就徽章
     badges = await _get_badges(where)
-
-    # 批量转换 item_id → 剧集/季 ID
-    resolve_list = []
-    if top_fav and top_fav.get("poster_url"):
-        resolve_list.append({"item_id": top_fav.get("name"), "poster_url": top_fav["poster_url"]})
-    resolve_list.extend(recent)
-    await _resolve_poster_ids(resolve_list)
-
-    # 更新 top_fav 的 poster_url
-    if top_fav and top_fav.get("poster_url"):
-        top_fav["poster_url"] = resolve_list[0]["poster_url"] if resolve_list else top_fav["poster_url"]
 
     return {
         "user_id": user_id,
