@@ -1,10 +1,12 @@
 import logging
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.emby_data import data as emby_data
 from app.core.exceptions import NotFoundError
+from app.db.models.invite import UserOverride
 from .schemas import UserDetail, UserListItem, UserListResponse, UserUpdateRequest
 from app.db.models.user import User, UserProfile
 
@@ -22,7 +24,7 @@ def _parse_date(s: str | None) -> datetime | None:
         return None
 
 
-def _emby_user_to_list_item(u: dict) -> UserListItem:
+def _emby_user_to_list_item(u: dict, override: dict | None = None) -> UserListItem:
     policy = u.get("Policy", {})
     return UserListItem(
         user_id=u["Id"],
@@ -30,13 +32,15 @@ def _emby_user_to_list_item(u: dict) -> UserListItem:
         display_name=u.get("Name"),
         role="admin" if policy.get("IsAdministrator") else "user",
         status="disabled" if policy.get("IsDisabled") else "active",
-        expire_at=None,  # 需要本地 users_meta 表扩展
-        is_vip=False,
+        expire_at=override.get("expire_at") if override else None,
+        is_vip=override.get("is_vip", False) if override else False,
         created_at=_parse_date(u.get("DateCreated")) or datetime.now(tz_cn),
+        max_concurrent=override.get("max_concurrent") if override else None,
+        note=override.get("note") if override else None,
     )
 
 
-def _emby_user_to_detail(u: dict) -> UserDetail:
+def _emby_user_to_detail(u: dict, override: dict | None = None) -> UserDetail:
     policy = u.get("Policy", {})
     return UserDetail(
         user_id=u["Id"],
@@ -44,12 +48,16 @@ def _emby_user_to_detail(u: dict) -> UserDetail:
         display_name=u.get("Name"),
         role="admin" if policy.get("IsAdministrator") else "user",
         status="disabled" if policy.get("IsDisabled") else "active",
-        expire_at=None,
-        is_vip=False,
+        expire_at=override.get("expire_at") if override else None,
+        is_vip=override.get("is_vip", False) if override else False,
         created_at=_parse_date(u.get("DateCreated")) or datetime.now(tz_cn),
-        note=None,
-        max_concurrent=None,
+        max_concurrent=override.get("max_concurrent") if override else None,
+        note=override.get("note") if override else None,
         emby_user_id=u["Id"],
+        concurrent_limit=override.get("concurrent_limit") if override else None,
+        max_bitrate=override.get("max_bitrate") if override else None,
+        allow_transcode=override.get("allow_transcode") if override else None,
+        client_blacklist=override.get("client_blacklist") if override else None,
     )
 
 
@@ -57,17 +65,52 @@ class UsersService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _get_overrides_map(self) -> dict[str, dict]:
+        """批量获取所有 UserOverride，返回 emby_user_id -> override dict"""
+        result = await self.db.execute(select(UserOverride))
+        overrides = {}
+        for o in result.scalars().all():
+            overrides[o.emby_user_id] = {
+                "expire_at": o.expires_at,
+                "concurrent_limit": o.concurrent_limit,
+                "max_bitrate": o.max_bitrate,
+                "allow_transcode": o.allow_transcode,
+                "client_blacklist": o.client_blacklist,
+                "note": o.note,
+                "max_concurrent": o.concurrent_limit,  # 别名兼容
+                "is_vip": False,  # UserOverride 暂无 is_vip，预留
+            }
+        return overrides
+
+    async def _check_expired_users(self, overrides: dict[str, dict]) -> None:
+        """检测并自动禁用过期用户"""
+        now = datetime.now(timezone.utc)
+        from app.core.emby_users import EmbyUserService
+        emby_svc = EmbyUserService()
+        for uid, ov in overrides.items():
+            exp = ov.get("expire_at")
+            if exp and isinstance(exp, datetime) and exp < now:
+                try:
+                    policy = await emby_svc.get_user_policy(uid)
+                    if not policy.get("IsDisabled"):
+                        policy["IsDisabled"] = True
+                        await emby_svc.update_user_policy(uid, policy)
+                        logger.info(f"用户 {uid} 已过期，自动禁用")
+                except Exception as e:
+                    logger.warning(f"自动禁用过期用户 {uid} 失败: {e}")
+
     async def list_users(self, page: int = 1, page_size: int = 20) -> UserListResponse:
         try:
             emby_users = await emby_data.get_users()
-            # 排序
+            overrides = await self._get_overrides_map()
+            await self._check_expired_users(overrides)
+
             emby_users.sort(key=lambda u: u.get("Name", "").lower())
             total = len(emby_users)
-            # 分页
             start = (page - 1) * page_size
             items = emby_users[start : start + page_size]
             return UserListResponse(
-                items=[_emby_user_to_list_item(u) for u in items],
+                items=[_emby_user_to_list_item(u, overrides.get(u["Id"])) for u in items],
                 total=total,
                 page=page,
                 page_size=page_size,
@@ -79,56 +122,34 @@ class UsersService:
     async def get_user(self, user_id: str) -> UserDetail:
         try:
             u = await emby_data.get_user(user_id)
-            return _emby_user_to_detail(u)
+            overrides = await self._get_overrides_map()
+            return _emby_user_to_detail(u, overrides.get(user_id))
         except Exception as e:
             logger.error("获取用户 %s 失败: %s", user_id, e)
             raise NotFoundError(f"User {user_id} not found")
 
     async def update_user(self, user_id: str, body: UserUpdateRequest) -> UserDetail:
-        # 暂不支持写操作（需要扩展本地数据库）
-        raise NotImplementedError("用户写操作待实现")
+        # 更新 UserOverride
+        result = await self.db.execute(select(UserOverride).where(UserOverride.emby_user_id == user_id))
+        override = result.scalar_one_or_none()
+        now = datetime.now(timezone.utc)
 
-    async def create_user(self, username: str, password: str | None = None, note: str | None = None, 
-                      expires_days: int | None = None, concurrent_limit: int | None = None,
-                      template_emby_user_id: str | None = None) -> dict:
-        """手动创建 Emby 用户 + 本地记录"""
-        from app.core.emby_users import EmbyUserService
-        from datetime import datetime, timedelta, timezone
-        
-        emby_svc = EmbyUserService()
-        
-        # 1. 创建 Emby 用户
-        emby_user = await emby_svc.create_emby_user(username, password)
-        emby_user_id = emby_user["Id"]
-        
-        # 2. 如果有模板用户，复制其权限
-        if template_emby_user_id:
-            template_policy = await emby_svc.get_user_policy(template_emby_user_id)
-            await emby_svc.update_user_policy(emby_user_id, template_policy)
-        
-        # 3. 创建本地用户记录
-        user = User(
-            emby_user_id=emby_user_id,
-            username=username,
-            role="user",
-            status="active",
-            source="manual",
-        )
-        self.db.add(user)
-        await self.db.flush()
-        
-        # 4. 创建 profile
-        expire_at = None
-        if expires_days and expires_days > 0:
-            expire_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
-        
-        profile = UserProfile(
-            user_id=user.id,
-            expire_at=expire_at,
-            note=note,
-            max_concurrent=concurrent_limit,
-        )
-        self.db.add(profile)
+        if override:
+            if body.expire_at is not None: override.expires_at = body.expire_at
+            if body.max_concurrent is not None: override.concurrent_limit = body.max_concurrent
+            if body.note is not None: override.note = body.note
+            override.updated_at = now
+        else:
+            override = UserOverride(
+                emby_user_id=user_id,
+                expires_at=body.expire_at,
+                concurrent_limit=body.max_concurrent,
+                note=body.note,
+                updated_at=now,
+            )
+            self.db.add(override)
         await self.db.commit()
-        
-        return {"user_id": user.id, "emby_user_id": emby_user_id, "username": username}
+
+        # 如果设了 is_vip，暂存在 override.note 前缀标记（后续可加字段）
+        # 返回更新后的用户
+        return await self.get_user(user_id)
