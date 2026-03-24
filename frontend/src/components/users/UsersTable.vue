@@ -6,32 +6,43 @@
   <template v-else>
     <!-- Desktop: NDataTable -->
     <n-card class="desktop-only" size="small" style="overflow: hidden;">
-      <n-data-table :columns="columns" :data="items" size="small" :bordered="false" :row-props="rowProps" />
+      <n-data-table
+        :columns="columns"
+        :data="items"
+        :row-key="(r: any) => r.user_id"
+        :checked-row-keys="selectedIds"
+        size="small"
+        :bordered="false"
+        :row-props="rowProps"
+        @update:checked-row-keys="$emit('toggle-select-all')"
+      />
     </n-card>
 
     <!-- Mobile: cards -->
     <div class="mobile-only">
-      <router-link v-for="u in items" :key="u.user_id" :to="`/users/${u.user_id}`" class="user-card">
+      <div v-for="u in items" :key="u.user_id" class="user-card">
         <n-card size="small" style="margin-bottom: 8px;">
           <div class="uc-top">
-            <n-avatar :src="`/api/v1/proxy/user_image/${u.user_id}`" :size="36" round :style="{ background: '#3b82f6' }" fallback-src="">{{ u.username?.charAt(0)?.toUpperCase() || '?' }}</n-avatar>
-            <div class="uc-info">
-              <div style="font-weight:500">{{ u.username }}</div>
-              <n-space size="small">
-                <n-tag :type="u.status === 'active' ? 'success' : 'error'" size="tiny">{{ u.status === 'active' ? '正常' : '禁用' }}</n-tag>
-                <n-tag v-if="u.role === 'admin'" type="info" size="tiny">管理员</n-tag>
-                <n-tag v-if="isExpired(u.expire_at)" type="error" size="tiny">已过期</n-tag>
-              </n-space>
-            </div>
+            <n-checkbox :checked="selectedIds?.includes(u.user_id)" @update:checked="$emit('toggle-select', u.user_id)" />
+            <router-link :to="`/users/${u.user_id}`" style="display:flex;align-items:center;gap:10px;flex:1;text-decoration:none;color:inherit">
+              <n-avatar :src="`/api/v1/proxy/user_image/${u.user_id}`" :size="36" round :style="{ background: '#3b82f6' }" fallback-src="">{{ u.username?.charAt(0)?.toUpperCase() || '?' }}</n-avatar>
+              <div class="uc-info">
+                <div style="font-weight:500">{{ u.username }}</div>
+                <n-space size="small">
+                  <n-tag :type="u.status === 'active' ? 'success' : 'error'" size="tiny">{{ u.status === 'active' ? '正常' : '禁用' }}</n-tag>
+                  <n-tag v-if="u.role === 'admin'" type="info" size="tiny">管理员</n-tag>
+                  <n-tag v-if="isExpired(u.expire_at)" type="error" size="tiny">已过期</n-tag>
+                </n-space>
+              </div>
+            </router-link>
           </div>
           <div class="uc-meta">
-            <span v-if="u.expire_at" :class="{ expired: isExpired(u.expire_at) }">
-              🕐 {{ formatDate(u.expire_at) }}
-            </span>
+            <span v-if="u.expire_at" :class="{ expired: isExpired(u.expire_at) }">🕐 {{ formatDate(u.expire_at) }}</span>
+            <span v-if="u.max_concurrent">👥 {{ u.max_concurrent }}路</span>
             <span v-if="u.note">📝 {{ u.note }}</span>
           </div>
         </n-card>
-      </router-link>
+      </div>
     </div>
   </template>
 </template>
@@ -40,7 +51,7 @@
 import { h } from 'vue'
 import { useRouter } from 'vue-router'
 import type { DataTableColumns } from 'naive-ui'
-import { NCard, NDataTable, NAvatar, NTag, NEmpty, NButton, NSpace, NTooltip } from 'naive-ui'
+import { NCard, NDataTable, NAvatar, NTag, NEmpty, NButton, NSpace, NCheckbox } from 'naive-ui'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 
@@ -50,9 +61,15 @@ defineProps<{
   items: any[]
   loading: boolean
   error?: string | null
+  selectedIds?: string[]
 }>()
 
-defineEmits<{ retry: []; view: [user: any] }>()
+defineEmits<{
+  retry: []
+  view: [user: any]
+  'toggle-select': [userId: string]
+  'toggle-select-all': []
+}>()
 
 const columns: DataTableColumns = [
   {
@@ -67,12 +84,7 @@ const columns: DataTableColumns = [
   },
   {
     title: '状态', key: 'status', width: 80,
-    render: (row: any) => {
-      const tags = [
-        h(NTag, { type: row.status === 'active' ? 'success' : 'error', size: 'small' }, { default: () => row.status === 'active' ? '正常' : '禁用' }),
-      ]
-      return h('div', { style: 'display:flex;gap:4px;flex-wrap:wrap' }, tags)
-    },
+    render: (row: any) => h(NTag, { type: row.status === 'active' ? 'success' : 'error', size: 'small' }, { default: () => row.status === 'active' ? '正常' : '禁用' }),
   },
   {
     title: '角色', key: 'role', width: 80,
@@ -94,14 +106,10 @@ const columns: DataTableColumns = [
     title: '备注', key: 'note', width: 100, ellipsis: { tooltip: true },
     render: (row: any) => h('span', { style: 'font-size:12px;color:var(--text-muted)' }, row.note || ''),
   },
-  {
-    title: '', key: 'actions', width: 80,
-    render: (row: any) => h(NButton, { text: true, size: 'small', type: 'primary', onClick: () => router.push(`/users/${row.user_id}`) }, { default: () => '详情' }),
-  },
 ]
 
 function rowProps(row: any) {
-  return { style: 'cursor:pointer', onClick: () => router.push(`/users/${row.user_id}`) }
+  return { style: 'cursor:pointer', onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.n-checkbox')) router.push(`/users/${row.user_id}`) } }
 }
 
 function isExpired(date?: string) {
@@ -119,7 +127,7 @@ function formatDate(iso?: string) {
 <style scoped>
 .desktop-only { display: block; }
 .mobile-only { display: none; }
-.user-card { display: block; text-decoration: none; color: inherit; }
+.user-card { display: block; }
 .uc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .uc-info { flex: 1; min-width: 0; }
 .uc-meta { display: flex; gap: 12px; font-size: 12px; color: var(--text-muted); }
