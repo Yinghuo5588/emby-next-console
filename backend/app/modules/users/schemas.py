@@ -12,12 +12,16 @@ class UserListItem(BaseModel):
     expire_at: datetime | None
     is_vip: bool
     created_at: datetime
+    max_concurrent: int | None = None
+    note: str | None = None
 
 
 class UserDetail(UserListItem):
-    note: str | None
-    max_concurrent: int | None
     emby_user_id: str | None
+    concurrent_limit: int | None = None
+    max_bitrate: int | None = None
+    allow_transcode: bool | None = None
+    client_blacklist: list[str] | None = None
 
 
 class UserUpdateRequest(BaseModel):
