@@ -1,0 +1,55 @@
+import apiClient from './client'
+
+export interface UserInfo {
+  user_id: string
+  name: string
+  is_disabled: boolean
+  is_admin: boolean
+  last_login_date: string
+  create_date: string
+  primary_image_tag: string
+  has_password: boolean
+  policy: Record<string, any>
+  expire_date: string | null
+  max_concurrent: number
+  is_vip: boolean
+  note: string
+  template_name: string
+}
+
+export interface CreateUserRequest {
+  name: string
+  password: string
+  template_user_id?: string
+  expire_days?: number
+  max_concurrent?: number
+  is_vip?: boolean
+  note?: string
+}
+
+export interface UpdateUserRequest {
+  name?: string
+  password?: string
+  is_disabled?: boolean
+  simultaneous_stream_limit?: number
+  enable_content_downloading?: boolean
+  enable_video_transcoding?: boolean
+  max_parental_rating?: string
+  enable_remote_access?: boolean
+  expire_date?: string
+  max_concurrent?: number
+  is_vip?: boolean
+  note?: string
+  apply_template_id?: string
+}
+
+export const usersApi = {
+  list: () => apiClient.get('/manage/users'),
+  get: (id: string) => apiClient.get(`/manage/users/${id}`),
+  create: (data: CreateUserRequest) => apiClient.post('/manage/users', data),
+  update: (id: string, data: UpdateUserRequest) => apiClient.put(`/manage/users/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/manage/users/${id}`),
+  batch: (data: { operation: string; user_ids: string[]; days?: number; template_user_id?: string }) =>
+    apiClient.post('/manage/users/batch', data),
+  avatarUrl: (id: string) => `/api/v1/manage/users/${id}/avatar`,
+}
