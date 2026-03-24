@@ -340,23 +340,33 @@ async def get_content_rankings(
 
 async def get_content_detail(item_id: str) -> dict:
     """单个内容详情"""
-    # 基本信息
+    # 先从数据库拿名称作为兜底
+    db_rows = await _query(
+        f"SELECT ItemName, SUM(PlayCount) as pc, COALESCE(SUM(PlayDuration),0) as td "
+        f"FROM PlaybackActivity WHERE ItemId = '{item_id}' GROUP BY ItemName"
+    )
+    db_name = db_rows[0]["ItemName"] if db_rows and db_rows[0].get("ItemName") else "未知"
+    db_play_count = db_rows[0]["pc"] if db_rows else 0
+    db_duration_min = round((db_rows[0]["td"] if db_rows else 0) / 60)
+
+    # 基本信息（Emby）
     overview = ""
     production_year = None
     quality_tags: list[str] = []
+    item_type = ""
+    name = db_name
     try:
         resp = await emby.get(f"/Items/{item_id}")
-        resp.raise_for_status()
-        info = resp.json()
-        name = info.get("Name", "未知")
-        item_type = info.get("Type", "")
-        overview = info.get("Overview", "") or ""
-        production_year = info.get("ProductionYear")
-        path_or_name = info.get("Path") or info.get("FileName") or ""
-        quality_tags = _extract_quality_tags(path_or_name)
+        if resp.status_code == 200:
+            info = resp.json()
+            name = info.get("Name") or db_name
+            item_type = info.get("Type", "")
+            overview = info.get("Overview", "") or ""
+            production_year = info.get("ProductionYear")
+            path_or_name = info.get("Path") or info.get("FileName") or ""
+            quality_tags = _extract_quality_tags(path_or_name)
     except Exception:
-        name = "未知"
-        item_type = ""
+        pass
 
     # 播放趋势（近 30 天，按天）
     rows = await _query(
