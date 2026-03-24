@@ -301,19 +301,19 @@ onMounted(() => { loadRankings() })
   gap: 12px;
   padding: 10px 14px;
   border-radius: 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.85);
+  border: 1.5px solid rgba(0,0,0,0.10);
   cursor: pointer;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 .media-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.22);
-  border-color: rgba(255,255,255,0.12);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+  border-color: rgba(0,0,0,0.18);
 }
 .media-card.active {
-  border-color: rgba(99, 102, 241, 0.55);
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3), 0 8px 28px rgba(79, 70, 229, 0.15);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 8px 28px rgba(79, 70, 229, 0.10);
 }
 
 /* 排名 */
@@ -327,9 +327,9 @@ onMounted(() => { loadRankings() })
   border-radius: 10px;
   font-size: 0.78rem;
   font-weight: 800;
-  color: rgba(255,255,255,0.6);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(0,0,0,0.45);
+  background: rgba(0,0,0,0.05);
+  border: 1px solid rgba(0,0,0,0.08);
 }
 .card-rank.rank-1 { background: linear-gradient(135deg, #FFD700, #FFA500); color: #1a1a1a; border-color: rgba(255,215,0,0.4); }
 .card-rank.rank-2 { background: linear-gradient(135deg, #C0C0C0, #9CA3AF); color: #1a1a1a; border-color: rgba(192,192,192,0.4); }
@@ -342,14 +342,14 @@ onMounted(() => { loadRankings() })
   aspect-ratio: 2 / 3;
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.08);
 }
 .poster-img { width: 100%; height: 100%; object-fit: cover; display: block; aspect-ratio: 2 / 3; }
 .poster-fallback {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  font-size: 1.2rem; font-weight: 800; color: rgba(255,255,255,0.7);
-  background: linear-gradient(135deg, rgba(99,102,241,.4), rgba(30,41,59,.7));
+  font-size: 1.2rem; font-weight: 800; color: rgba(0,0,0,0.35);
+  background: linear-gradient(135deg, rgba(99,102,241,.15), rgba(30,41,59,.08));
 }
 
 /* 信息区 */
@@ -363,7 +363,7 @@ onMounted(() => { loadRankings() })
 .card-title {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #fff;
+  color: #1a1a2e;
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
@@ -381,9 +381,9 @@ onMounted(() => { loadRankings() })
   font-weight: 700;
   line-height: 1.4;
 }
-.tag-movie { background: rgba(245, 158, 11, 0.18); color: #F59E0B; }
-.tag-series { background: rgba(16, 185, 129, 0.18); color: #10B981; }
-.tag-quality { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.65); }
+.tag-movie { background: rgba(245, 158, 11, 0.15); color: #B45309; }
+.tag-series { background: rgba(16, 185, 129, 0.15); color: #047857; }
+.tag-quality { background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.55); }
 
 /* 右侧统计 */
 .card-stats {
@@ -400,7 +400,7 @@ onMounted(() => { loadRankings() })
   gap: 5px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: rgba(96, 165, 250, 0.9);
+  color: #2563EB;
 }
 .stat-icon { font-size: 0.65rem; }
 .stat-duration {
@@ -412,7 +412,7 @@ onMounted(() => { loadRankings() })
   width: 50px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.06);
   overflow: hidden;
 }
 .duration-fill {
@@ -424,7 +424,7 @@ onMounted(() => { loadRankings() })
 .duration-text {
   font-size: 0.75rem;
   font-weight: 700;
-  color: rgba(168, 85, 247, 0.9);
+  color: #7C3AED;
   min-width: 45px;
   text-align: right;
 }
