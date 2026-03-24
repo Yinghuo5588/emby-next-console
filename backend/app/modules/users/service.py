@@ -153,3 +153,92 @@ class UsersService:
         # 如果设了 is_vip，暂存在 override.note 前缀标记（后续可加字段）
         # 返回更新后的用户
         return await self.get_user(user_id)
+
+    async def batch_operations(
+        self,
+        action: str,
+        user_ids: list[str],
+        **kwargs,
+    ) -> dict:
+        """批量操作：delete / enable / disable / renew / apply_template"""
+        from app.core.emby_users import EmbyUserService
+        from datetime import timedelta
+
+        emby_svc = EmbyUserService()
+        now = datetime.now(timezone.utc)
+        results = {"success": [], "failed": []}
+
+        if action == "delete":
+            for uid in user_ids:
+                try:
+                    await emby_svc.delete_emby_user(uid)
+                    # 删除本地 override
+                    result = await self.db.execute(select(UserOverride).where(UserOverride.emby_user_id == uid))
+                    ov = result.scalar_one_or_none()
+                    if ov:
+                        await self.db.delete(ov)
+                    results["success"].append(uid)
+                except Exception as e:
+                    results["failed"].append({"user_id": uid, "error": str(e)})
+
+        elif action in ("enable", "disable"):
+            is_disabled = action == "disable"
+            for uid in user_ids:
+                try:
+                    policy = await emby_svc.get_user_policy(uid)
+                    policy["IsDisabled"] = is_disabled
+                    await emby_svc.update_user_policy(uid, policy)
+                    results["success"].append(uid)
+                except Exception as e:
+                    results["failed"].append({"user_id": uid, "error": str(e)})
+
+        elif action == "renew":
+            days = kwargs.get("days", 30)
+            expires_at = kwargs.get("expires_at")
+            for uid in user_ids:
+                try:
+                    result = await self.db.execute(select(UserOverride).where(UserOverride.emby_user_id == uid))
+                    ov = result.scalar_one_or_none()
+                    new_exp = expires_at or (now + timedelta(days=days))
+                    if ov:
+                        ov.expires_at = new_exp
+                        ov.updated_at = now
+                    else:
+                        ov = UserOverride(emby_user_id=uid, expires_at=new_exp, updated_at=now)
+                        self.db.add(ov)
+                    # 如果用户被禁用且续期了未来时间，重新启用
+                    if new_exp > now:
+                        try:
+                            policy = await emby_svc.get_user_policy(uid)
+                            if policy.get("IsDisabled"):
+                                policy["IsDisabled"] = False
+                                await emby_svc.update_user_policy(uid, policy)
+                        except Exception:
+                            pass
+                    results["success"].append(uid)
+                except Exception as e:
+                    results["failed"].append({"user_id": uid, "error": str(e)})
+
+        elif action == "apply_template":
+            template_id = kwargs.get("template_id")
+            if not template_id:
+                return {"success": [], "failed": [{"error": "缺少 template_id"}]}
+            # 获取模板策略
+            try:
+                template_policy = await emby_svc.get_user_policy(template_id)
+            except Exception as e:
+                return {"success": [], "failed": [{"error": f"获取模板失败: {e}"}]}
+            # 复制策略字段（排除危险字段）
+            DANGEROUS = {"IsAdministrator", "IsDisabled", "IsHidden", "EnableLiveTvAccess", "EnableLiveTvManagement"}
+            safe_policy = {k: v for k, v in template_policy.items() if k not in DANGEROUS}
+            for uid in user_ids:
+                try:
+                    policy = await emby_svc.get_user_policy(uid)
+                    policy.update(safe_policy)
+                    await emby_svc.update_user_policy(uid, policy)
+                    results["success"].append(uid)
+                except Exception as e:
+                    results["failed"].append({"user_id": uid, "error": str(e)})
+
+        await self.db.commit()
+        return results
