@@ -33,6 +33,6 @@ async def get_current_user_id(
 async def get_current_admin(
     payload: dict = Depends(get_current_user_payload),
 ) -> dict:
-    if not payload.get("is_admin", False):
+    if payload.get("role") != "admin" and not payload.get("is_admin", False):
         raise ForbiddenError("Admin access required")
     return payload
