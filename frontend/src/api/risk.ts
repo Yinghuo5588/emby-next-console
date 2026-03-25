@@ -109,6 +109,9 @@ export const riskApi = {
   async blacklist(): Promise<ApiResponse<string[]>> {
     return (await apiClient.get('/risk/blacklist')).data
   },
+  async deviceClients(): Promise<ApiResponse<string[]>> {
+    return (await apiClient.get('/risk/device-clients')).data
+  },
   async addBlacklist(name: string): Promise<ApiResponse<string[]>> {
     return (await apiClient.post('/risk/blacklist', { name })).data
   },
