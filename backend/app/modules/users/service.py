@@ -8,7 +8,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.emby import emby
-from app.core.config import settings
 from app.db.models.users_meta import UsersMeta
 from app.db.session import AsyncSessionFactory
 
