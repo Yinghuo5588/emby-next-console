@@ -105,7 +105,7 @@ async def batch_ops(body: BatchRequest, _: dict = Depends(get_current_admin)):
     return ApiResponse.ok(data=data)
 
 
-@router.get("/library-folders")
+@router.get("/libraries")
 async def list_library_folders(_: dict = Depends(get_current_admin)):
     """获取媒体库列表"""
     folders = await emby.get_library_virtual_folders()
