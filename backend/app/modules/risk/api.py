@@ -251,7 +251,7 @@ async def _record_scan_events(db, blocked: list[dict], violations: list[dict]):
     await db.commit()
 
 
-async def _execute_client_action(db, session_id: str, device_id: str, action: str, user_name: str, client: str):
+async def _execute_client_action(db, session_id: str, device_id: str, user_id: str, action: str, user_name: str, client: str):
     """根据策略执行客户端管控动作"""
     if action == "message":
         await emby.send_session_message(
@@ -283,9 +283,9 @@ async def _execute_client_action(db, session_id: str, device_id: str, action: st
             header="账户管控",
             timeout_ms=5000,
         )
-        # 先踢再封禁
         await emby.force_kick(session_id, device_id)
-        await emby.ban_user(session_id)  # 注意：ban需要user_id，这里传的是session_id不太对
+        if user_id:
+            await emby.ban_user(user_id)
 
     logger.info(f"客户端管控: {user_name}({client}) → {action}")
 
@@ -362,7 +362,7 @@ async def _scan_logic(db) -> dict[str, Any]:
             action = await _resolve_escalation(violation, cp)
 
             logger.warning(f"客户端违规#{violation.violation_count}: {user_name} 使用 {client} (device={device_id}) → {action}")
-            await _execute_client_action(db, session_id, device_id, action, user_name, client)
+            await _execute_client_action(db, session_id, device_id, user_id, action, user_name, client)
 
             # 更新违规记录
             violation.last_action = action
