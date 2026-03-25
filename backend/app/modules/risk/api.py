@@ -360,6 +360,11 @@ async def _scan_logic(db) -> dict[str, Any]:
         is_violation = matched if not is_whitelist else not matched
 
         if is_violation:
+            # VIP 豁免客户端管控
+            meta = users_service._meta_cache.get(user_id, {})
+            if meta.get("is_vip"):
+                continue
+
             # 查/建违规记录
             violation = await _get_or_create_violation(db, user_id, device_id, client, "client_blocked")
 
