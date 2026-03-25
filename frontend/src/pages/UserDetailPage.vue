@@ -69,20 +69,32 @@
         <n-tab-pane name="permissions" tab="权限">
           <div class="info-section">
             <div class="info-row">
-              <span class="info-label">远程访问</span>
+              <span class="pr-label">远程访问</span>
               <n-switch v-model:value="permForm.enable_remote_access" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="info-label">内容下载</span>
+              <span class="pr-label">内容下载</span>
               <n-switch v-model:value="permForm.enable_content_downloading" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="info-label">视频转码</span>
+              <span class="pr-label">视频转码</span>
               <n-switch v-model:value="permForm.enable_video_transcoding" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="info-label">家长分级</span>
+              <span class="pr-label">家长分级</span>
               <n-select v-model:value="permForm.max_parental_rating" :options="ratingOptions" clearable size="small" style="width: 160px" @update:value="savePerm" />
+            </div>
+            <div class="info-row">
+              <span class="pr-label">媒体库访问</span>
+              <n-switch v-model:value="permForm.enable_all_folders" @update:value="savePerm" />
+            </div>
+            <div v-if="!permForm.enable_all_folders" class="info-row">
+              <span class="pr-label">允许的媒体库</span>
+              <n-select v-model:value="permForm.enabled_folders" :options="folderOptions" multiple size="small" style="width: 240px" @update:value="savePerm" />
+            </div>
+            <div class="info-row">
+              <span class="pr-label">禁止未评级内容</span>
+              <n-select v-model:value="permForm.block_unrated_items" :options="unratedOptions" multiple size="small" style="width: 240px" @update:value="savePerm" />
             </div>
           </div>
         </n-tab-pane>
@@ -121,7 +133,10 @@ const permForm = ref({
   enable_remote_access: true,
   enable_content_downloading: true,
   enable_video_transcoding: true,
-  max_parental_rating: null as string | null,
+  max_parental_rating: null as number | null,
+  enable_all_folders: true,
+  enabled_folders: [] as string[],
+  block_unrated_items: [] as string[],
 })
 
 const expireValue = computed({
@@ -134,17 +149,22 @@ const expireValue = computed({
 })
 
 const ratingOptions = [
-  { label: '无限制', value: '' },
-  { label: 'G (全年龄)', value: 'G' },
-  { label: 'PG (家长指导)', value: 'PG' },
-  { label: 'PG-13', value: 'PG-13' },
-  { label: 'R (限制级)', value: 'R' },
-  { label: 'NC-17', value: 'NC-17' },
+  { label: '无限制', value: null },
+  { label: 'G (全年龄)', value: 1 },
+  { label: 'PG (家长指导)', value: 3 },
+  { label: 'PG-13', value: 4 },
+  { label: 'R (限制级)', value: 5 },
+  { label: 'NC-17', value: 6 },
 ]
-
-const templateOptions = computed(() =>
-  (user.value ? [] : []) // 需要从用户列表获取
-)
+const folderOptions = ref<{ label: string; value: string }[]>([])
+const unratedOptions = [
+  { label: '电影', value: 'Movie' },
+  { label: '剧集', value: 'Series' },
+  { label: '音乐', value: 'Music' },
+  { label: '书籍', value: 'Book' },
+  { label: '游戏', value: 'Game' },
+  { label: '直播电视', value: 'LiveTvChannel' },
+]
 
 function formatDate(d: string) {
   if (!d) return ''
@@ -167,6 +187,9 @@ async function loadUser() {
         enable_content_downloading: user.value.policy?.enable_content_downloading ?? true,
         enable_video_transcoding: user.value.policy?.enable_video_transcoding ?? true,
         max_parental_rating: user.value.policy?.max_parental_rating ?? null,
+        enable_all_folders: user.value.policy?.enable_all_folders ?? true,
+        enabled_folders: user.value.policy?.enabled_folders ?? [],
+        block_unrated_items: user.value.policy?.block_unrated_items ?? [],
       }
     }
   } catch (e: any) {
@@ -252,7 +275,10 @@ async function onAvatarChange(e: Event) {
   message.info('头像上传功能开发中')
 }
 
-onMounted(loadUser)
+onMounted(async () => {
+  await loadUser()
+  try { const r = await usersApi.libraryFolders(); folderOptions.value = r.data.data ?? [] } catch {}
+})
 </script>
 
 <style scoped>
