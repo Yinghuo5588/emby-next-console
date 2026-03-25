@@ -135,6 +135,10 @@
         <n-input v-model:value="newItem" placeholder="客户端名称" size="small" @keyup.enter="addBl" />
         <n-button type="primary" size="small" :disabled="!newItem.trim()" @click="addBl">添加</n-button>
       </div>
+      <div v-if="suggestions.length > 0" class="bl-suggest">
+        <span class="bl-suggest-label">历史客户端：</span>
+        <button v-for="s in suggestions" :key="s" class="bl-suggest-btn" :class="{ disabled: isBlacklisted(s) }" @click="addBlDirect(s)">{{ s }}</button>
+      </div>
       <n-empty v-if="blacklist.length === 0" description="空" />
       <div v-else class="bl-tags">
         <n-tag v-for="item in blacklist" :key="item" closable type="warning" size="small" @close="removeBl(item)">{{ item }}</n-tag>
@@ -230,6 +234,7 @@ const scanning = ref(false)
 const sweeping = ref(false)
 const blacklist = ref<string[]>([])
 const newItem = ref('')
+const suggestions = ref<string[]>([])
 const evFilter = reactive({ status: 'open' })
 const liveSessions = ref<any[]>([])
 const sessionsLoading = ref(false)
@@ -267,6 +272,13 @@ async function loadEvents() {
   finally { evLoading.value = false }
 }
 async function loadBlacklist() { try { const r = await riskApi.blacklist(); blacklist.value = r.data ?? [] } catch { blacklist.value = [] } }
+async function loadSuggestions() { try { const r = await riskApi.deviceClients(); suggestions.value = r.data ?? [] } catch { suggestions.value = [] } }
+function isBlacklisted(name: string) { return blacklist.value.includes(name.toLowerCase()) }
+async function addBlDirect(name: string) {
+  if (isBlacklisted(name)) return
+  try { const r = await riskApi.addBlacklist(name); blacklist.value = r.data ?? [...blacklist.value, name.toLowerCase()]; msg.success(`已添加 ${name}`) }
+  catch { msg.error('失败') }
+}
 async function loadSessions() {
   sessionsLoading.value = true
   try { const r = await apiClient.get('/system/sessions'); liveSessions.value = (r.data?.data ?? []).filter((s: any) => s.NowPlayingItem) }
@@ -337,7 +349,7 @@ async function savePolicy() {
   } catch { msg.error('保存失败') }
   finally { policyLoading.value = false }
 }
-async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist(), loadSessions(), loadLogs(), loadConcurrent(), loadPolicy(), loadViolations()]) }
+async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist(), loadSessions(), loadLogs(), loadConcurrent(), loadPolicy(), loadViolations(), loadSuggestions()]) }
 
 function svType(s: string) { return ({ high: 'error', medium: 'warning', low: 'info' })[s] as any ?? 'default' }
 function svLabel(s: string) { return ({ high: '高危', medium: '中危', low: '低危' })[s] ?? s }
@@ -427,4 +439,11 @@ onMounted(loadAll)
 .vi-last { font-size: 11px; color: var(--text-muted); }
 .vi-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
 .vi-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+
+/* 历史客户端建议 */
+.bl-suggest { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.bl-suggest-label { font-size: 12px; color: var(--text-muted); }
+.bl-suggest-btn { padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--border); background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
+.bl-suggest-btn:hover:not(.disabled) { border-color: var(--primary); border-style: solid; color: var(--primary); }
+.bl-suggest-btn.disabled { opacity: 0.4; cursor: default; text-decoration: line-through; }
 </style>
