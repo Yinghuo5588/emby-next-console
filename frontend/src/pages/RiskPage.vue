@@ -48,6 +48,11 @@
             <n-input-number v-model:value="policy.client_policy.ban_hours" size="small" :min="1" :max="720" :show-button="false" style="width:80px" />
             <span class="pr-unit">小时</span>
           </div>
+          <div class="pg-title" style="margin-top:10px">弹窗内容（支持 {client} {user_name} {ban_hours} 变量）</div>
+          <div class="pr-row" v-for="m in msgTemplates" :key="m.key">
+            <span class="pr-label">{{ m.label }}</span>
+            <n-input v-model:value="policy.client_policy[m.key]" size="small" placeholder="留空用默认文案" style="flex:1" />
+          </div>
         </div>
         <!-- 并发管控 -->
         <div class="policy-group">
@@ -232,6 +237,12 @@ const concurrentActions = [
   { value: 'warn', label: '仅告警' },
   { value: 'kick_newest', label: '踢最新' },
   { value: 'kick_all', label: '踢全部超限' },
+]
+const msgTemplates = [
+  { key: 'msg_message', label: '弹窗' },
+  { key: 'msg_stop', label: '停止' },
+  { key: 'msg_force_kick', label: '强踢' },
+  { key: 'msg_ban', label: '封禁' },
 ]
 
 async function loadSummary() { try { summary.value = (await riskApi.summary()).data } catch {} }
