@@ -35,14 +35,12 @@ class UpdateUserRequest(BaseModel):
     max_concurrent: int | None = None
     is_vip: bool | None = None
     note: str | None = None
-    apply_template_id: str | None = None
 
 
 class BatchRequest(BaseModel):
-    operation: str  # delete | enable | disable | renew | apply_template
+    operation: str  # delete | enable | disable | renew
     user_ids: list[str]
     days: int | None = 30
-    template_user_id: str | None = None
 
 
 @router.get("")
