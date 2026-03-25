@@ -175,12 +175,13 @@ async def create_user(
 
     # 2. 设置密码（管理员强制重置）
     try:
-        await emby.post(f"/Users/{user_id}/Password", json={
+        pwd_resp = await emby.post(f"/Users/{user_id}/Password", json={
             "ResetPassword": True,
             "NewPw": password,
         })
+        logger.info(f"Password set for {user_id}: status={pwd_resp.status_code}")
     except Exception as e:
-        logger.warning(f"Set password failed for {user_id}: {e}")
+        logger.error(f"Set password failed for {user_id}: {e}", exc_info=True)
 
     # 3. 如果源用户是管理员，移除新用户的管理员权限
     if template_user_id:
@@ -237,12 +238,14 @@ async def update_user(user_id: str, **kwargs) -> dict:
 
     # 2. 更新密码
     if "password" in kwargs and kwargs["password"]:
-        await emby.post(f"/Users/{user_id}/Password", json={
-            "Id": user_id,
-            "CurrentPw": "",
-            "NewPw": kwargs["password"],
-            "ResetPassword": True,
-        })
+        try:
+            resp = await emby.post(f"/Users/{user_id}/Password", json={
+                "ResetPassword": True,
+                "NewPw": kwargs["password"],
+            })
+            logger.info(f"Password update for {user_id}: status={resp.status_code}")
+        except Exception as e:
+            logger.error(f"Update password failed for {user_id}: {e}", exc_info=True)
 
     # 3. 更新策略
     policy_fields = {}
