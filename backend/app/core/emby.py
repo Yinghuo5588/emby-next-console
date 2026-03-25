@@ -219,6 +219,29 @@ class EmbyAdapter:
 
     # ── 风控执法 ────────────────────────────────────────────────
 
+    async def delete_device(self, device_id: str) -> bool:
+        """删除设备凭证（设备需重新登录）"""
+        try:
+            resp = await self.delete("/Devices", params={"Id": device_id})
+            return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.error("删除设备 %s 失败: %s", device_id, e)
+            return False
+
+    async def send_session_message(self, session_id: str, text: str, header: str = "", timeout_ms: int = 3000) -> bool:
+        """向指定会话发送弹窗消息"""
+        try:
+            payload = {"Text": text}
+            if header:
+                payload["Header"] = header
+            if timeout_ms:
+                payload["TimeoutMs"] = timeout_ms
+            resp = await self.post(f"/Sessions/{session_id}/Message", json=payload)
+            return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.error("发送消息到会话 %s 失败: %s", session_id, e)
+            return False
+
     async def kick_session(self, session_id: str, reason: str = "管理员强制中止播放") -> bool:
         """踢出播放会话（仅停止播放，对302无效）"""
         try:
@@ -241,11 +264,7 @@ class EmbyAdapter:
             logger.error("停止播放 %s 失败: %s", session_id, e)
 
         if device_id:
-            try:
-                resp = await self.delete("/Devices", params={"Id": device_id})
-                result["device_deleted"] = resp.status_code in (200, 204)
-            except Exception as e:
-                logger.error("删除设备 %s 失败: %s", device_id, e)
+            result["device_deleted"] = await self.delete_device(device_id)
 
         return result
 

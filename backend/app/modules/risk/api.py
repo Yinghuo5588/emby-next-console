@@ -146,6 +146,9 @@ async def _record_scan_events(db, blocked: list[dict], violations: list[dict]):
 
 async def _scan_logic(db) -> dict[str, Any]:
     """核心扫描：黑名单拦截 + 并发越界检测"""
+    import logging
+    logger = logging.getLogger("app.risk")
+
     blacklist = set(await _get_blacklist(db))
     sessions = await emby.get_sessions(active_only=True)
     await users_service._ensure_meta_loaded()
@@ -153,6 +156,8 @@ async def _scan_logic(db) -> dict[str, Any]:
     blocked: list[dict[str, Any]] = []
     violations: list[dict[str, Any]] = []
     concurrent_map: dict[str, list[dict[str, Any]]] = {}
+
+    logger.info(f"扫描开始: {len(sessions)}个会话, {len(blacklist)}个黑名单客户端")
 
     for s in sessions:
         session_id = s.get("Id", "")
@@ -165,6 +170,7 @@ async def _scan_logic(db) -> dict[str, Any]:
         now_playing = s.get("NowPlayingItem") or {}
         title = now_playing.get("Name", "")
 
+        # 并发统计：只统计有播放内容的会话
         if now_playing and user_id:
             concurrent_map.setdefault(user_id, []).append({
                 "session_id": session_id,
@@ -176,14 +182,17 @@ async def _scan_logic(db) -> dict[str, Any]:
                 "title": title,
             })
 
+        # 黑名单拦截：正在播放且客户端命中黑名单
         if now_playing and client_l and client_l in blacklist:
+            logger.warning(f"黑名单命中: {user_name} 使用 {client} (device={device_id})")
             await emby.send_session_message(
                 session_id,
                 text=f"当前客户端「{client}」已被管理员禁用，播放已停止，请更换受支持客户端后重新登录。",
                 header="客户端管控",
                 timeout_ms=5000,
             )
-            await emby.force_kick(session_id, device_id)
+            kick_result = await emby.force_kick(session_id, device_id)
+            logger.info(f"强踢结果: {kick_result}")
             blocked.append({
                 "session_id": session_id,
                 "user_id": user_id,
@@ -210,6 +219,8 @@ async def _scan_logic(db) -> dict[str, Any]:
 
     if blocked or violations:
         await _record_scan_events(db, blocked, violations)
+
+    logger.info(f"扫描完成: 拦截{len(blocked)}个违规, {len(violations)}个越界, 总会话{len(sessions)}")
 
     return {
         "blocked": blocked,
@@ -371,17 +382,34 @@ async def remove_blacklist(name: str, db: AsyncSessionDep, _: dict = Depends(get
 @router.post("/sweep")
 async def sweep(db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
     blacklist = set(await _get_blacklist(db))
+    if not blacklist:
+        return ApiResponse.ok(data={"deleted": [], "deleted_count": 0, "total_devices": 0}, message="黑名单为空")
+
     devices = await emby.get_devices()
+    if not devices:
+        return ApiResponse.ok(data={"deleted": [], "deleted_count": 0, "total_devices": 0}, message="获取设备列表失败或无设备")
+
     deleted = []
+    skipped = []
     for d in devices:
         app_name = str(d.get("AppName") or "").strip().lower()
         device_id = str(d.get("Id") or "")
-        if device_id and app_name and app_name in blacklist:
+        if not device_id or not app_name:
+            continue
+        if app_name in blacklist:
             ok = await emby.delete_device(device_id)
             if ok:
                 deleted.append({"device_id": device_id, "app_name": app_name, "user": d.get("LastUserName", "")})
-                await _log_action(db, "device_sweep", device_id, f"删除黑名单客户端设备 {app_name}")
-    return ApiResponse.ok(data={"deleted": deleted, "deleted_count": len(deleted), "total_devices": len(devices)})
+                await _log_action(db, "device_sweep", device_id, f"删除黑名单客户端 {app_name}")
+            else:
+                skipped.append({"device_id": device_id, "app_name": app_name, "reason": "删除失败"})
+
+    return ApiResponse.ok(data={
+        "deleted": deleted,
+        "deleted_count": len(deleted),
+        "skipped": skipped,
+        "total_devices": len(devices),
+    })
 
 
 @router.post("/scan")
