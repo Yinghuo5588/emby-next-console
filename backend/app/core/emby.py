@@ -68,9 +68,6 @@ class EmbyAdapter:
         return await self._request("GET", path, **kw)
 
     async def post(self, path: str, **kw: Any) -> httpx.Response:
-        if "json" in kw and "Password" in path:
-            import logging
-            logging.getLogger("app").info(f"[DEBUG] Password API body: {kw['json']}")
         return await self._request("POST", path, **kw)
 
     async def delete(self, path: str, **kw: Any) -> httpx.Response:
