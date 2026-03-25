@@ -229,15 +229,18 @@ class EmbyAdapter:
             return False
 
     async def send_session_message(self, session_id: str, text: str, header: str = "", timeout_ms: int = 3000) -> bool:
-        """向指定会话发送弹窗消息"""
+        """向指定会话发送弹窗消息（参数走 query params）"""
         try:
-            payload = {"Text": text}
+            params = {"Text": text}
             if header:
-                payload["Header"] = header
+                params["Header"] = header
             if timeout_ms:
-                payload["TimeoutMs"] = timeout_ms
-            resp = await self.post(f"/Sessions/{session_id}/Message", json=payload)
+                params["TimeoutMs"] = timeout_ms
+            resp = await self.post(f"/Sessions/{session_id}/Message", params=params)
             return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.error("发送消息到会话 %s 失败: %s", session_id, e)
+            return False
         except Exception as e:
             logger.error("发送消息到会话 %s 失败: %s", session_id, e)
             return False
