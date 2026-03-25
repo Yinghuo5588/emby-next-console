@@ -57,6 +57,10 @@ export interface RiskPolicy {
     escalation: boolean
     escalation_steps: string[]
     ban_hours: number
+    msg_message: string
+    msg_stop: string
+    msg_force_kick: string
+    msg_ban: string
   }
   concurrent_policy: {
     default_max: number
