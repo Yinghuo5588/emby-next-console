@@ -36,6 +36,11 @@ DEFAULT_POLICY: dict = {
         "escalation": False,         # 复发加重
         "escalation_steps": ["message", "stop", "force_kick", "ban"],
         "ban_hours": 24,
+        # 弹窗模板（支持 {client} {device_name} {user_name} {ban_hours} {title} 变量）
+        "msg_message": "当前客户端「{client}」不在允许列表中，请更换客户端。",
+        "msg_stop": "当前客户端「{client}」已被管理员禁用，播放已停止。",
+        "msg_force_kick": "当前客户端「{client}」已被管理员禁用，请更换受支持客户端后重新登录。",
+        "msg_ban": "您的账户已被临时封禁{ban_hours}小时，请联系管理员。",
     },
     "concurrent_policy": {
         "default_max": 2,            # 全局默认并发数
@@ -251,38 +256,43 @@ async def _record_scan_events(db, blocked: list[dict], violations: list[dict]):
     await db.commit()
 
 
-async def _execute_client_action(db, session_id: str, device_id: str, user_id: str, action: str, user_name: str, client: str):
-    """根据策略执行客户端管控动作"""
+async def _execute_client_action(db, session_id: str, device_id: str, user_id: str, action: str, user_name: str, client: str, cp: dict = None):
+    """根据策略执行客户端管控动作，支持自定义弹窗内容"""
+    if cp is None:
+        cp = {}
+
+    # 变量替换
+    vars_map = {
+        "{client}": client or "未知",
+        "{device_name}": "",
+        "{user_name}": user_name or "未知用户",
+        "{ban_hours}": str(cp.get("ban_hours", 24)),
+        "{title}": "",
+    }
+
+    def _fmt(template: str) -> str:
+        result = template
+        for k, v in vars_map.items():
+            result = result.replace(k, v)
+        return result
+
     if action == "message":
-        await emby.send_session_message(
-            session_id,
-            text=f"当前客户端「{client}」不在允许列表中，请更换客户端。",
-            header="客户端管控",
-            timeout_ms=5000,
-        )
+        text = _fmt(cp.get("msg_message", "当前客户端「{client}」不在允许列表中，请更换客户端。"))
+        await emby.send_session_message(session_id, text=text, header="客户端管控", timeout_ms=5000)
+
     elif action == "stop":
-        await emby.send_session_message(
-            session_id,
-            text=f"当前客户端「{client}」已被管理员禁用，播放已停止。",
-            header="客户端管控",
-            timeout_ms=5000,
-        )
+        text = _fmt(cp.get("msg_stop", "当前客户端「{client}」已被管理员禁用，播放已停止。"))
+        await emby.send_session_message(session_id, text=text, header="客户端管控", timeout_ms=5000)
         await emby.kick_session(session_id)
+
     elif action == "force_kick":
-        await emby.send_session_message(
-            session_id,
-            text=f"当前客户端「{client}」已被管理员禁用，播放已停止，请更换受支持客户端后重新登录。",
-            header="客户端管控",
-            timeout_ms=5000,
-        )
+        text = _fmt(cp.get("msg_force_kick", "当前客户端「{client}」已被管理员禁用，请更换受支持客户端后重新登录。"))
+        await emby.send_session_message(session_id, text=text, header="客户端管控", timeout_ms=5000)
         await emby.force_kick(session_id, device_id)
+
     elif action == "ban":
-        await emby.send_session_message(
-            session_id,
-            text=f"你的账户已被临时封禁，请联系管理员。",
-            header="账户管控",
-            timeout_ms=5000,
-        )
+        text = _fmt(cp.get("msg_ban", "您的账户已被临时封禁{ban_hours}小时，请联系管理员。"))
+        await emby.send_session_message(session_id, text=text, header="账户管控", timeout_ms=5000)
         await emby.force_kick(session_id, device_id)
         if user_id:
             await emby.ban_user(user_id)
@@ -362,7 +372,7 @@ async def _scan_logic(db) -> dict[str, Any]:
             action = await _resolve_escalation(violation, cp)
 
             logger.warning(f"客户端违规#{violation.violation_count}: {user_name} 使用 {client} (device={device_id}) → {action}")
-            await _execute_client_action(db, session_id, device_id, user_id, action, user_name, client)
+            await _execute_client_action(db, session_id, device_id, user_id, action, user_name, client, cp)
 
             # 更新违规记录
             violation.last_action = action
