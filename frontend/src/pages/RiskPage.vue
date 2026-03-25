@@ -31,7 +31,10 @@
             <n-tag v-if="s.Client" size="tiny" type="info">{{ s.Client }}</n-tag>
           </div>
           <div class="sc-media">{{ s.NowPlayingItem?.Name || '-' }}</div>
-          <n-button size="tiny" type="error" block :loading="kicking === s.Id" @click="doKick(s.Id, s.UserName)">停止</n-button>
+          <div class="sc-actions">
+            <n-button size="tiny" type="error" :loading="kicking === s.Id" @click="doKick(s.Id, s.DeviceId || '', 'soft')">停止</n-button>
+            <n-button size="tiny" type="error" quaternary :loading="kicking === s.Id+'h'" @click="doKick(s.Id, s.DeviceId || '', 'hard')">强踢</n-button>
+          </div>
         </div>
       </div>
     </div>
@@ -164,10 +167,13 @@ async function loadConcurrent() {
 }
 async function loadLogs() { try { const r = await riskApi.logs(1, 20); logs.value = r.data?.items ?? [] } catch { logs.value = [] } }
 
-async function doKick(id: string, name: string) {
-  kicking.value = id
-  try { const r = await riskApi.kick(id); if (r.data?.success) { msg.success(`已停止 ${name || '会话'}`); await loadAll() } else { msg.error('失败') } }
-  catch { msg.error('失败') }
+async function doKick(sessionId: string, deviceId: string, level: string) {
+  kicking.value = level === 'hard' ? sessionId + 'h' : sessionId
+  try {
+    const r = await riskApi.kick(sessionId, deviceId, level)
+    if (r.data?.success) { msg.success(level === 'hard' ? '已强制踢出' : '已停止播放'); await loadAll() }
+    else { msg.error('失败') }
+  } catch { msg.error('失败') }
   finally { kicking.value = null }
 }
 
@@ -227,6 +233,7 @@ onMounted(loadAll)
 .sc-top { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
 .sc-user { font-weight: 600; font-size: 13px; }
 .sc-media { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-actions { display: flex; gap: 6px; }
 .cc-list { display: flex; flex-direction: column; gap: 8px; }
 .cc-card { padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); }
 .cc-card.exceeded { border-color: var(--danger); background: rgba(255,59,48,0.04); }

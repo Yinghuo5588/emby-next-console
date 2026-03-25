@@ -220,13 +220,34 @@ class EmbyAdapter:
     # ── 风控执法 ────────────────────────────────────────────────
 
     async def kick_session(self, session_id: str, reason: str = "管理员强制中止播放") -> bool:
-        """踢出播放会话"""
+        """踢出播放会话（仅停止播放，对302无效）"""
         try:
             resp = await self.post(f"/Sessions/{session_id}/Playing/Stop", json={})
             return resp.status_code in (200, 204)
         except Exception as e:
             logger.error("踢出会话 %s 失败: %s", session_id, e)
             return False
+
+    async def force_kick(self, session_id: str, device_id: str = "") -> dict:
+        """
+        强制踢出：先停止播放，再删除设备凭证。
+        对 302 播放有效（删设备后客户端无法获取新链接）。
+        """
+        result = {"stopped": False, "device_deleted": False}
+        try:
+            resp = await self.post(f"/Sessions/{session_id}/Playing/Stop", json={})
+            result["stopped"] = resp.status_code in (200, 204)
+        except Exception as e:
+            logger.error("停止播放 %s 失败: %s", session_id, e)
+
+        if device_id:
+            try:
+                resp = await self.delete("/Devices", params={"Id": device_id})
+                result["device_deleted"] = resp.status_code in (200, 204)
+            except Exception as e:
+                logger.error("删除设备 %s 失败: %s", device_id, e)
+
+        return result
 
     async def ban_user(self, user_id: str) -> bool:
         """禁用用户"""

@@ -65,8 +65,8 @@ export const riskApi = {
   async logs(page = 1, pageSize = 20): Promise<ApiResponse<RiskActionLogsResponse>> {
     return (await apiClient.get('/risk/logs', { params: { page, page_size: pageSize } })).data
   },
-  async kick(sessionId: string, reason = '管理员强制中止播放'): Promise<ApiResponse<{ success: boolean }>> {
-    return (await apiClient.post('/risk/kick', { session_id: sessionId, reason })).data
+  async kick(sessionId: string, deviceId = '', level = 'soft'): Promise<ApiResponse<{ success: boolean; level: string }>> {
+    return (await apiClient.post('/risk/kick', { session_id: sessionId, device_id: deviceId, level })).data
   },
   async ban(userId: string): Promise<ApiResponse<{ success: boolean }>> {
     return (await apiClient.post('/risk/ban', { user_id: userId })).data

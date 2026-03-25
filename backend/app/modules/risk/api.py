@@ -35,7 +35,8 @@ class RiskEventActionRequest(BaseModel):
 
 class KickRequest(BaseModel):
     session_id: str
-    reason: str = "管理员强制中止播放"
+    device_id: str = ""
+    level: str = "soft"  # soft=仅停止, hard=停止+删设备(对302有效)
 
 
 class BanRequest(BaseModel):
@@ -182,9 +183,7 @@ async def _scan_logic(db) -> dict[str, Any]:
                 header="客户端管控",
                 timeout_ms=5000,
             )
-            await emby.kick_session(session_id)
-            if device_id:
-                await emby.delete_device(device_id)
+            await emby.force_kick(session_id, device_id)
             blocked.append({
                 "session_id": session_id,
                 "user_id": user_id,
@@ -321,10 +320,16 @@ async def logs(db: AsyncSessionDep, _: dict = Depends(get_current_admin), page: 
 
 @router.post("/kick")
 async def kick(body: KickRequest, db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
-    ok = await emby.kick_session(body.session_id, body.reason)
+    if body.level == "hard":
+        result = await emby.force_kick(body.session_id, body.device_id)
+        ok = result["stopped"] or result["device_deleted"]
+        reason = f"强制踢出(停止={result['stopped']},删设备={result['device_deleted']})"
+    else:
+        ok = await emby.kick_session(body.session_id)
+        reason = "停止播放"
     if ok:
-        await _log_action(db, "kick", body.session_id, body.reason)
-    return ApiResponse.ok(data={"success": ok})
+        await _log_action(db, "kick", body.session_id, reason)
+    return ApiResponse.ok(data={"success": ok, "level": body.level})
 
 
 @router.post("/ban")
