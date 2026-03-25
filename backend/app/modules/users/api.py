@@ -53,6 +53,14 @@ async def list_users(_: dict = Depends(get_current_admin)):
     return ApiResponse.ok(data=data)
 
 
+@router.get("/libraries")
+async def list_library_folders(_: dict = Depends(get_current_admin)):
+    """获取媒体库列表"""
+    folders = await emby.get_library_virtual_folders()
+    result = [{"value": f.get("Guid", f.get("Name", "")), "label": f.get("Name", "")} for f in folders]
+    return ApiResponse.ok(data=result)
+
+
 @router.get("/{user_id}")
 async def get_user(user_id: str, _: dict = Depends(get_current_admin)):
     """单个用户详情"""
@@ -100,17 +108,8 @@ async def batch_ops(body: BatchRequest, _: dict = Depends(get_current_admin)):
         operation=body.operation,
         user_ids=body.user_ids,
         days=body.days,
-        template_user_id=body.template_user_id,
     )
     return ApiResponse.ok(data=data)
-
-
-@router.get("/libraries")
-async def list_library_folders(_: dict = Depends(get_current_admin)):
-    """获取媒体库列表"""
-    folders = await emby.get_library_virtual_folders()
-    result = [{"value": f.get("Guid", f.get("Name", "")), "label": f.get("Name", "")} for f in folders]
-    return ApiResponse.ok(data=result)
 
 
 @router.get("/{user_id}/avatar")
