@@ -161,29 +161,40 @@ async def create_user(
     is_vip: bool = False,
     note: str = "",
 ) -> dict:
-    """创建用户，支持模板克隆"""
-    # 1. 创建基础用户
-    resp = await emby.post("/Users/New", json={"Name": name})
+    """创建用户，支持模板克隆（使用 Emby 原生 CopyFromUserId）"""
+    # 1. 创建用户（如选了模板，使用 Emby 原生复制）
+    create_body: dict = {"Name": name}
+    if template_user_id:
+        create_body["CopyFromUserId"] = template_user_id
+        create_body["UserCopyOptions"] = ["UserPolicy", "UserConfiguration"]
+
+    resp = await emby.post("/Users/New", json=create_body)
     resp.raise_for_status()
     new_user = resp.json()
     user_id = new_user.get("Id", "")
 
-    # 2. 设置密码
+    # 2. 设置密码（管理员强制重置）
     try:
         await emby.post(f"/Users/{user_id}/Password", json={
-            "Id": user_id,
-            "CurrentPw": "",
-            "NewPw": password,
             "ResetPassword": True,
+            "NewPw": password,
         })
     except Exception as e:
         logger.warning(f"Set password failed for {user_id}: {e}")
 
-    # 3. 克隆模板策略
+    # 3. 如果源用户是管理员，移除新用户的管理员权限
     if template_user_id:
-        await _clone_policy(template_user_id, user_id)
+        try:
+            new_data = await emby.get_user(user_id)
+            policy = new_data.get("Policy", {}) or {}
+            if policy.get("IsAdministrator"):
+                policy["IsAdministrator"] = False
+                await emby.post(f"/Users/{user_id}/Policy", json=policy)
+                logger.info(f"Removed admin from new user {user_id} (cloned from {template_user_id})")
+        except Exception as e:
+            logger.warning(f"Check admin failed: {e}")
 
-    # 4. 设置并发限制
+    # 4. 设置并发限制（覆盖模板的值）
     if max_concurrent != 0:
         try:
             current_policy = (await emby.get_user(user_id)).get("Policy", {}) or {}
@@ -214,32 +225,6 @@ async def create_user(
     })
 
     return {"user_id": user_id, "name": name}
-
-
-async def _clone_policy(source_id: str, target_id: str):
-    """克隆用户策略（过滤危险字段）"""
-    try:
-        source = await emby.get_user(source_id)
-        src_policy = source.get("Policy", {}) or {}
-        # 过滤：不复制管理员权限、禁用状态
-        clone = {}
-        safe_fields = [
-            "EnableAllFolders", "EnabledFolders", "EnableLiveTvAccess",
-            "EnableContentDownloading", "EnableMediaPlayback",
-            "EnableVideoPlaybackTranscoding", "EnableAudioPlaybackTranscoding",
-            "EnablePlaybackRemuxing", "EnableContentDeletion",
-            "MaxParentalRating", "BlockUnratedItems", "BlockedTags",
-            "AccessSchedules", "EnableRemoteAccess", "EnableSharedDeviceControl",
-            "EnableSyncTranscoding", "EnableConversionTranscoding",
-            "SimultaneousStreamLimit", "AuthenticationProviderId",
-        ]
-        for k in safe_fields:
-            if k in src_policy:
-                clone[k] = src_policy[k]
-        await emby.post(f"/Users/{target_id}/Policy", json=clone)
-        logger.info(f"Cloned policy from {source_id} to {target_id}")
-    except Exception as e:
-        logger.warning(f"Clone policy failed: {e}")
 
 
 async def update_user(user_id: str, **kwargs) -> dict:
@@ -273,6 +258,12 @@ async def update_user(user_id: str, **kwargs) -> dict:
         policy_fields["MaxParentalRating"] = kwargs["max_parental_rating"]
     if "enable_remote_access" in kwargs:
         policy_fields["EnableRemoteAccess"] = kwargs["enable_remote_access"]
+    if "enable_all_folders" in kwargs:
+        policy_fields["EnableAllFolders"] = kwargs["enable_all_folders"]
+    if "enabled_folders" in kwargs:
+        policy_fields["EnabledFolders"] = kwargs["enabled_folders"]
+    if "block_unrated_items" in kwargs:
+        policy_fields["BlockUnratedItems"] = kwargs["block_unrated_items"]
 
     if policy_fields:
         current = await emby.get_user(user_id)
