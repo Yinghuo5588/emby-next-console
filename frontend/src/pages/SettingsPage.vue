@@ -2,6 +2,46 @@
   <div class="settings-page">
     <PageHeader title="设置" desc="系统配置" />
 
+    <!-- Webhook 配置 -->
+    <div class="section-card">
+      <div class="section-title">🔗 Webhook 配置</div>
+      <p class="section-desc">在 Emby 后台 → 通知 → Webhook 中添加以下 URL</p>
+
+      <div class="webhook-block">
+        <label class="wl-label">Webhook URL</label>
+        <div class="wl-row">
+          <code class="wl-code">{{ webhookUrl }}</code>
+          <n-button size="tiny" quaternary @click="copy(webhookUrl)">复制</n-button>
+        </div>
+      </div>
+
+      <div class="webhook-block">
+        <label class="wl-label">鉴权方式</label>
+        <div class="wl-row">
+          <code class="wl-code">?token=xxx</code>
+          <span class="wl-or">或</span>
+          <code class="wl-code">Header: X-Webhook-Token</code>
+        </div>
+      </div>
+
+      <div class="webhook-block" v-if="webhookToken">
+        <label class="wl-label">当前 Token</label>
+        <div class="wl-row">
+          <code class="wl-code">{{ webhookToken }}</code>
+          <n-button size="tiny" quaternary @click="copy(webhookToken)">复制</n-button>
+        </div>
+      </div>
+
+      <div class="webhook-block">
+        <label class="wl-label">完整示例</label>
+        <div class="wl-row">
+          <code class="wl-code full-example">{{ fullExample }}</code>
+          <n-button size="tiny" quaternary @click="copy(fullExample)">复制</n-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 系统状态 -->
     <div class="section-card">
       <div class="section-title">系统状态</div>
       <div v-if="health" class="health-grid">
@@ -11,16 +51,17 @@
       <n-button size="small" quaternary @click="loadHealth" :loading="hLoading">刷新</n-button>
     </div>
 
+    <!-- 配置项 -->
     <div class="section-card">
       <div class="section-title">配置项</div>
       <div v-for="item in settings" :key="item.setting_key" class="setting-row">
         <div class="sr-label">{{ labelMap[item.setting_key] || item.setting_key }}</div>
-        <div class="sr-desc">{{ item.description }}</div>
         <div class="sr-value">{{ masked(item) }}</div>
       </div>
       <n-empty v-if="!sLoading && settings.length === 0" description="无配置" />
     </div>
 
+    <!-- 账户 -->
     <div class="section-card">
       <div class="section-title">账户</div>
       <div class="setting-row clickable" @click="handleLogout">
@@ -42,13 +83,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { NButton, NEmpty, useDialog } from 'naive-ui'
+import { ref, computed, onMounted } from 'vue'
+import { NButton, NEmpty, useDialog, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { systemApi } from '@/api/system'
 import type { SettingItem, HealthResponse } from '@/api/system'
 
 const dialog = useDialog()
+const msg = useMessage()
 const settings = ref<SettingItem[]>([])
 const sLoading = ref(false)
 const health = ref<HealthResponse | null>(null)
@@ -56,31 +98,79 @@ const hLoading = ref(false)
 
 const labelMap: Record<string, string> = { TMDB_API_KEY: 'TMDB API Key', EMBY_HOST: 'Emby 服务器', EMBY_API_KEY: 'Emby API Key' }
 
-async function loadSettings() { sLoading.value = true; try { settings.value = (await systemApi.settings()).data ?? [] } catch { settings.value = [] } finally { sLoading.value = false } }
-async function loadHealth() { hLoading.value = true; try { health.value = (await systemApi.health()).data ?? null } catch { health.value = null } finally { hLoading.value = false } }
+// Webhook
+const webhookToken = ref('')
+
+const webhookUrl = computed(() => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://your-server'
+  return `${origin}/api/v1/webhook/emby`
+})
+
+const fullExample = computed(() => `${webhookUrl.value}?token=${webhookToken.value || 'your-token'}`)
+
+async function loadSettings() {
+  sLoading.value = true
+  try { settings.value = (await systemApi.settings()).data ?? [] } catch { settings.value = [] }
+  finally { sLoading.value = false }
+}
+async function loadHealth() {
+  hLoading.value = true
+  try { health.value = (await systemApi.health()).data ?? null } catch { health.value = null }
+  finally { hLoading.value = false }
+}
+async function loadWebhookInfo() {
+  try {
+    // 从配置项里取 token
+    const embySetting = settings.value.find(s => s.setting_key === 'EMBY_HOST')
+    // 直接用 settings 里的默认 token（环境变量 EMBY_WEBHOOK_TOKEN）
+    // 前端无法直接读环境变量，从 system settings 里读
+    for (const s of settings.value) {
+      if (s.setting_key === 'EMBY_WEBHOOK_TOKEN') {
+        webhookToken.value = s.value || ''
+        break
+      }
+    }
+    // 如果 settings 里没有，用已知默认值
+    if (!webhookToken.value) webhookToken.value = 'embyconsole'
+  } catch {}
+}
 
 function masked(item: SettingItem) {
-  if (item.setting_key.includes('KEY') && item.value) { const v = String(item.value); return v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-4) : '****' }
+  if (item.setting_key.includes('KEY') && item.value) {
+    const v = String(item.value)
+    return v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-4) : '****'
+  }
   return String(item.value || '—')
 }
 
-function handleLogout() {
-  dialog.warning({ title: '退出登录', content: '确定退出？', positiveText: '退出', negativeText: '取消', onPositiveClick: () => { localStorage.removeItem('token'); localStorage.removeItem('username'); localStorage.removeItem('avatarUrl'); window.location.href = '/login' } })
+function copy(text: string) {
+  navigator.clipboard.writeText(text).then(() => msg.success('已复制'))
 }
 
-onMounted(() => { loadSettings(); loadHealth() })
+function handleLogout() {
+  dialog.warning({
+    title: '退出登录', content: '确定退出？', positiveText: '退出', negativeText: '取消',
+    onPositiveClick: () => { localStorage.removeItem('token'); localStorage.removeItem('username'); localStorage.removeItem('avatarUrl'); window.location.href = '/login' }
+  })
+}
+
+onMounted(async () => {
+  await loadSettings()
+  loadHealth()
+  loadWebhookInfo()
+})
 </script>
 
 <style scoped>
 .settings-page { padding-bottom: 24px; }
 .section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-.section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.section-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.section-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
 .setting-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .setting-row:last-child { border-bottom: none; }
 .clickable { cursor: pointer; }
 .clickable:active { opacity: 0.7; }
 .sr-label { font-size: 14px; font-weight: 500; flex: 1; }
-.sr-desc { font-size: 12px; color: var(--text-muted); }
 .sr-value { font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
 .sr-arrow { font-size: 1.2rem; color: var(--text-muted); }
 .health-grid { display: flex; gap: 20px; margin-bottom: 10px; }
@@ -89,4 +179,12 @@ onMounted(() => { loadSettings(); loadHealth() })
 .dot.ok { background: var(--success); }
 .dot.err { background: var(--danger); }
 .val { color: var(--text-muted); font-size: 12px; }
+
+/* Webhook blocks */
+.webhook-block { margin-bottom: 10px; }
+.wl-label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; }
+.wl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wl-code { background: var(--bg); padding: 6px 10px; border-radius: 8px; font-size: 12px; word-break: break-all; flex: 1; min-width: 0; }
+.wl-code.full-example { font-size: 11px; }
+.wl-or { font-size: 12px; color: var(--text-muted); }
 </style>

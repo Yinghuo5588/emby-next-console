@@ -34,6 +34,12 @@ class SystemService:
                 value=str(settings.EMBY_HOST),
                 description="Emby 服务器地址（只读，需改环境变量）",
             ),
+            SettingItem(
+                setting_key="EMBY_WEBHOOK_TOKEN",
+                setting_group="webhook",
+                value=settings.EMBY_WEBHOOK_TOKEN or "",
+                description="Webhook 鉴权 Token（环境变量 EMBY_WEBHOOK_TOKEN）",
+            ),
         ]
 
         # 数据库覆盖
