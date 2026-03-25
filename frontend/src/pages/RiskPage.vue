@@ -16,6 +16,56 @@
       <StatCard label="黑名单" :value="blacklist.length" />
     </div>
 
+    <!-- 策略配置 -->
+    <div class="section-card">
+      <div class="section-head">
+        <span class="section-title">⚙️ 策略配置</span>
+        <n-button text size="tiny" :loading="policyLoading" @click="savePolicy">保存</n-button>
+      </div>
+      <div v-if="policy" class="policy-grid">
+        <!-- 客户端管控 -->
+        <div class="policy-group">
+          <div class="pg-title">客户端管控</div>
+          <div class="pr-row">
+            <span class="pr-label">模式</span>
+            <div class="pr-radio">
+              <button class="rbtn" :class="{ active: policy.client_policy.mode === 'blacklist' }" @click="policy.client_policy.mode = 'blacklist'">黑名单</button>
+              <button class="rbtn" :class="{ active: policy.client_policy.mode === 'whitelist' }" @click="policy.client_policy.mode = 'whitelist'">白名单</button>
+            </div>
+          </div>
+          <div class="pr-row">
+            <span class="pr-label">模糊匹配</span>
+            <n-switch v-model:value="policy.client_policy.fuzzy_match" size="small" />
+          </div>
+          <div class="pr-row">
+            <span class="pr-label">执行动作</span>
+            <div class="pr-radio">
+              <button v-for="a in clientActions" :key="a.value" class="rbtn" :class="{ active: policy.client_policy.action === a.value }" @click="policy.client_policy.action = a.value">{{ a.label }}</button>
+            </div>
+          </div>
+          <div class="pr-row">
+            <span class="pr-label">封禁时长</span>
+            <n-input-number v-model:value="policy.client_policy.ban_hours" size="small" :min="1" :max="720" :show-button="false" style="width:80px" />
+            <span class="pr-unit">小时</span>
+          </div>
+        </div>
+        <!-- 并发管控 -->
+        <div class="policy-group">
+          <div class="pg-title">并发管控</div>
+          <div class="pr-row">
+            <span class="pr-label">全局默认并发</span>
+            <n-input-number v-model:value="policy.concurrent_policy.default_max" size="small" :min="1" :max="20" :show-button="false" style="width:80px" />
+          </div>
+          <div class="pr-row">
+            <span class="pr-label">超限处理</span>
+            <div class="pr-radio">
+              <button v-for="a in concurrentActions" :key="a.value" class="rbtn" :class="{ active: policy.concurrent_policy.action === a.value }" @click="policy.concurrent_policy.action = a.value">{{ a.label }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 实时播放 -->
     <div class="section-card">
       <div class="section-head">
@@ -120,12 +170,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { NButton, NTag, NInput, NEmpty, useMessage } from 'naive-ui'
+import { NButton, NTag, NInput, NEmpty, NSwitch, NInputNumber, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import { riskApi } from '@/api/risk'
-import type { RiskActionLog, ConcurrentItem } from '@/api/risk'
+import type { RiskActionLog, ConcurrentItem, RiskPolicy } from '@/api/risk'
 import apiClient from '@/api/client'
 
 const msg = useMessage()
@@ -144,6 +194,19 @@ const sessionsLoading = ref(false)
 const logs = ref<RiskActionLog[]>([])
 const concurrent = ref<ConcurrentItem[]>([])
 const concurrentLoading = ref(false)
+const policy = ref<RiskPolicy | null>(null)
+const policyLoading = ref(false)
+const clientActions = [
+  { value: 'message', label: '弹窗' },
+  { value: 'stop', label: '停止' },
+  { value: 'force_kick', label: '强踢' },
+  { value: 'ban', label: '封禁' },
+]
+const concurrentActions = [
+  { value: 'warn', label: '仅告警' },
+  { value: 'kick_newest', label: '踢最新' },
+  { value: 'kick_all', label: '踢全部超限' },
+]
 
 async function loadSummary() { try { summary.value = (await riskApi.summary()).data } catch {} }
 async function loadEvents() {
@@ -204,7 +267,19 @@ async function handleSweep() {
   catch { msg.error('失败') }
   finally { sweeping.value = false }
 }
-async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist(), loadSessions(), loadLogs(), loadConcurrent()]) }
+async function loadPolicy() {
+  try { const r = await riskApi.getPolicy(); policy.value = r.data ?? null } catch { policy.value = null }
+}
+async function savePolicy() {
+  if (!policy.value) return
+  policyLoading.value = true
+  try {
+    await riskApi.updatePolicy({ client_policy: policy.value.client_policy, concurrent_policy: policy.value.concurrent_policy })
+    msg.success('策略已保存')
+  } catch { msg.error('保存失败') }
+  finally { policyLoading.value = false }
+}
+async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist(), loadSessions(), loadLogs(), loadConcurrent(), loadPolicy()]) }
 
 function svType(s: string) { return ({ high: 'error', medium: 'warning', low: 'info' })[s] as any ?? 'default' }
 function svLabel(s: string) { return ({ high: '高危', medium: '中危', low: '低危' })[s] ?? s }
@@ -268,4 +343,18 @@ onMounted(loadAll)
   .ev-item { flex-direction: row; }
   .ev-acts { flex-direction: row; }
 }
+
+/* 策略配置 */
+.policy-grid { display: grid; gap: 12px; }
+@media (min-width: 769px) { .policy-grid { grid-template-columns: repeat(2, 1fr); } }
+.policy-group { background: var(--bg); border-radius: 10px; padding: 12px; }
+.pg-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.pr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.pr-row:last-child { border-bottom: none; }
+.pr-label { font-size: 13px; flex-shrink: 0; }
+.pr-unit { font-size: 12px; color: var(--text-muted); margin-left: 4px; }
+.pr-radio { display: flex; gap: 4px; }
+.rbtn { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
+.rbtn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.rbtn:hover:not(.active) { border-color: var(--primary); }
 </style>

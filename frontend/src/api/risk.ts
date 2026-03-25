@@ -49,6 +49,22 @@ export interface ConcurrentItem {
   }>
 }
 
+export interface RiskPolicy {
+  client_policy: {
+    mode: string
+    fuzzy_match: boolean
+    action: string
+    escalation: boolean
+    escalation_steps: string[]
+    ban_hours: number
+  }
+  concurrent_policy: {
+    default_max: number
+    action: string
+    kick_order: string
+  }
+}
+
 export const riskApi = {
   async summary(): Promise<ApiResponse<RiskSummary>> {
     return (await apiClient.get('/risk/summary')).data
@@ -91,5 +107,13 @@ export const riskApi = {
   },
   async concurrentStatus(): Promise<ApiResponse<ConcurrentItem[]>> {
     return (await apiClient.get('/risk/status')).data
+  },
+
+  async getPolicy(): Promise<ApiResponse<RiskPolicy>> {
+    return (await apiClient.get('/risk/policy')).data
+  },
+
+  async updatePolicy(data: Partial<RiskPolicy>): Promise<ApiResponse<RiskPolicy>> {
+    return (await apiClient.put('/risk/policy', data)).data
   },
 }

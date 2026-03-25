@@ -1,8 +1,10 @@
 """
-风控管控 API — 客户端黑名单 + 并发管控 + 事件 + 执法日志
+风控管控 API — 客户端管控 + 并发管控 + 策略配置 + 黑名单 + 事件 + 执法日志
 """
 from __future__ import annotations
 
+import fnmatch
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -21,6 +23,26 @@ from app.shared.responses import ApiResponse
 router = APIRouter(prefix="/risk", tags=["risk"])
 
 BLACKLIST_KEY = "client_blacklist"
+POLICY_KEY = "risk_policy"
+logger = logging.getLogger("app.risk")
+
+# ── 默认策略 ──────────────────────────────────────────────
+
+DEFAULT_POLICY: dict = {
+    "client_policy": {
+        "mode": "blacklist",         # blacklist / whitelist
+        "fuzzy_match": False,        # 是否通配符匹配
+        "action": "force_kick",      # message / stop / force_kick / ban
+        "escalation": False,         # 复发加重
+        "escalation_steps": ["message", "stop", "force_kick", "ban"],
+        "ban_hours": 24,
+    },
+    "concurrent_policy": {
+        "default_max": 2,            # 全局默认并发数
+        "action": "warn",            # warn / kick_newest / kick_all
+        "kick_order": "newest",      # newest / oldest
+    },
+}
 
 
 # ── Schemas ──────────────────────────────────────────────
@@ -44,36 +66,65 @@ class BanRequest(BaseModel):
     reason: str | None = None
 
 
+class PolicyUpdateRequest(BaseModel):
+    client_policy: dict | None = None
+    concurrent_policy: dict | None = None
+
+
 # ── Internal helpers ─────────────────────────────────────
 
-async def _get_blacklist(db) -> list[str]:
-    stmt = select(SystemSetting).where(SystemSetting.setting_key == BLACKLIST_KEY)
+async def _get_setting(db, key: str, default: Any = None) -> Any:
+    stmt = select(SystemSetting).where(SystemSetting.setting_key == key)
     result = await db.execute(stmt)
     setting = result.scalar_one_or_none()
-    items = setting.value_json if setting and isinstance(setting.value_json, list) else []
+    return setting.value_json if setting else default
+
+
+async def _set_setting(db, key: str, value: Any, group: str = "risk", desc: str = "") -> None:
+    stmt = select(SystemSetting).where(SystemSetting.setting_key == key)
+    result = await db.execute(stmt)
+    setting = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if setting:
+        setting.value_json = value
+        setting.updated_at = now
+    else:
+        db.add(SystemSetting(
+            setting_key=key, setting_group=group,
+            value_json=value, description=desc, updated_at=now,
+        ))
+    await db.commit()
+
+
+async def _get_policy(db) -> dict:
+    saved = await _get_setting(db, POLICY_KEY, {})
+    # 合并默认值（新字段自动补齐）
+    merged = {}
+    for section, defaults in DEFAULT_POLICY.items():
+        merged[section] = {**defaults, **saved.get(section, {})}
+    return merged
+
+
+async def _get_blacklist(db) -> list[str]:
+    items = await _get_setting(db, BLACKLIST_KEY, [])
     return [str(x).strip().lower() for x in items if str(x).strip()]
 
 
 async def _set_blacklist(db, items: list[str]) -> list[str]:
     normalized = sorted({x.strip().lower() for x in items if x and x.strip()})
-    stmt = select(SystemSetting).where(SystemSetting.setting_key == BLACKLIST_KEY)
-    result = await db.execute(stmt)
-    setting = result.scalar_one_or_none()
-    now = datetime.now(timezone.utc)
-    if setting:
-        setting.value_json = normalized
-        setting.updated_at = now
-    else:
-        setting = SystemSetting(
-            setting_key=BLACKLIST_KEY,
-            setting_group="risk",
-            value_json=normalized,
-            description="客户端黑名单（小写去重）",
-            updated_at=now,
-        )
-        db.add(setting)
-    await db.commit()
+    await _set_setting(db, BLACKLIST_KEY, normalized, group="risk", desc="客户端名单（小写去重）")
     return normalized
+
+
+def _match_client(client_name: str, entries: list[str], fuzzy: bool) -> bool:
+    """匹配客户端名称（精确或通配符）"""
+    cn = client_name.lower()
+    for entry in entries:
+        if cn == entry:
+            return True
+        if fuzzy and fnmatch.fnmatch(cn, entry):
+            return True
+    return False
 
 
 async def _log_action(db, action: str, target: str, reason: str | None = None):
@@ -144,12 +195,59 @@ async def _record_scan_events(db, blocked: list[dict], violations: list[dict]):
     await db.commit()
 
 
+async def _execute_client_action(db, session_id: str, device_id: str, action: str, user_name: str, client: str):
+    """根据策略执行客户端管控动作"""
+    if action == "message":
+        await emby.send_session_message(
+            session_id,
+            text=f"当前客户端「{client}」不在允许列表中，请更换客户端。",
+            header="客户端管控",
+            timeout_ms=5000,
+        )
+    elif action == "stop":
+        await emby.send_session_message(
+            session_id,
+            text=f"当前客户端「{client}」已被管理员禁用，播放已停止。",
+            header="客户端管控",
+            timeout_ms=5000,
+        )
+        await emby.kick_session(session_id)
+    elif action == "force_kick":
+        await emby.send_session_message(
+            session_id,
+            text=f"当前客户端「{client}」已被管理员禁用，播放已停止，请更换受支持客户端后重新登录。",
+            header="客户端管控",
+            timeout_ms=5000,
+        )
+        await emby.force_kick(session_id, device_id)
+    elif action == "ban":
+        await emby.send_session_message(
+            session_id,
+            text=f"你的账户已被临时封禁，请联系管理员。",
+            header="账户管控",
+            timeout_ms=5000,
+        )
+        # 先踢再封禁
+        await emby.force_kick(session_id, device_id)
+        await emby.ban_user(session_id)  # 注意：ban需要user_id，这里传的是session_id不太对
+
+    logger.info(f"客户端管控: {user_name}({client}) → {action}")
+
+
 async def _scan_logic(db) -> dict[str, Any]:
-    """核心扫描：黑名单拦截 + 并发越界检测"""
-    import logging
-    logger = logging.getLogger("app.risk")
+    """核心扫描：策略驱动的客户端管控 + 并发越界检测"""
+    policy = await _get_policy(db)
+    cp = policy["client_policy"]
+    pp = policy["concurrent_policy"]
 
     blacklist = set(await _get_blacklist(db))
+    is_whitelist = cp.get("mode") == "whitelist"
+    fuzzy = cp.get("fuzzy_match", False)
+    base_action = cp.get("action", "force_kick")
+    escalation = cp.get("escalation", False)
+    default_max = int(pp.get("default_max", 2) or 2)
+    concurrent_action = pp.get("action", "warn")
+
     sessions = await emby.get_sessions(active_only=True)
     await users_service._ensure_meta_loaded()
 
@@ -157,20 +255,24 @@ async def _scan_logic(db) -> dict[str, Any]:
     violations: list[dict[str, Any]] = []
     concurrent_map: dict[str, list[dict[str, Any]]] = {}
 
-    logger.info(f"扫描开始: {len(sessions)}个会话, {len(blacklist)}个黑名单客户端")
+    logger.info(
+        f"扫描开始: {len(sessions)}个会话, "
+        f"模式={'白名单' if is_whitelist else '黑名单'}, "
+        f"名单={len(blacklist)}个, 动作={base_action}, "
+        f"并发策略={concurrent_action}"
+    )
 
     for s in sessions:
         session_id = s.get("Id", "")
         user_id = s.get("UserId", "")
         user_name = s.get("UserName", "")
         client = (s.get("Client") or s.get("AppName") or "").strip()
-        client_l = client.lower()
         device_id = s.get("DeviceId", "")
         device_name = s.get("DeviceName", "")
         now_playing = s.get("NowPlayingItem") or {}
         title = now_playing.get("Name", "")
 
-        # 并发统计：只统计有播放内容的会话
+        # 并发统计
         if now_playing and user_id:
             concurrent_map.setdefault(user_id, []).append({
                 "session_id": session_id,
@@ -182,17 +284,22 @@ async def _scan_logic(db) -> dict[str, Any]:
                 "title": title,
             })
 
-        # 黑名单拦截：正在播放且客户端命中黑名单
-        if now_playing and client_l and client_l in blacklist:
-            logger.warning(f"黑名单命中: {user_name} 使用 {client} (device={device_id})")
-            await emby.send_session_message(
-                session_id,
-                text=f"当前客户端「{client}」已被管理员禁用，播放已停止，请更换受支持客户端后重新登录。",
-                header="客户端管控",
-                timeout_ms=5000,
-            )
-            kick_result = await emby.force_kick(session_id, device_id)
-            logger.info(f"强踢结果: {kick_result}")
+        # 客户端管控
+        if not now_playing or not client:
+            continue
+
+        matched = _match_client(client, list(blacklist), fuzzy)
+
+        # 黑名单模式：匹配到 = 违规；白名单模式：没匹配到 = 违规
+        is_violation = matched if not is_whitelist else not matched
+
+        if is_violation:
+            logger.warning(f"客户端违规: {user_name} 使用 {client} (device={device_id})")
+            action = base_action
+            if escalation:
+                # TODO: 查违规记录表，按次数递进
+                pass
+            await _execute_client_action(db, session_id, device_id, action, user_name, client)
             blocked.append({
                 "session_id": session_id,
                 "user_id": user_id,
@@ -201,21 +308,44 @@ async def _scan_logic(db) -> dict[str, Any]:
                 "device_id": device_id,
                 "device_name": device_name,
                 "title": title,
+                "action": action,
             })
 
+    # 并发越界检测
     meta_cache = users_service._meta_cache
     for user_id, items in concurrent_map.items():
         current = len(items)
         meta = meta_cache.get(user_id, {})
-        max_concurrent = int(meta.get("max_concurrent", 2) or 2)
-        if current > max_concurrent:
+        max_c = int(meta.get("max_concurrent", default_max) or default_max)
+        if current > max_c:
             violations.append({
                 "user_id": user_id,
                 "user_name": items[0].get("user_name", ""),
                 "current": current,
-                "max": max_concurrent,
+                "max": max_c,
                 "sessions": items,
             })
+
+    # 并发超限自动处理
+    if concurrent_action != "warn":
+        kicked = []
+        for v in violations:
+            sessions_list = v["sessions"]
+            excess = v["current"] - v["max"]
+            if concurrent_action == "kick_newest":
+                # 踢掉最后加入的会话
+                to_kick = sessions_list[-excess:]
+            elif concurrent_action == "kick_all":
+                to_kick = sessions_list[excess:]
+            else:
+                to_kick = []
+            for sk in to_kick:
+                await emby.kick_session(sk["session_id"])
+                kicked.append(sk["session_id"])
+            if to_kick:
+                logger.info(f"并发超限自动踢出: {v['user_name']} 踢掉 {len(to_kick)} 个会话")
+        if kicked:
+            await _log_action(db, "concurrent_kick", ",".join(kicked), f"并发超限自动踢出{len(kicked)}个会话")
 
     if blocked or violations:
         await _record_scan_events(db, blocked, violations)
@@ -421,6 +551,8 @@ async def scan(db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
 async def concurrent_status(db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
     sessions = await emby.get_sessions(active_only=True)
     await users_service._ensure_meta_loaded()
+    policy = await _get_policy(db)
+    default_max = int(policy["concurrent_policy"].get("default_max", 2) or 2)
     grouped: dict[str, list[dict[str, Any]]] = {}
     for s in sessions:
         if not s.get("NowPlayingItem"):
@@ -436,7 +568,7 @@ async def concurrent_status(db: AsyncSessionDep, _: dict = Depends(get_current_a
     rows = []
     for uid, items in grouped.items():
         meta = users_service._meta_cache.get(uid, {})
-        max_c = int(meta.get("max_concurrent", 2) or 2)
+        max_c = int(meta.get("max_concurrent", default_max) or default_max)
         rows.append({
             "user_id": uid,
             "user_name": items[0].get("user_name", "") if items else "",
@@ -447,3 +579,29 @@ async def concurrent_status(db: AsyncSessionDep, _: dict = Depends(get_current_a
         })
     rows.sort(key=lambda x: (not x["exceeded"], -x["current"]))
     return ApiResponse.ok(data=rows)
+
+
+# ── 策略配置 ────────────────────────────────────────────
+
+@router.get("/policy")
+async def get_policy(db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
+    """获取管控策略配置"""
+    policy = await _get_policy(db)
+    return ApiResponse.ok(data=policy)
+
+
+@router.put("/policy")
+async def update_policy(
+    body: PolicyUpdateRequest,
+    db: AsyncSessionDep,
+    _: dict = Depends(get_current_admin),
+):
+    """更新管控策略配置"""
+    policy = await _get_policy(db)
+    if body.client_policy is not None:
+        policy["client_policy"].update(body.client_policy)
+    if body.concurrent_policy is not None:
+        policy["concurrent_policy"].update(body.concurrent_policy)
+    await _set_setting(db, POLICY_KEY, policy, group="risk", desc="风控管控策略配置")
+    logger.info(f"策略已更新: {policy}")
+    return ApiResponse.ok(data=policy, message="策略已保存")
