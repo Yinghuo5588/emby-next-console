@@ -595,6 +595,18 @@ async def remove_blacklist(name: str, db: AsyncSessionDep, _: dict = Depends(get
     return ApiResponse.ok(data=items, message=f"已移除: {name}")
 
 
+@router.get("/device-clients")
+async def device_clients(_: dict = Depends(get_current_admin)):
+    """获取历史设备中的所有客户端名称（去重）"""
+    devices = await emby.get_devices()
+    names = set()
+    for d in devices:
+        app = str(d.get("AppName") or "").strip()
+        if app:
+            names.add(app)
+    return ApiResponse.ok(data=sorted(names))
+
+
 @router.post("/sweep")
 async def sweep(db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
     blacklist = set(await _get_blacklist(db))
