@@ -126,6 +126,9 @@ async def _quick_risk_scan():
             violations = len(result.get("violations", []))
             if blocked or violations:
                 logger.warning(f"Webhook triggered scan: {blocked} blocked, {violations} violations")
+        # 每次事件也检查到期封禁
+        from app.core.risk_monitor import _auto_unban_expired
+        await _auto_unban_expired()
     except Exception as e:
         logger.error(f"Quick risk scan error: {e}")
 
