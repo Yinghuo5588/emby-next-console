@@ -57,7 +57,7 @@
             </div>
           </template>
           <!-- 单步操作：只显示当前选中动作的弹窗 -->
-          <div v-else-if="policy.client_policy.action !== 'message'" class="pr-row">
+          <div v-else class="pr-row">
             <span class="pr-label">{{ currentActionLabel }} 弹窗内容</span>
             <n-input v-model:value="policy.client_policy[currentMsgKey]" size="small" placeholder="留空用默认文案" style="flex:1" />
           </div>
