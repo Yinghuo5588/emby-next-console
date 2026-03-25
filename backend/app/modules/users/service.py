@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.emby import emby
+from app.core.config import settings
 from app.db.models.users_meta import UsersMeta
 from app.db.session import AsyncSessionFactory
 
@@ -168,13 +169,16 @@ async def create_user(
     new_user = resp.json()
     user_id = new_user.get("Id", "")
 
-    # 2. 设置密码（放在模板克隆之前，避免被覆盖）
+    # 2. 设置密码（管理员强制重置）
+    # 用 requests 库代替 httpx，避免 Emby 兼容性问题
+    import requests as _requests
     try:
-        pwd_resp = await emby.post(f"/Users/{user_id}/Password", json={
+        pwd_url = f"{settings.EMBY_HOST}/emby/Users/{user_id}/Password"
+        pwd_resp = _requests.post(pwd_url, params={"api_key": settings.EMBY_API_KEY}, json={
             "ResetPassword": True,
             "NewPw": password,
-        })
-        logger.info(f"Password set for {user_id}: status={pwd_resp.status_code}")
+        }, timeout=10)
+        logger.info(f"Password set for {user_id}: status={pwd_resp.status_code} body={pwd_resp.text[:200]}")
     except Exception as e:
         logger.error(f"Set password failed for {user_id}: {e}", exc_info=True)
 
@@ -263,12 +267,14 @@ async def update_user(user_id: str, **kwargs) -> dict:
 
     # 2. 更新密码
     if "password" in kwargs and kwargs["password"]:
+        import requests as _requests
         try:
-            resp = await emby.post(f"/Users/{user_id}/Password", json={
+            pwd_url = f"{settings.EMBY_HOST}/emby/Users/{user_id}/Password"
+            resp = _requests.post(pwd_url, params={"api_key": settings.EMBY_API_KEY}, json={
                 "ResetPassword": True,
                 "NewPw": kwargs["password"],
-            })
-            logger.info(f"Password update for {user_id}: status={resp.status_code}")
+            }, timeout=10)
+            logger.info(f"Password update for {user_id}: status={resp.status_code} body={resp.text[:200]}")
         except Exception as e:
             logger.error(f"Update password failed for {user_id}: {e}", exc_info=True)
 
