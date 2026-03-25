@@ -53,6 +53,6 @@ export const usersApi = {
   delete: (id: string) => apiClient.delete(`/manage/users/${id}`),
   batch: (data: { operation: string; user_ids: string[]; days?: number }) =>
     apiClient.post('/manage/users/batch', data),
-  libraryFolders: () => apiClient.get('/manage/users/library-folders'),
+  libraryFolders: () => apiClient.get('/manage/users/libraries'),
   avatarUrl: (id: string) => `/api/v1/manage/users/${id}/avatar`,
 }
