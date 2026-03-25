@@ -86,19 +86,6 @@
             </div>
           </div>
         </n-tab-pane>
-
-        <n-tab-pane name="template" tab="模板">
-          <div class="info-section">
-            <div class="info-row">
-              <span class="info-label">当前模板</span>
-              <span class="info-value">{{ user.template_name || '无' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">应用模板</span>
-              <n-select v-model:value="applyTemplateId" :options="templateOptions" clearable placeholder="选择模板" size="small" style="width: 160px" @update:value="applyTemplate" />
-            </div>
-          </div>
-        </n-tab-pane>
       </n-tabs>
     </template>
 
@@ -128,7 +115,6 @@ const loading = ref(true)
 const activeTab = ref('overview')
 const showPasswordModal = ref(false)
 const newPassword = ref('')
-const applyTemplateId = ref<string | null>(null)
 
 const editForm = ref<UpdateUserRequest>({})
 const permForm = ref({
@@ -239,17 +225,6 @@ async function resetPassword() {
     newPassword.value = ''
   } catch {
     message.error('重置失败')
-  }
-}
-
-async function applyTemplate(tplId: string | null) {
-  if (!tplId) return
-  try {
-    await usersApi.update(userId, { apply_template_id: tplId })
-    message.success('模板已应用')
-    await loadUser()
-  } catch {
-    message.error('应用失败')
   }
 }
 
