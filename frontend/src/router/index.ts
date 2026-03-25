@@ -44,6 +44,12 @@ const router = createRouter({
       meta: { title: '用户详情' },
     },
     {
+      path: '/risk',
+      name: 'Risk',
+      component: () => import('@/pages/RiskPage.vue'),
+      meta: { title: '管控中心' },
+    },
+    {
       path: '/settings',
       name: 'Settings',
       component: () => import('@/pages/SettingsPage.vue'),

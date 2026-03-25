@@ -17,6 +17,8 @@ from app.modules.media.proxy import router as proxy_router
 from app.modules.system.api import router as system_router
 from app.modules.dashboard.api import router as dashboard_router
 from app.modules.users.api import router as users_router
+from app.modules.risk.api import router as risk_router
+from app.core.risk_monitor import start_monitor, stop_monitor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("app")
@@ -26,8 +28,10 @@ logger = logging.getLogger("app")
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     await get_redis()
+    start_monitor()
     yield
     logger.info("Shutting down...")
+    stop_monitor()
     await emby.close()
     await close_redis()
 
@@ -49,6 +53,7 @@ app.include_router(proxy_router, prefix=API_PREFIX)
 app.include_router(system_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
+app.include_router(risk_router, prefix=API_PREFIX)
 
 
 @app.get("/healthz", tags=["health"])

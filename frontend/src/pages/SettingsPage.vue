@@ -1,63 +1,92 @@
 <template>
   <div class="settings-page">
-    <div class="settings-header">
-      <h2>设置</h2>
+    <PageHeader title="设置" desc="系统配置" />
+
+    <div class="section-card">
+      <div class="section-title">系统状态</div>
+      <div v-if="health" class="health-grid">
+        <div class="health-item"><span class="dot" :class="health.db === 'ok' ? 'ok' : 'err'" /> 数据库 <span class="val">{{ health.db }}</span></div>
+        <div class="health-item"><span class="dot" :class="health.redis === 'ok' ? 'ok' : 'err'" /> Redis <span class="val">{{ health.redis }}</span></div>
+      </div>
+      <n-button size="small" quaternary @click="loadHealth" :loading="hLoading">刷新</n-button>
     </div>
 
-    <div class="settings-section">
+    <div class="section-card">
+      <div class="section-title">配置项</div>
+      <div v-for="item in settings" :key="item.setting_key" class="setting-row">
+        <div class="sr-label">{{ labelMap[item.setting_key] || item.setting_key }}</div>
+        <div class="sr-desc">{{ item.description }}</div>
+        <div class="sr-value">{{ masked(item) }}</div>
+      </div>
+      <n-empty v-if="!sLoading && settings.length === 0" description="无配置" />
+    </div>
+
+    <div class="section-card">
       <div class="section-title">账户</div>
-      <div class="setting-item" @click="handleLogout">
-        <span class="setting-icon">🚪</span>
-        <span class="setting-label">退出登录</span>
-        <span class="setting-arrow">›</span>
+      <div class="setting-row clickable" @click="handleLogout">
+        <span>🚪</span>
+        <span class="sr-label">退出登录</span>
+        <span class="sr-arrow">›</span>
       </div>
     </div>
 
-    <div class="settings-section">
+    <div class="section-card">
       <div class="section-title">关于</div>
-      <div class="setting-item">
-        <span class="setting-icon">ℹ️</span>
-        <span class="setting-label">Emby Next Console</span>
-        <span class="setting-value">v1.0</span>
+      <div class="setting-row">
+        <span>ℹ️</span>
+        <span class="sr-label">Emby Next Console</span>
+        <span class="sr-value">v2.0</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { useDialog } from 'naive-ui'
+import { ref, onMounted } from 'vue'
+import { NButton, NEmpty, useDialog } from 'naive-ui'
+import PageHeader from '@/components/common/PageHeader.vue'
+import { systemApi } from '@/api/system'
+import type { SettingItem, HealthResponse } from '@/api/system'
 
-const router = useRouter()
 const dialog = useDialog()
+const settings = ref<SettingItem[]>([])
+const sLoading = ref(false)
+const health = ref<HealthResponse | null>(null)
+const hLoading = ref(false)
+
+const labelMap: Record<string, string> = { TMDB_API_KEY: 'TMDB API Key', EMBY_HOST: 'Emby 服务器', EMBY_API_KEY: 'Emby API Key' }
+
+async function loadSettings() { sLoading.value = true; try { settings.value = (await systemApi.settings()).data ?? [] } catch { settings.value = [] } finally { sLoading.value = false } }
+async function loadHealth() { hLoading.value = true; try { health.value = (await systemApi.health()).data ?? null } catch { health.value = null } finally { hLoading.value = false } }
+
+function masked(item: SettingItem) {
+  if (item.setting_key.includes('KEY') && item.value) { const v = String(item.value); return v.length > 8 ? v.slice(0, 4) + '****' + v.slice(-4) : '****' }
+  return String(item.value || '—')
+}
 
 function handleLogout() {
-  dialog.warning({
-    title: '退出登录',
-    content: '确定退出当前账户？',
-    positiveText: '退出',
-    negativeText: '取消',
-    onPositiveClick: () => {
-      localStorage.removeItem('token')
-      localStorage.removeItem('username')
-      localStorage.removeItem('avatarUrl')
-      router.replace('/login')
-    },
-  })
+  dialog.warning({ title: '退出登录', content: '确定退出？', positiveText: '退出', negativeText: '取消', onPositiveClick: () => { localStorage.removeItem('token'); localStorage.removeItem('username'); localStorage.removeItem('avatarUrl'); window.location.href = '/login' } })
 }
+
+onMounted(() => { loadSettings(); loadHealth() })
 </script>
 
 <style scoped>
-.settings-page { padding: 0.5rem 0; }
-.settings-header { margin-bottom: 1rem; }
-.settings-header h2 { font-size: 1.3rem; font-weight: 700; margin: 0; }
-.settings-section { margin-bottom: 1.5rem; }
-.section-title { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 0.25rem; margin-bottom: 0.5rem; }
-.setting-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
-.setting-item:active { transform: scale(0.98); opacity: 0.7; }
-.setting-item + .setting-item { margin-top: 1px; }
-.setting-icon { font-size: 1.1rem; }
-.setting-label { flex: 1; font-size: 0.9rem; font-weight: 500; }
-.setting-value { font-size: 0.8rem; color: var(--text-muted); }
-.setting-arrow { font-size: 1.2rem; color: var(--text-muted); font-weight: 300; }
+.settings-page { padding-bottom: 24px; }
+.section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+.section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.setting-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: none; }
+.clickable { cursor: pointer; }
+.clickable:active { opacity: 0.7; }
+.sr-label { font-size: 14px; font-weight: 500; flex: 1; }
+.sr-desc { font-size: 12px; color: var(--text-muted); }
+.sr-value { font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
+.sr-arrow { font-size: 1.2rem; color: var(--text-muted); }
+.health-grid { display: flex; gap: 20px; margin-bottom: 10px; }
+.health-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot.ok { background: var(--success); }
+.dot.err { background: var(--danger); }
+.val { color: var(--text-muted); font-size: 12px; }
 </style>

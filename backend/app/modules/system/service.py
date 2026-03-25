@@ -74,7 +74,7 @@ class SystemService:
                 value_json=value,
                 updated_at=now,
             )
-            db.add(setting)
+            self.db.add(setting)
 
         await self.db.flush()
 
