@@ -220,7 +220,7 @@ async function savePerm() {
       enable_remote_access: permForm.value.enable_remote_access,
       enable_content_downloading: permForm.value.enable_content_downloading,
       enable_video_transcoding: permForm.value.enable_video_transcoding,
-      max_parental_rating: permForm.value.max_parental_rating || null,
+      max_parental_rating: permForm.value.max_parental_rating ?? null,
       enable_all_folders: permForm.value.enable_all_folders,
       enabled_folders: permForm.value.enabled_folders,
       block_unrated_items: permForm.value.block_unrated_items,
