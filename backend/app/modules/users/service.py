@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.emby import emby
+from app.core.config import settings
 from app.db.models.users_meta import UsersMeta
 from app.db.session import AsyncSessionFactory
 
@@ -161,39 +162,64 @@ async def create_user(
     is_vip: bool = False,
     note: str = "",
 ) -> dict:
-    """创建用户，支持模板克隆（使用 Emby 原生 CopyFromUserId）"""
-    # 1. 创建用户（如选了模板，使用 Emby 原生复制）
-    create_body: dict = {"Name": name}
-    if template_user_id:
-        create_body["CopyFromUserId"] = template_user_id
-        create_body["UserCopyOptions"] = ["UserPolicy", "UserConfiguration"]
-
-    resp = await emby.post("/Users/New", json=create_body)
+    """创建用户，支持模板策略克隆"""
+    # 1. 创建基础用户
+    resp = await emby.post("/Users/New", json={"Name": name})
     resp.raise_for_status()
     new_user = resp.json()
     user_id = new_user.get("Id", "")
 
-    # 2. 设置密码（管理员强制重置）
+    # 2. 设置密码（管理员直接设置，无需 ResetPassword）
     try:
         pwd_resp = await emby.post(f"/Users/{user_id}/Password", json={
-            "ResetPassword": True,
+            "Id": user_id,
             "NewPw": password,
         })
         logger.info(f"Password set for {user_id}: status={pwd_resp.status_code}")
     except Exception as e:
         logger.error(f"Set password failed for {user_id}: {e}", exc_info=True)
 
-    # 3. 如果源用户是管理员，移除新用户的管理员权限
+    # 3. 克隆模板策略（手动复制安全字段，不依赖 CopyFromUserId）
     if template_user_id:
         try:
-            new_data = await emby.get_user(user_id)
-            policy = new_data.get("Policy", {}) or {}
-            if policy.get("IsAdministrator"):
-                policy["IsAdministrator"] = False
-                await emby.post(f"/Users/{user_id}/Policy", json=policy)
-                logger.info(f"Removed admin from new user {user_id} (cloned from {template_user_id})")
+            tpl = await emby.get_user(template_user_id)
+            tpl_policy = tpl.get("Policy", {}) or {}
+            tpl_config = tpl.get("Configuration", {}) or {}
+            # 复制 Policy 安全字段
+            safe_fields = [
+                "EnableAllFolders", "EnabledFolders", "EnableLiveTvAccess",
+                "EnableContentDownloading", "EnableMediaPlayback",
+                "EnableVideoPlaybackTranscoding", "EnableAudioPlaybackTranscoding",
+                "EnablePlaybackRemuxing", "EnableContentDeletion",
+                "MaxParentalRating", "BlockUnratedItems", "BlockedTags",
+                "AccessSchedules", "EnableRemoteAccess", "EnableSharedDeviceControl",
+                "EnableSyncTranscoding", "EnableConversionTranscoding",
+                "SimultaneousStreamLimit", "AuthenticationProviderId",
+            ]
+            clone_policy = {}
+            for k in safe_fields:
+                if k in tpl_policy:
+                    clone_policy[k] = tpl_policy[k]
+            # 复制 Configuration
+            clone_config = {
+                "EnableAutoLogin": tpl_config.get("EnableAutoLogin", False),
+                "HidePlayedInLatest": tpl_config.get("HidePlayedInLatest", False),
+                "RememberAudioSelections": tpl_config.get("RememberAudioSelections", True),
+                "RememberSubtitleSelections": tpl_config.get("RememberSubtitleSelections", True),
+                "PlayDefaultAudioTrack": tpl_config.get("PlayDefaultAudioTrack", True),
+                "SubtitleMode": tpl_config.get("SubtitleMode", "Default"),
+                "DisplayMissingEpisodes": tpl_config.get("DisplayMissingEpisodes", False),
+            }
+            # 排除管理员和禁用
+            clone_policy.pop("IsAdministrator", None)
+            clone_policy.pop("IsDisabled", None)
+            if clone_policy:
+                await emby.post(f"/Users/{user_id}/Policy", json=clone_policy)
+            if clone_config:
+                await emby.post(f"/Users/{user_id}/Policy", json=clone_config)
+            logger.info(f"Cloned policy+config from {template_user_id} to {user_id}")
         except Exception as e:
-            logger.warning(f"Check admin failed: {e}")
+            logger.warning(f"Clone policy failed: {e}", exc_info=True)
 
     # 4. 设置并发限制（覆盖模板的值）
     if max_concurrent != 0:
@@ -240,7 +266,7 @@ async def update_user(user_id: str, **kwargs) -> dict:
     if "password" in kwargs and kwargs["password"]:
         try:
             resp = await emby.post(f"/Users/{user_id}/Password", json={
-                "ResetPassword": True,
+                "Id": user_id,
                 "NewPw": kwargs["password"],
             })
             logger.info(f"Password update for {user_id}: status={resp.status_code}")
