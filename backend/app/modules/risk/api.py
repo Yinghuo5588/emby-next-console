@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 
 from app.core.dependencies import get_current_admin
 from app.core.emby import emby
-from app.db.models.risk import RiskActionLog, RiskEvent
+from app.db.models.risk import RiskActionLog, RiskEvent, RiskViolation
 from app.db.models.system import SystemSetting
 from app.db.session import AsyncSessionDep
 from app.modules.users import service as users_service
@@ -125,6 +125,62 @@ def _match_client(client_name: str, entries: list[str], fuzzy: bool) -> bool:
         if fuzzy and fnmatch.fnmatch(cn, entry):
             return True
     return False
+
+
+# ── 违规记录管理 ──────────────────────────────────────────
+
+async def _get_or_create_violation(
+    db, user_id: str, device_id: str, client: str, violation_type: str
+) -> RiskViolation:
+    """获取或创建违规记录"""
+    stmt = (
+        select(RiskViolation)
+        .where(
+            RiskViolation.user_id == user_id,
+            RiskViolation.device_id == device_id,
+            RiskViolation.violation_type == violation_type,
+        )
+        .order_by(RiskViolation.last_violation_at.desc())
+        .limit(1)
+    )
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+
+    # 如果记录存在且未过期（24小时内），累加次数
+    if existing and existing.last_violation_at and (now - existing.last_violation_at).total_seconds() < 86400:
+        existing.violation_count += 1
+        existing.last_violation_at = now
+        existing.client_name = client
+        return existing
+
+    # 新记录或已过期
+    v = RiskViolation(
+        user_id=user_id,
+        device_id=device_id or "",
+        client_name=client,
+        violation_type=violation_type,
+        violation_count=1,
+        last_action=None,
+        last_violation_at=now,
+        locked_until=None,
+    )
+    db.add(v)
+    return v
+
+
+async def _resolve_escalation(violation: RiskViolation, cp: dict) -> str:
+    """根据违规次数 + 策略配置决定执行什么动作"""
+    if not cp.get("escalation"):
+        return cp.get("action", "force_kick")
+
+    steps = cp.get("escalation_steps", ["message", "stop", "force_kick", "ban"])
+    if not steps:
+        return cp.get("action", "force_kick")
+
+    # 违规次数从 1 开始，映射到步骤
+    idx = min(violation.violation_count - 1, len(steps) - 1)
+    idx = max(idx, 0)
+    return steps[idx]
 
 
 async def _log_action(db, action: str, target: str, reason: str | None = None):
@@ -294,12 +350,26 @@ async def _scan_logic(db) -> dict[str, Any]:
         is_violation = matched if not is_whitelist else not matched
 
         if is_violation:
-            logger.warning(f"客户端违规: {user_name} 使用 {client} (device={device_id})")
-            action = base_action
-            if escalation:
-                # TODO: 查违规记录表，按次数递进
-                pass
+            # 查/建违规记录
+            violation = await _get_or_create_violation(db, user_id, device_id, client, "client_blocked")
+
+            # 检查是否在封禁期内
+            if violation.locked_until and violation.locked_until > datetime.now(timezone.utc):
+                logger.info(f"跳过: {user_name} 仍在封禁期内(至{violation.locked_until.isoformat()})")
+                continue
+
+            # 递进决策
+            action = await _resolve_escalation(violation, cp)
+
+            logger.warning(f"客户端违规#{violation.violation_count}: {user_name} 使用 {client} (device={device_id}) → {action}")
             await _execute_client_action(db, session_id, device_id, action, user_name, client)
+
+            # 更新违规记录
+            violation.last_action = action
+            if action == "ban":
+                ban_hours = int(cp.get("ban_hours", 24) or 24)
+                violation.locked_until = datetime.now(timezone.utc) + __import__("datetime").timedelta(hours=ban_hours)
+
             blocked.append({
                 "session_id": session_id,
                 "user_id": user_id,
@@ -309,6 +379,7 @@ async def _scan_logic(db) -> dict[str, Any]:
                 "device_name": device_name,
                 "title": title,
                 "action": action,
+                "violation_count": violation.violation_count,
             })
 
     # 并发越界检测
@@ -605,3 +676,47 @@ async def update_policy(
     await _set_setting(db, POLICY_KEY, policy, group="risk", desc="风控管控策略配置")
     logger.info(f"策略已更新: {policy}")
     return ApiResponse.ok(data=policy, message="策略已保存")
+
+
+@router.get("/violations")
+async def violations_list(
+    db: AsyncSessionDep,
+    _: dict = Depends(get_current_admin),
+    user_id: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+):
+    """查看违规记录"""
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), 200)
+    stmt = select(RiskViolation)
+    count_stmt = select(func.count()).select_from(RiskViolation)
+    if user_id:
+        stmt = stmt.where(RiskViolation.user_id == user_id)
+        count_stmt = count_stmt.where(RiskViolation.user_id == user_id)
+    total = await db.scalar(count_stmt) or 0
+    rows = (await db.execute(
+        stmt.order_by(RiskViolation.last_violation_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return ApiResponse.ok(data={
+        "items": [
+            {
+                "id": r.id, "user_id": r.user_id, "device_id": r.device_id,
+                "client_name": r.client_name, "violation_type": r.violation_type,
+                "violation_count": r.violation_count, "last_action": r.last_action,
+                "last_violation_at": r.last_violation_at, "locked_until": r.locked_until,
+            } for r in rows
+        ],
+        "total": int(total),
+    })
+
+
+@router.delete("/violations/{violation_id}")
+async def violations_reset(violation_id: int, db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
+    """清除单条违规记录"""
+    v = await db.get(RiskViolation, violation_id)
+    if not v:
+        return ApiResponse.error("记录不存在")
+    await db.delete(v)
+    await db.commit()
+    return ApiResponse.ok(message="已清除")

@@ -152,6 +152,31 @@
       </div>
     </div>
 
+    <!-- 违规记录 -->
+    <div class="section-card">
+      <div class="section-head">
+        <span class="section-title">📉 违规记录</span>
+        <n-button text size="tiny" @click="loadViolations">刷新</n-button>
+      </div>
+      <n-empty v-if="violationItems.length === 0" description="暂无记录" />
+      <div v-else class="vi-list">
+        <div v-for="v in violationItems" :key="v.id" class="vi-item" :class="{ 'vi-locked': isLocked(v) }">
+          <div class="vi-main">
+            <span class="vi-client">{{ v.client_name || '未知客户端' }}</span>
+            <span class="vi-type">{{ v.violation_type === 'client_blocked' ? '客户端' : '并发' }}</span>
+            <span class="vi-count">×{{ v.violation_count }}</span>
+            <span v-if="v.last_action" class="vi-last">{{ actionLabel(v.last_action) }}</span>
+          </div>
+          <div class="vi-meta">
+            <span class="vi-user">{{ v.user_id }}</span>
+            <span class="vi-time">{{ fmtTime(v.last_violation_at) }}</span>
+            <n-tag v-if="isLocked(v)" type="error" size="tiny">封禁中</n-tag>
+          </div>
+          <n-button size="tiny" quaternary type="error" @click="deleteViolation(v.id)">清除</n-button>
+        </div>
+      </div>
+    </div>
+
     <!-- 执法日志 -->
     <div class="section-card">
       <div class="section-head"><span class="section-title">📋 执法日志</span></div>
@@ -175,7 +200,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import { riskApi } from '@/api/risk'
-import type { RiskActionLog, ConcurrentItem, RiskPolicy } from '@/api/risk'
+import type { RiskActionLog, ConcurrentItem, RiskPolicy, RiskViolation } from '@/api/risk'
 import apiClient from '@/api/client'
 
 const msg = useMessage()
@@ -194,6 +219,7 @@ const sessionsLoading = ref(false)
 const logs = ref<RiskActionLog[]>([])
 const concurrent = ref<ConcurrentItem[]>([])
 const concurrentLoading = ref(false)
+const violationItems = ref<RiskViolation[]>([])
 const policy = ref<RiskPolicy | null>(null)
 const policyLoading = ref(false)
 const clientActions = [
@@ -229,6 +255,13 @@ async function loadConcurrent() {
   finally { concurrentLoading.value = false }
 }
 async function loadLogs() { try { const r = await riskApi.logs(1, 20); logs.value = r.data?.items ?? [] } catch { logs.value = [] } }
+async function loadViolations() { try { const r = await riskApi.violations(undefined, 1, 50); violationItems.value = r.data?.items ?? [] } catch { violationItems.value = [] } }
+async function deleteViolation(id: number) {
+  try { await riskApi.deleteViolation(id); violationItems.value = violationItems.value.filter(v => v.id !== id); msg.success('已清除') }
+  catch { msg.error('失败') }
+}
+function isLocked(v: RiskViolation) { return v.locked_until && new Date(v.locked_until).getTime() > Date.now() }
+function actionLabel(a: string) { return ({ message: '弹窗', stop: '停止', force_kick: '强踢', ban: '封禁' })[a] ?? a }
 
 async function doKick(sessionId: string, deviceId: string, level: string) {
   kicking.value = level === 'hard' ? sessionId + 'h' : sessionId
@@ -279,7 +312,7 @@ async function savePolicy() {
   } catch { msg.error('保存失败') }
   finally { policyLoading.value = false }
 }
-async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist(), loadSessions(), loadLogs(), loadConcurrent(), loadPolicy()]) }
+async function loadAll() { await Promise.all([loadSummary(), loadEvents(), loadBlacklist(), loadSessions(), loadLogs(), loadConcurrent(), loadPolicy(), loadViolations()]) }
 
 function svType(s: string) { return ({ high: 'error', medium: 'warning', low: 'info' })[s] as any ?? 'default' }
 function svLabel(s: string) { return ({ high: '高危', medium: '中危', low: '低危' })[s] ?? s }
@@ -357,4 +390,16 @@ onMounted(loadAll)
 .rbtn { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
 .rbtn.active { background: var(--primary); color: white; border-color: var(--primary); }
 .rbtn:hover:not(.active) { border-color: var(--primary); }
+
+/* 违规记录 */
+.vi-list { display: flex; flex-direction: column; gap: 6px; }
+.vi-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: var(--bg); flex-wrap: wrap; }
+.vi-item.vi-locked { border-left: 3px solid var(--danger); }
+.vi-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.vi-client { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vi-type { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--border); color: var(--text-muted); }
+.vi-count { font-size: 13px; font-weight: 700; color: var(--warning); }
+.vi-last { font-size: 11px; color: var(--text-muted); }
+.vi-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+.vi-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
 </style>

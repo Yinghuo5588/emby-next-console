@@ -69,3 +69,23 @@ class RiskActionLog(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_risk_action_logs_created_at", "created_at"),
     )
+
+
+class RiskViolation(Base, TimestampMixin):
+    """违规记录追踪表 — 用于复发加重"""
+    __tablename__ = "risk_violations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    device_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    client_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    violation_type: Mapped[str] = mapped_column(String(32), nullable=False)  # client_blocked / concurrent_exceeded
+    violation_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    last_action: Mapped[str | None] = mapped_column(String(32), nullable=True)  # 上次执行了什么
+    last_violation_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # 封禁到期
+
+    __table_args__ = (
+        Index("ix_risk_violations_user_device", "user_id", "device_id"),
+        Index("ix_risk_violations_type", "violation_type"),
+    )

@@ -65,6 +65,18 @@ export interface RiskPolicy {
   }
 }
 
+export interface RiskViolation {
+  id: number
+  user_id: string
+  device_id: string
+  client_name: string
+  violation_type: string
+  violation_count: number
+  last_action: string | null
+  last_violation_at: string
+  locked_until: string | null
+}
+
 export const riskApi = {
   async summary(): Promise<ApiResponse<RiskSummary>> {
     return (await apiClient.get('/risk/summary')).data
@@ -115,5 +127,15 @@ export const riskApi = {
 
   async updatePolicy(data: Partial<RiskPolicy>): Promise<ApiResponse<RiskPolicy>> {
     return (await apiClient.put('/risk/policy', data)).data
+  },
+
+  async violations(userId?: string, page = 1, pageSize = 50): Promise<ApiResponse<{ items: RiskViolation[]; total: number }>> {
+    const params: Record<string, any> = { page, page_size: pageSize }
+    if (userId) params.user_id = userId
+    return (await apiClient.get('/risk/violations', { params })).data
+  },
+
+  async deleteViolation(id: number): Promise<ApiResponse<void>> {
+    return (await apiClient.delete(`/risk/violations/${id}`)).data
   },
 }
