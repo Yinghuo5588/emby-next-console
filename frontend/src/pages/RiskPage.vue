@@ -48,10 +48,18 @@
             <n-input-number v-model:value="policy.client_policy.ban_hours" size="small" :min="1" :max="720" :show-button="false" style="width:80px" />
             <span class="pr-unit">小时</span>
           </div>
-          <div class="pg-title" style="margin-top:10px">弹窗内容（支持 {client} {user_name} {ban_hours} 变量）</div>
-          <div class="pr-row" v-for="m in msgTemplates" :key="m.key">
-            <span class="pr-label">{{ m.label }}</span>
-            <n-input v-model:value="policy.client_policy[m.key]" size="small" placeholder="留空用默认文案" style="flex:1" />
+          <!-- 复发加重开启：显示所有弹窗模板 -->
+          <template v-if="policy.client_policy.escalation">
+            <div class="pg-title" style="margin-top:10px">弹窗内容（支持 {client} {user_name} {ban_hours} 变量）</div>
+            <div class="pr-row" v-for="m in msgTemplates" :key="m.key">
+              <span class="pr-label">{{ m.label }}</span>
+              <n-input v-model:value="policy.client_policy[m.key]" size="small" placeholder="留空用默认文案" style="flex:1" />
+            </div>
+          </template>
+          <!-- 单步操作：只显示当前选中动作的弹窗 -->
+          <div v-else-if="policy.client_policy.action !== 'message'" class="pr-row">
+            <span class="pr-label">{{ currentActionLabel }} 弹窗内容</span>
+            <n-input v-model:value="policy.client_policy[currentMsgKey]" size="small" placeholder="留空用默认文案" style="flex:1" />
           </div>
         </div>
         <!-- 并发管控 -->
@@ -199,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { NButton, NTag, NInput, NEmpty, NSwitch, NInputNumber, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatCard from '@/components/common/StatCard.vue'
@@ -244,6 +252,8 @@ const msgTemplates = [
   { key: 'msg_force_kick', label: '强踢' },
   { key: 'msg_ban', label: '封禁' },
 ]
+const currentActionLabel = computed(() => (msgTemplates.find(m => m.key === 'msg_' + policy.value?.client_policy?.action)?.label) || '')
+const currentMsgKey = computed(() => 'msg_' + (policy.value?.client_policy?.action || ''))
 
 async function loadSummary() { try { summary.value = (await riskApi.summary()).data } catch {} }
 async function loadEvents() {
