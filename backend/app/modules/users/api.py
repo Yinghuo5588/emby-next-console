@@ -29,8 +29,11 @@ class UpdateUserRequest(BaseModel):
     simultaneous_stream_limit: int | None = None
     enable_content_downloading: bool | None = None
     enable_video_transcoding: bool | None = None
-    max_parental_rating: str | None = None
+    max_parental_rating: int | None = None
     enable_remote_access: bool | None = None
+    enable_all_folders: bool | None = None
+    enabled_folders: list[str] | None = None
+    block_unrated_items: list[str] | None = None
     expire_date: str | None = None
     max_concurrent: int | None = None
     is_vip: bool | None = None
@@ -100,6 +103,14 @@ async def batch_ops(body: BatchRequest, _: dict = Depends(get_current_admin)):
         template_user_id=body.template_user_id,
     )
     return ApiResponse.ok(data=data)
+
+
+@router.get("/library-folders")
+async def list_library_folders(_: dict = Depends(get_current_admin)):
+    """获取媒体库列表"""
+    folders = await emby.get_library_virtual_folders()
+    result = [{"value": f.get("Guid", f.get("Name", "")), "label": f.get("Name", "")} for f in folders]
+    return ApiResponse.ok(data=result)
 
 
 @router.get("/{user_id}/avatar")
