@@ -44,6 +44,10 @@
             </div>
           </div>
           <div class="pr-row">
+            <span class="pr-label">复发加重</span>
+            <n-switch v-model:value="policy.client_policy.escalation" size="small" />
+          </div>
+          <div class="pr-row">
             <span class="pr-label">封禁时长</span>
             <n-input-number v-model:value="policy.client_policy.ban_hours" size="small" :min="1" :max="720" :show-button="false" style="width:80px" />
             <span class="pr-unit">小时</span>
