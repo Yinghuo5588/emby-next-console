@@ -34,13 +34,15 @@ export interface UpdateUserRequest {
   simultaneous_stream_limit?: number
   enable_content_downloading?: boolean
   enable_video_transcoding?: boolean
-  max_parental_rating?: string
+  max_parental_rating?: number
   enable_remote_access?: boolean
+  enable_all_folders?: boolean
+  enabled_folders?: string[]
+  block_unrated_items?: string[]
   expire_date?: string
   max_concurrent?: number
   is_vip?: boolean
   note?: string
-  apply_template_id?: string
 }
 
 export const usersApi = {
@@ -49,7 +51,8 @@ export const usersApi = {
   create: (data: CreateUserRequest) => apiClient.post('/manage/users', data),
   update: (id: string, data: UpdateUserRequest) => apiClient.put(`/manage/users/${id}`, data),
   delete: (id: string) => apiClient.delete(`/manage/users/${id}`),
-  batch: (data: { operation: string; user_ids: string[]; days?: number; template_user_id?: string }) =>
+  batch: (data: { operation: string; user_ids: string[]; days?: number }) =>
     apiClient.post('/manage/users/batch', data),
+  libraryFolders: () => apiClient.get('/manage/users/library-folders'),
   avatarUrl: (id: string) => `/api/v1/manage/users/${id}/avatar`,
 }
