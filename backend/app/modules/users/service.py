@@ -280,11 +280,7 @@ async def update_user(user_id: str, **kwargs) -> dict:
         current_policy.update(policy_fields)
         await emby.post(f"/Users/{user_id}/Policy", json=current_policy)
 
-    # 4. 应用模板
-    if "apply_template_id" in kwargs and kwargs["apply_template_id"]:
-        await _clone_policy(kwargs["apply_template_id"], user_id)
-
-    # 5. 更新 meta
+    # 4. 更新 meta
     await _ensure_meta_loaded()
     meta = _meta_cache.get(user_id, {}).copy()
     for key in ["expire_date", "max_concurrent", "is_vip", "note"]:
@@ -325,18 +321,6 @@ async def batch_ops(operation: str, user_ids: list[str], **kwargs) -> dict:
                 days = kwargs.get("days", 30)
                 new_expire = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
                 await update_user(uid, expire_date=new_expire)
-            elif operation == "apply_template":
-                tpl_id = kwargs.get("template_user_id")
-                if tpl_id:
-                    await _clone_policy(tpl_id, uid)
-                    await _ensure_meta_loaded()
-                    meta = _meta_cache.get(uid, {}).copy()
-                    tpl = _meta_cache.get(tpl_id, {})
-                    if tpl.get("max_concurrent"):
-                        meta["max_concurrent"] = tpl["max_concurrent"]
-                    if tpl.get("is_vip"):
-                        meta["is_vip"] = tpl["is_vip"]
-                    await _save_meta(uid, meta)
             results["success"].append(uid)
         except Exception as e:
             results["failed"].append({"user_id": uid, "error": str(e)})
