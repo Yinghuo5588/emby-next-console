@@ -1,18 +1,29 @@
 <template>
   <div class="ctrl-page">
-    <PageHeader title="管控中心" desc="并发管控 · 客户端拦截 · 事件处置">
-      <template #actions>
-        <n-button quaternary size="small" :loading="scanning" @click="handleScan">扫描</n-button>
-        <n-button quaternary size="small" type="warning" :loading="sweeping" @click="handleSweep">扫荡</n-button>
-        <n-button quaternary size="small" @click="loadAll">刷新</n-button>
-      </template>
+    <PageHeader title="管控中心">
     </PageHeader>
 
     <!-- 二级导航 -->
     <div class="risk-tabs">
-      <button v-for="tab in tabs" :key="tab.key" class="risk-tab" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="risk-tab"
+        :class="{ active: activeTab === tab.key, 'has-drawer': tab.key === 'overview' && activeTab === 'overview' }"
+        @click="handleTabClick(tab.key)"
+      >
         {{ tab.label }}
+        <svg v-if="tab.key === 'overview'" class="tab-chevron" :class="{ open: showDrawer }" width="12" height="12" viewBox="0 0 12 12"><polyline points="3,4.5 6,7.5 9,4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
+    </div>
+
+    <!-- 操作抽屉 -->
+    <div v-if="showDrawer" class="action-drawer">
+      <div class="drawer-actions">
+        <n-button size="small" :loading="scanning" @click="handleScan">🔄 扫描</n-button>
+        <n-button size="small" type="warning" :loading="sweeping" @click="handleSweep">🧹 扫荡</n-button>
+        <n-button size="small" @click="loadAll">🔃 刷新</n-button>
+      </div>
     </div>
 
     <!-- ═══ 总览 ═══ -->
@@ -21,7 +32,7 @@
         <StatCard label="待处理" :value="summary?.open_count ?? 0" :danger="(summary?.open_count ?? 0) > 0" />
         <StatCard label="高危" :value="summary?.high_count ?? 0" :danger="(summary?.high_count ?? 0) > 0" />
         <StatCard label="播放中" :value="liveSessions.length" />
-        <StatCard label="黑名单" :value="blacklist.length" />
+        <StatCard label="黑名单" :value="blacklist.length" @click="activeTab = 'policy'" />
       </div>
 
       <!-- 实时播放 -->
@@ -69,23 +80,6 @@
         </div>
       </div>
 
-      <!-- 黑名单 -->
-      <div class="section-card">
-        <div class="section-head"><span class="section-title">🚫 客户端黑名单</span></div>
-        <div class="bl-add">
-          <n-input v-model:value="newItem" placeholder="客户端名称" size="small" @keyup.enter="addBl" />
-          <n-button type="primary" size="small" :disabled="!newItem.trim()" @click="addBl">添加</n-button>
-        </div>
-        <div v-if="suggestions.length > 0" class="bl-suggest">
-          <span class="bl-suggest-label">历史客户端：</span>
-          <button v-for="s in suggestions" :key="s" class="bl-suggest-btn" :class="{ disabled: isBlacklisted(s) }" @click="addBlDirect(s)">{{ s }}</button>
-        </div>
-        <n-empty v-if="blacklist.length === 0" description="空" />
-        <div v-else class="bl-tags">
-          <n-tag v-for="item in blacklist" :key="item" closable type="warning" size="small" @close="removeBl(item)">{{ item }}</n-tag>
-        </div>
-      </div>
-
       <!-- 风控事件 -->
       <div class="section-card">
         <div class="section-head">
@@ -117,13 +111,13 @@
 
     <!-- ═══ 策略 ═══ -->
     <template v-if="activeTab === 'policy'">
+      <!-- 策略配置 -->
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">⚙️ 策略配置</span>
           <n-button text size="tiny" :loading="policyLoading" @click="savePolicy">保存</n-button>
         </div>
         <div v-if="policy" class="policy-grid">
-          <!-- 客户端管控 -->
           <div class="policy-group">
             <div class="pg-title">客户端管控</div>
             <div class="pr-row">
@@ -164,7 +158,6 @@
               <n-input v-model:value="policy.client_policy[currentMsgKey]" size="small" placeholder="留空用默认文案" style="flex:1" />
             </div>
           </div>
-          <!-- 并发管控 -->
           <div class="policy-group">
             <div class="pg-title">并发管控</div>
             <div class="pr-row">
@@ -178,6 +171,23 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 黑名单 -->
+      <div class="section-card">
+        <div class="section-head"><span class="section-title">🚫 客户端黑名单</span></div>
+        <div class="bl-add">
+          <n-input v-model:value="newItem" placeholder="客户端名称" size="small" @keyup.enter="addBl" />
+          <n-button type="primary" size="small" :disabled="!newItem.trim()" @click="addBl">添加</n-button>
+        </div>
+        <div v-if="suggestions.length > 0" class="bl-suggest">
+          <span class="bl-suggest-label">历史客户端：</span>
+          <button v-for="s in suggestions" :key="s" class="bl-suggest-btn" :class="{ disabled: isBlacklisted(s) }" @click="addBlDirect(s)">{{ s }}</button>
+        </div>
+        <n-empty v-if="blacklist.length === 0" description="空" />
+        <div v-else class="bl-tags">
+          <n-tag v-for="item in blacklist" :key="item" closable type="warning" size="small" @close="removeBl(item)">{{ item }}</n-tag>
         </div>
       </div>
     </template>
@@ -241,11 +251,21 @@ const msg = useMessage()
 // ── Tab ──
 type TabKey = 'overview' | 'policy' | 'records'
 const activeTab = ref<TabKey>('overview')
+const showDrawer = ref(false)
 const tabs = [
   { key: 'overview' as const, label: '总览' },
   { key: 'policy' as const, label: '策略' },
   { key: 'records' as const, label: '记录' },
 ]
+
+function handleTabClick(key: TabKey) {
+  if (activeTab.value === key && key === 'overview') {
+    showDrawer.value = !showDrawer.value
+  } else {
+    activeTab.value = key
+    showDrawer.value = false
+  }
+}
 
 // ── 数据 ──
 const summary = ref<any>(null)
@@ -416,11 +436,36 @@ onMounted(loadAll)
   font-family: inherit;
   border: none;
   background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 .risk-tab.active {
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.tab-chevron { transition: transform 0.25s; opacity: 0.4; }
+.tab-chevron.open { transform: rotate(180deg); opacity: 0.8; }
+.risk-tab.has-drawer .tab-chevron { opacity: 0.8; }
+
+/* ── 操作抽屉 ── */
+.action-drawer {
+  margin-bottom: 12px;
+  animation: slideDown 0.2s ease;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.drawer-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 /* ── 概览 ── */
@@ -442,8 +487,6 @@ onMounted(loadAll)
 .cc-sess { font-size: 12px; color: var(--text-muted); padding: 2px 0; display: flex; gap: 6px; }
 .cc-client { color: var(--brand); font-weight: 500; white-space: nowrap; }
 .cc-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bl-add { display: flex; gap: 8px; margin-bottom: 10px; }
-.bl-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter-pills { display: flex; gap: 4px; }
 .pill { border: none; background: var(--bg); color: var(--text-muted); font-size: 12px; padding: 4px 10px; border-radius: 20px; cursor: pointer; font-family: inherit; }
 .pill.active { background: var(--brand); color: #fff; }
@@ -471,6 +514,15 @@ onMounted(loadAll)
 .rbtn.active { background: var(--primary); color: white; border-color: var(--primary); }
 .rbtn:hover:not(.active) { border-color: var(--primary); }
 
+/* ── 黑名单 ── */
+.bl-add { display: flex; gap: 8px; margin-bottom: 10px; }
+.bl-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.bl-suggest { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.bl-suggest-label { font-size: 12px; color: var(--text-muted); }
+.bl-suggest-btn { padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--border); background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
+.bl-suggest-btn:hover:not(.disabled) { border-color: var(--primary); border-style: solid; color: var(--primary); }
+.bl-suggest-btn.disabled { opacity: 0.4; cursor: default; text-decoration: line-through; }
+
 /* ── 记录 ── */
 .log-list { display: flex; flex-direction: column; gap: 6px; }
 .log-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: wrap; }
@@ -488,13 +540,6 @@ onMounted(loadAll)
 .vi-last { font-size: 11px; color: var(--text-muted); }
 .vi-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
 .vi-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
-
-/* ── 历史客户端建议 ── */
-.bl-suggest { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.bl-suggest-label { font-size: 12px; color: var(--text-muted); }
-.bl-suggest-btn { padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--border); background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
-.bl-suggest-btn:hover:not(.disabled) { border-color: var(--primary); border-style: solid; color: var(--primary); }
-.bl-suggest-btn.disabled { opacity: 0.4; cursor: default; text-decoration: line-through; }
 
 @media (min-width: 769px) {
   .overview-row { grid-template-columns: repeat(4, 1fr); }
