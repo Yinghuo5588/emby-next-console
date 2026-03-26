@@ -188,7 +188,7 @@ const period = ref('30d')
 const sortBy = ref('duration')
 const page = ref(1)
 const searchText = ref('')
-let searchTimer: ReturnType<typeof setTimeout> | null = null
+let contentSearchTimer: ReturnType<typeof setTimeout> | null = null
 const size = ref(20)
 const total = ref(0)
 const items = ref<any[]>([])
@@ -289,8 +289,8 @@ async function loadRankings() {
 }
 
 function onSearch() {
-  if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => { page.value = 1; loadRankings() }, 400)
+  if (contentSearchTimer) clearTimeout(contentSearchTimer)
+  contentSearchTimer = setTimeout(() => { page.value = 1; loadRankings() }, 400)
 }
 
 async function selectItem(item_id: string) {
