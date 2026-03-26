@@ -72,6 +72,7 @@ export interface RiskPolicy {
 export interface RiskViolation {
   id: number
   user_id: string
+  user_name?: string
   device_id: string
   client_name: string
   violation_type: string

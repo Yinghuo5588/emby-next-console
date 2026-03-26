@@ -725,10 +725,24 @@ async def violations_list(
     rows = (await db.execute(
         stmt.order_by(RiskViolation.last_violation_at.desc()).offset((page - 1) * page_size).limit(page_size)
     )).scalars().all()
+    # 批量查用户名
+    unique_uids = list({r.user_id for r in rows if r.user_id})
+    uid_name_map: dict[str, str] = {}
+    if unique_uids:
+        try:
+            all_emby_users = await emby.get_users()
+            for u in (all_emby_users or []):
+                uid = u.get("Id", "")
+                if uid in unique_uids:
+                    uid_name_map[uid] = u.get("Name", uid)
+        except Exception:
+            pass
     return ApiResponse.ok(data={
         "items": [
             {
-                "id": r.id, "user_id": r.user_id, "device_id": r.device_id,
+                "id": r.id, "user_id": r.user_id,
+                "user_name": uid_name_map.get(r.user_id, r.user_id),
+                "device_id": r.device_id,
                 "client_name": r.client_name, "violation_type": r.violation_type,
                 "violation_count": r.violation_count, "last_action": r.last_action,
                 "last_violation_at": r.last_violation_at, "locked_until": r.locked_until,

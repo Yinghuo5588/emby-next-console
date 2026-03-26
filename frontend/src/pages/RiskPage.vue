@@ -302,7 +302,7 @@
               <span v-if="v.last_action" class="vi-last">{{ actionLabel(v.last_action) }}</span>
             </div>
             <div class="vi-meta">
-              <span class="vi-user">{{ v.user_id }}</span>
+              <span class="vi-user" @click.stop="router.push(`/users/${v.user_id}`)">{{ v.user_name || v.user_id }}</span>
               <span class="vi-time">{{ fmtTime(v.last_violation_at) }}</span>
               <n-tag v-if="isLocked(v)" type="error" size="tiny">封禁中</n-tag>
             </div>
@@ -347,6 +347,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { NButton, NTag, NInput, NEmpty, NSwitch, NInputNumber, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatCard from '@/components/common/StatCard.vue'
@@ -356,6 +357,7 @@ import type { RiskActionLog, ConcurrentItem, RiskPolicy, RiskViolation } from '@
 import apiClient from '@/api/client'
 
 const msg = useMessage()
+const router = useRouter()
 
 type TabKey = 'overview' | 'policy' | 'records'
 const activeTab = ref<TabKey>('overview')
@@ -802,7 +804,8 @@ onMounted(loadAll)
 .vi-count { font-size: 13px; font-weight: 700; color: var(--warning); }
 .vi-last { font-size: 11px; color: var(--text-muted); }
 .vi-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
-.vi-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+.vi-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; color: var(--brand); cursor: pointer; font-weight: 500; }
+.vi-user:hover { text-decoration: underline; }
 
 @media (min-width: 769px) {
   .overview-row { grid-template-columns: repeat(4, 1fr); }
