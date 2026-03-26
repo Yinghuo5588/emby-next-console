@@ -149,10 +149,10 @@
         <div class="detail-section" v-if="detail.viewers?.length > 0">
           <h4>观看用户</h4>
           <div class="viewer-list">
-            <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row" @click="router.push(`/stats/users?user=${v.user_id}`)">
+            <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row">
               <span class="avatar-wrap"><img :src="`/api/v1/manage/users/${v.user_id}/avatar`" @error="($event.target as HTMLImageElement).classList.add('hide')" />{{ v.username?.charAt(0) || '?' }}</span>
               <div class="viewer-body">
-                <div class="viewer-name" @click.stop="router.push(`/users/${v.user_id}`)">{{ v.username }}</div>
+                <div class="viewer-name" @click="router.push(`/users/${v.user_id}`)">{{ v.username }}</div>
                 <div class="viewer-meta">
                   <span class="tag tag-duration">{{ v.duration_hours }}h</span>
                   <span class="tag tag-plays">{{ v.play_count }}次</span>
