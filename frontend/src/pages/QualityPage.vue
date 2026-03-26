@@ -22,8 +22,12 @@
 
     <!-- 扫描状态 -->
     <div v-if="scanStatus.running" class="scan-card">
-      <div class="scan-label">扫描中 {{ scanStatus.scanned }}/{{ scanStatus.total }}</div>
+      <div class="scan-header">
+        <div class="scan-label">扫描中</div>
+        <div class="scan-pct">{{ scanPercent }}%</div>
+      </div>
       <n-progress type="line" :percentage="scanPercent" :show-indicator="false" status="info" :height="6" />
+      <div class="scan-sub">{{ scanStatus.scanned }} / {{ scanStatus.total }} 已扫描</div>
     </div>
     <div v-else-if="scanStatus.error" class="scan-card scan-error">
       <span>❌ {{ scanStatus.error }}</span>
@@ -44,18 +48,19 @@
     <div v-if="hasData" class="charts-section">
       <!-- 分辨率卡片 -->
       <div
-        class="chart-card-wrapper"
+        class="chart-card-wrapper tone-blue"
         :class="{ flipped: flippedCard === 'resolution' }"
         @click="flipCard('resolution')"
       >
         <div class="chart-card-inner">
-          <!-- 正面：环形图 -->
           <div class="chart-card-front">
-            <div class="chart-title">分辨率分布</div>
+            <div class="chart-header">
+              <div class="chart-title">分辨率分布</div>
+              <div class="chart-total">共 {{ resolutionTotal }} 项</div>
+            </div>
             <div ref="resChartRef" class="chart-box"></div>
             <div class="flip-hint">点击查看详情</div>
           </div>
-          <!-- 背面：明细列表 -->
           <div class="chart-card-back">
             <div class="chart-title">分辨率明细</div>
             <div class="detail-rows">
@@ -79,13 +84,16 @@
 
       <!-- 动态范围卡片 -->
       <div
-        class="chart-card-wrapper"
+        class="chart-card-wrapper tone-orange"
         :class="{ flipped: flippedCard === 'range' }"
         @click="flipCard('range')"
       >
         <div class="chart-card-inner">
           <div class="chart-card-front">
-            <div class="chart-title">动态范围分布</div>
+            <div class="chart-header">
+              <div class="chart-title">动态范围分布</div>
+              <div class="chart-total">共 {{ rangeTotal }} 项</div>
+            </div>
             <div ref="vrChartRef" class="chart-box"></div>
             <div class="flip-hint">点击查看详情</div>
           </div>
@@ -113,7 +121,7 @@
 
     <!-- 列表 -->
     <div v-if="hasData" class="list-section">
-      <div v-for="item in items" :key="item.item_id" class="item-row">
+      <div v-for="item in items" :key="item.item_id" class="item-card">
         <div class="item-poster">
           <img
             :src="`/api/v1/proxy/image/${item.item_id}/Primary`"
@@ -143,14 +151,17 @@
 
       <!-- 分页 -->
       <div v-if="totalPages > 1" class="pager-row">
-        <n-button :disabled="page <= 1" size="small" quaternary @click="page--">上一页</n-button>
+        <n-button :disabled="page <= 1" size="small" quaternary round @click="page--">上一页</n-button>
         <span class="pager-info">{{ page }} / {{ totalPages }}</span>
-        <n-button :disabled="page >= totalPages" size="small" quaternary @click="page++">下一页</n-button>
+        <n-button :disabled="page >= totalPages" size="small" quaternary round @click="page++">下一页</n-button>
       </div>
     </div>
 
     <div v-if="!hasData && !scanStatus.running" class="empty-state">
-      <n-empty description="暂无数据，点击开始扫描" />
+      <div class="empty-icon">🎬</div>
+      <div class="empty-title">还没有扫描数据</div>
+      <div class="empty-desc">点击「开始扫描」获取媒体库质量信息</div>
+      <n-button type="primary" size="medium" round @click="startScan">开始扫描</n-button>
     </div>
   </div>
 </template>
@@ -297,6 +308,8 @@ function buildEntries(data: Record<string, number>, order: string[], colors: str
 
 const resolutionEntries = computed(() => buildEntries(overview.value.resolution, RESOLUTION_ORDER, RESOLUTION_COLORS))
 const rangeEntries = computed(() => buildEntries(overview.value.video_range, VR_ORDER, VR_COLORS))
+const resolutionTotal = computed(() => Object.values(overview.value.resolution).reduce((s, v) => s + v, 0))
+const rangeTotal = computed(() => Object.values(overview.value.video_range).reduce((s, v) => s + v, 0))
 
 // ── 图表 ──
 const resChartRef = ref<HTMLElement>()
@@ -504,17 +517,33 @@ onMounted(() => {
   opacity: 0.7;
 }
 
+/* ── 扫描卡片 ── */
 .scan-card {
   background: var(--surface-grouped);
-  border-radius: 12px;
-  padding: 12px 16px;
+  border-radius: 14px;
+  padding: 14px 16px;
   margin-bottom: 12px;
 }
+.scan-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
 .scan-label {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.scan-pct {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--brand);
+}
+.scan-sub {
+  font-size: 11px;
   color: var(--text-muted);
-  margin-bottom: 8px;
   text-align: center;
+  margin-top: 6px;
 }
 .scan-error {
   display: flex;
@@ -528,16 +557,15 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
-/* ── 翻转卡片 ── */
+/* ── 图表卡片区 ── */
 .charts-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .chart-card-wrapper {
-  flex: 1;
   perspective: 800px;
   cursor: pointer;
   min-width: 0;
@@ -546,7 +574,7 @@ onMounted(() => {
 .chart-card-inner {
   position: relative;
   width: 100%;
-  min-height: 230px;
+  min-height: 240px;
   transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   transform-style: preserve-3d;
 }
@@ -561,38 +589,57 @@ onMounted(() => {
   inset: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  background: var(--surface-grouped);
-  border-radius: 14px;
-  padding: 12px 8px 10px;
+  border-radius: 16px;
+  padding: 14px 12px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  border: 1px solid var(--border);
+}
+
+.chart-card-front {
+  background: var(--surface-grouped);
+}
+.tone-blue .chart-card-front {
+  background: linear-gradient(160deg, rgba(0, 122, 255, 0.04) 0%, var(--surface-grouped) 60%);
+}
+.tone-orange .chart-card-front {
+  background: linear-gradient(160deg, rgba(255, 149, 0, 0.04) 0%, var(--surface-grouped) 60%);
 }
 
 .chart-card-back {
   transform: rotateY(180deg);
-  padding: 12px 14px 10px;
+  background: var(--surface-grouped);
+  padding: 14px 16px 12px;
   justify-content: center;
 }
 
-.chart-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-align: center;
+.chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
   margin-bottom: 4px;
+  padding: 0 4px;
 }
-
+.chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.chart-total {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 .chart-box {
   width: 100%;
   height: 180px;
 }
-
 .flip-hint {
   font-size: 10px;
   color: var(--text-muted);
-  opacity: 0.5;
-  margin-top: 4px;
+  opacity: 0.45;
+  margin-top: 6px;
   text-align: center;
 }
 
@@ -600,29 +647,45 @@ onMounted(() => {
 .detail-rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .detail-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.02);
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.015);
   border: 1px solid transparent;
-  transition: border-color 0.15s;
+  transition: all 0.2s;
 }
-
 .detail-row:hover {
-  border-color: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.04);
 }
-
 .detail-row.selected {
   background: rgba(59, 130, 246, 0.08);
   border-color: rgba(59, 130, 246, 0.3);
+}
+
+.tone-blue .detail-row:hover {
+  border-color: rgba(0, 122, 255, 0.25);
+  background: rgba(0, 122, 255, 0.04);
+}
+.tone-blue .detail-row.selected {
+  background: rgba(0, 122, 255, 0.08);
+  border-color: rgba(0, 122, 255, 0.3);
+}
+.tone-orange .detail-row:hover {
+  border-color: rgba(255, 149, 0, 0.25);
+  background: rgba(255, 149, 0, 0.04);
+}
+.tone-orange .detail-row.selected {
+  background: rgba(255, 149, 0, 0.08);
+  border-color: rgba(255, 149, 0, 0.3);
 }
 
 .detail-dot {
@@ -631,23 +694,20 @@ onMounted(() => {
   border-radius: 50%;
   flex-shrink: 0;
 }
-
 .detail-name {
   flex: 1;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
-
 .detail-count {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text);
 }
-
 .detail-pct {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
-  width: 36px;
+  width: 42px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -656,25 +716,31 @@ onMounted(() => {
 .list-section {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
-.item-row {
+.item-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 0.5px solid var(--separator);
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-grouped);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  transition: box-shadow 0.2s;
+}
+.item-card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
 }
 
 .item-poster {
-  width: 44px;
-  height: 62px;
-  border-radius: 8px;
+  width: 46px;
+  height: 64px;
+  border-radius: 10px;
   overflow: hidden;
   background: var(--bg-secondary);
   flex-shrink: 0;
 }
-
 .item-poster img {
   width: 100%;
   height: 100%;
@@ -685,20 +751,18 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
 }
-
 .item-name {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .item-meta {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 4px;
+  margin-top: 5px;
 }
 
 .pager-row {
@@ -709,21 +773,38 @@ onMounted(() => {
   margin-top: 16px;
   padding-bottom: 20px;
 }
-
 .pager-info {
   font-size: 13px;
   color: var(--text-muted);
+  font-weight: 500;
 }
 
+/* ── 空状态 ── */
 .empty-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: 260px;
+  gap: 10px;
+}
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.empty-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
 }
 
 @media (min-width: 769px) {
   .chart-box { height: 220px; }
-  .chart-card-inner { min-height: 270px; }
+  .chart-card-inner { min-height: 280px; }
 }
 </style>
