@@ -30,10 +30,13 @@
       <n-button size="tiny" type="error" @click="startScan">重试</n-button>
     </div>
 
-    <!-- 清除筛选按钮 -->
-    <div v-if="activeFilter" class="action-row">
-      <n-tag type="info" size="small" round closable @close="clearFilter">
+    <!-- 清除筛选/退出忽略 -->
+    <div v-if="activeFilter || isIgnoredView" class="action-row">
+      <n-tag v-if="activeFilter" type="info" size="small" round closable @close="clearFilter">
         {{ activeFilter }}
+      </n-tag>
+      <n-tag v-if="isIgnoredView" type="warning" size="small" round closable @close="exitIgnoredView">
+        已忽略内容
       </n-tag>
     </div>
 
@@ -124,7 +127,7 @@
           <div class="item-meta">
             <n-tag :type="resTagType(item.resolution)" size="tiny" round>{{ item.resolution }}</n-tag>
             <n-tag :type="vrTagType(item.video_range)" size="tiny" round>{{ item.video_range }}</n-tag>
-            <span class="item-type">{{ item.item_type === 'Movie' ? '电影' : '剧集' }}</span>
+            <n-tag type="default" size="tiny" round>{{ item.item_type === 'Movie' ? '电影' : '剧集' }}</n-tag>
           </div>
         </div>
         <n-button
@@ -228,10 +231,15 @@ function toggleRangeFilter(key: string) {
 async function openIgnoredView() {
   filterResolution.value = null
   filterRange.value = null
-  // 切换到忽略筛选：我们用 is_ignored 参数
   isIgnoredView.value = true
   page.value = 1
   await loadIgnoredItems()
+}
+
+async function exitIgnoredView() {
+  isIgnoredView.value = false
+  page.value = 1
+  await loadItems()
 }
 
 const isIgnoredView = ref(false)
@@ -269,9 +277,9 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
 // ── 明细 ──
 const RESOLUTION_ORDER = ['4K', '1080P', '720P', 'SD']
-const RESOLUTION_COLORS = ['#007AFF', '#5AC8FA', '#5856D6', '#8E8E93']
+const RESOLUTION_COLORS = ['#007AFF', '#5AC8FA', '#5856D6', '#A284E0']
 const VR_ORDER = ['Dolby Vision', 'HDR10+', 'HDR10', 'HLG', 'SDR']
-const VR_COLORS = ['#FF9500', '#FF3B30', '#FF6B35', '#AF52DE', '#8E8E93']
+const VR_COLORS = ['#FF9500', '#FF3B30', '#FF6B35', '#AF52DE', '#5AC8FA']
 
 interface DetailEntry { key: string; count: number; percent: number; color: string }
 
@@ -523,6 +531,7 @@ onMounted(() => {
 /* ── 翻转卡片 ── */
 .charts-section {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -692,11 +701,6 @@ onMounted(() => {
   margin-top: 4px;
 }
 
-.item-type {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
 .pager-row {
   display: flex;
   align-items: center;
@@ -719,7 +723,6 @@ onMounted(() => {
 }
 
 @media (min-width: 769px) {
-  .charts-section { gap: 16px; }
   .chart-box { height: 220px; }
   .chart-card-inner { min-height: 270px; }
 }
