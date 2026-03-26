@@ -9,6 +9,7 @@ import httpx
 from app.core.emby import emby
 from app.core.settings import settings
 from app.db.models.calendar import CalendarEntry
+from app.db.models.system import SystemSetting
 from app.db.session import AsyncSessionFactory
 from sqlalchemy import select, and_, or_
 
@@ -18,37 +19,41 @@ logger = logging.getLogger("app.calendar")
 _cache: dict = {}
 CACHE_TTL = timedelta(hours=24)
 
-PROXY = None  # 如需代理，在 settings 里加 PROXY_URL
+TMDB_IMG_BASE = "https://image.tmdb.org/t/p/w300"
 
 
 def _pad(n: int) -> str:
     return f"{n:02d}"
 
 
+async def _get_tmdb_img_proxy() -> str:
+    """获取 TMDB 图片代理域名（从数据库 settings 读取）"""
+    try:
+        async with AsyncSessionFactory() as db:
+            result = await db.execute(select(SystemSetting).where(SystemSetting.setting_key == "TMDB_IMG_PROXY"))
+            row = result.scalar_one_or_none()
+            if row and row.value_json:
+                return str(row.value_json).rstrip("/")
+    except Exception:
+        pass
+    return ""
+
+
+def _build_poster_url(poster_path: str | None, img_proxy: str) -> str:
+    """构建海报 URL（支持代理替换）"""
+    if not poster_path:
+        return ""
+    if img_proxy:
+        return f"{img_proxy}/t/p/w300{poster_path}"
+    return f"{TMDB_IMG_BASE}{poster_path}"
+
+
 # ════════════════════════════════════════════════════════════
 # Emby 交互
 # ════════════════════════════════════════════════════════════
 
-async def _get_admin_id() -> str | None:
-    """获取第一个管理员 ID"""
-    try:
-        resp = await emby.get("/Users")
-        if resp.status_code != 200:
-            return None
-        for u in resp.json():
-            if u.get("Policy", {}).get("IsAdministrator"):
-                return u["Id"]
-        users = resp.json()
-        return users[0]["Id"] if users else None
-    except Exception:
-        return None
-
-
 async def _get_continuing_series() -> list[dict]:
     """获取 Emby 中状态为 Continuing 且有 TMDB ID 的剧集"""
-    admin_id = await _get_admin_id()
-    if not admin_id:
-        return []
     try:
         resp = await emby.get("/Items", params={
             "IncludeItemTypes": "Series",
@@ -64,7 +69,6 @@ async def _get_continuing_series() -> list[dict]:
         for item in items:
             providers = item.get("ProviderIds") or {}
             tmdb_id = providers.get("Tmdb") or providers.get("TMDB")
-            # 状态为 Continuing 才加入（没标状态的也加进去）
             status = item.get("Status", "")
             if status and status != "Continuing":
                 continue
@@ -83,10 +87,7 @@ async def _get_continuing_series() -> list[dict]:
 
 
 async def _check_episode_exists(series_id: str, season: int, episode: int) -> bool:
-    """
-    严格物理校验：检查 Emby 中该集是否实际存在（非虚拟占位符）。
-    检查 Path、MediaSources、LocationType 字段。
-    """
+    """严格物理校验：检查 Emby 中该集是否实际存在"""
     try:
         resp = await emby.get("/Items", params={
             "ParentId": series_id,
@@ -99,12 +100,10 @@ async def _check_episode_exists(series_id: str, season: int, episode: int) -> bo
             return False
         for item in resp.json().get("Items", []):
             if item.get("ParentIndexNumber") == season and item.get("IndexNumber") == episode:
-                # 过滤虚拟和缺失标记
                 if item.get("LocationType") == "Virtual":
                     continue
                 if item.get("IsMissing"):
                     continue
-                # 物理路径校验
                 if item.get("Path") or item.get("MediaSources"):
                     return True
         return False
@@ -116,17 +115,16 @@ async def _check_episode_exists(series_id: str, season: int, episode: int) -> bo
 # TMDB 交互
 # ════════════════════════════════════════════════════════════
 
-async def _fetch_tmdb_episodes(tmdb_id: int, week_start: date, week_end: date) -> list[dict]:
+async def _fetch_tmdb_episodes(tmdb_id: int, week_start: date, week_end: date) -> dict:
     """
-    从 TMDB 获取某剧本周播出的集：
-    1. 先查 series 信息 → 拿 last_episode_to_air / next_episode_to_air 锁定目标季
-    2. 遍历目标季的所有集 → 筛出本周的
+    从 TMDB 获取某剧本周播出的集 + 剧集信息（poster_path, overview）。
+    返回 {"poster_path": str, "overview": str, "episodes": [...]}
     """
     api_key = (settings.TMDB_API_KEY or "").strip()
     if not api_key:
-        return []
+        return {"poster_path": None, "overview": "", "episodes": []}
 
-    proxy_cfg = PROXY
+    proxy_cfg = None
     transport = httpx.AsyncHTTPTransport(proxy=proxy_cfg) if proxy_cfg else None
 
     try:
@@ -137,9 +135,10 @@ async def _fetch_tmdb_episodes(tmdb_id: int, week_start: date, week_end: date) -
                 params={"api_key": api_key, "language": "zh-CN"},
             )
             if resp.status_code != 200:
-                return []
+                return {"poster_path": None, "overview": "", "episodes": []}
             data = resp.json()
-            overview = data.get("overview", "")
+            series_overview = data.get("overview", "") or ""
+            poster_path = data.get("poster_path") or ""
 
             # 2. 锁定目标季
             target_seasons: set[int] = set()
@@ -150,7 +149,6 @@ async def _fetch_tmdb_episodes(tmdb_id: int, week_start: date, week_end: date) -
             if next_ep and next_ep.get("season_number") is not None:
                 target_seasons.add(next_ep["season_number"])
             if not target_seasons:
-                # 没有播放信息，尝试最后一季
                 seasons = data.get("seasons", [])
                 if seasons:
                     target_seasons.add(seasons[-1].get("season_number", 0))
@@ -181,22 +179,25 @@ async def _fetch_tmdb_episodes(tmdb_id: int, week_start: date, week_end: date) -
                             "episode": ep.get("episode_number", 0),
                             "episode_name": ep.get("name") or f"第{ep.get('episode_number', 0)}集",
                             "air_date": air_date_str,
-                            "overview": ep.get("overview", ""),
-                            "series_overview": overview,
+                            "ep_overview": ep.get("overview", "") or "",
                         })
 
-            return episodes
+            return {
+                "poster_path": poster_path,
+                "overview": series_overview,
+                "episodes": episodes,
+            }
     except Exception as e:
         logger.warning(f"TMDB tv/{tmdb_id} 查询失败: {e}")
-        return []
+        return {"poster_path": None, "overview": "", "episodes": []}
 
 
 # ════════════════════════════════════════════════════════════
-# SQLite 持久化（复用 CalendarEntry 表）
+# 持久化
 # ════════════════════════════════════════════════════════════
 
 async def _save_to_db(items: list[dict]):
-    """将剧集条目写入 calendar_entries 表（更新已有条目的状态）"""
+    """将剧集条目写入 calendar_entries 表"""
     async with AsyncSessionFactory() as db:
         for item in items:
             if not all([item.get("series_id"), item.get("season"), item.get("episode")]):
@@ -208,7 +209,7 @@ async def _save_to_db(items: list[dict]):
                 episode_number=item["episode"],
                 episode_title=item.get("episode_name", ""),
                 air_date=date.fromisoformat(item["air_date"]),
-                overview=item.get("overview", ""),
+                overview=item.get("ep_overview", ""),
                 has_file=(item.get("status") == "ready"),
             )
             db.add(entry)
@@ -223,27 +224,20 @@ async def _save_to_db(items: list[dict]):
 # ════════════════════════════════════════════════════════════
 
 async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False) -> dict:
-    """
-    获取指定周的日历数据。
-    逻辑：内存缓存 → TMDB API（并发抓取）→ Emby 入库校验 → 格式化返回
-    """
+    """获取指定周的日历数据"""
     now = datetime.now(timezone.utc)
     cache_key = f"week_{week_offset}"
 
-    # 1. 检查内存缓存
     if not force_refresh:
         cached = _cache.get(cache_key)
         if cached and cached.get("expires") and cached["expires"] > now:
             return cached["data"]
 
-    # 2. 计算目标周的日期范围
     today = date.today()
     target = today + timedelta(weeks=week_offset)
-    # 周一到周日
     week_start = target - timedelta(days=target.weekday())
     week_end = week_start + timedelta(days=6)
 
-    # 3. 获取 Continuing 剧集
     series_list = await _get_continuing_series()
     if not series_list:
         result = {
@@ -254,7 +248,10 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
         _cache[cache_key] = {"data": result, "expires": now + CACHE_TTL}
         return result
 
-    # 4. 并发抓取 TMDB + Emby 入库校验
+    # 获取 TMDB 图片代理
+    img_proxy = await _get_tmdb_img_proxy()
+
+    # 并发抓取 TMDB + Emby 入库校验
     sem = asyncio.Semaphore(5)
     all_episodes: list[dict] = []
     valid_series = 0
@@ -262,12 +259,13 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
     async def process_series(s: dict):
         nonlocal valid_series
         async with sem:
-            tmdb_eps = await _fetch_tmdb_episodes(s["tmdb_id"], week_start, week_end)
-            if not tmdb_eps:
+            tmdb_data = await _fetch_tmdb_episodes(s["tmdb_id"], week_start, week_end)
+            if not tmdb_data["episodes"]:
                 return
             valid_series += 1
-            for ep in tmdb_eps:
-                # 严格物理校验
+            poster_url = _build_poster_url(tmdb_data["poster_path"], img_proxy)
+
+            for ep in tmdb_data["episodes"]:
                 has_file = await _check_episode_exists(s["id"], ep["season"], ep["episode"])
                 air_date = date.fromisoformat(ep["air_date"])
                 if has_file:
@@ -288,14 +286,14 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
                     "episode_name": ep["episode_name"],
                     "air_date": ep["air_date"],
                     "status": status,
-                    "overview": ep.get("overview", ""),
-                    "series_overview": ep.get("series_overview", ""),
-                    "poster_url": f"/api/v1/proxy/smart_image?item_id={s['id']}&type=Primary",
+                    "ep_overview": ep.get("ep_overview", ""),
+                    "series_overview": tmdb_data["overview"],
+                    "poster_url": poster_url or f"/api/v1/proxy/smart_image?item_id={s['id']}&type=Primary",
                 })
 
     await asyncio.gather(*[process_series(s) for s in series_list])
 
-    # 5. 按天分组 + 多集聚合
+    # 按天分组 + 多集聚合
     day_data: dict[int, list] = {i: [] for i in range(7)}
     for ep in all_episodes:
         try:
@@ -312,7 +310,6 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
     final_days = []
     for i in range(7):
         items = day_data[i]
-        # 多集聚同一天同一剧同一季
         grouped: dict[tuple, list] = {}
         for item in items:
             key = (item["tmdb_id"], item["season"])
@@ -326,7 +323,6 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
             if len(group) <= 1:
                 merged.extend(group)
             else:
-                # 合并: S01E01-E02
                 first, last = group[0], group[-1]
                 item = first.copy()
                 item["episode"] = f"{first['episode']}-{last['episode']}"
@@ -361,10 +357,7 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
         },
     }
 
-    # 写入缓存
     _cache[cache_key] = {"data": result, "expires": now + CACHE_TTL}
-
-    # 持久化
     await _save_to_db(all_episodes)
 
     return result
@@ -375,11 +368,7 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
 # ════════════════════════════════════════════════════════════
 
 async def mark_episode_ready(series_id: str, season: int, episode: int):
-    """
-    Webhook 联动：Emby 新剧集入库时调用。
-    直接修改缓存 + DB 中对应条目的状态。
-    """
-    # 清理缓存（下次请求会重新计算）
+    """Webhook 联动：新剧集入库时清理缓存"""
     _cache.clear()
     logger.info(f"🟢 [日历] Webhook 触发入库: Series={series_id} S{season}E{episode}")
 

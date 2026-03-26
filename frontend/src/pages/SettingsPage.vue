@@ -14,6 +14,14 @@
         />
         <n-button type="primary" :loading="tmdbSaving" @click="saveTmdbApiKey">保存</n-button>
       </div>
+      <div class="tmdb-form" style="margin-top: 8px;">
+        <n-input
+          v-model:value="tmdbImgProxy"
+          placeholder="图片代理域名（可选，如 https://tmdb-img.example.com，不填用原站）"
+        />
+        <n-button type="primary" :loading="tmdbProxySaving" @click="saveTmdbProxy">保存代理</n-button>
+      </div>
+      <p class="section-desc" style="margin-top: 4px; font-size: 0.75rem; opacity: 0.6;">替换 https://image.tmdb.org 为代理地址，解决国内访问慢的问题</p>
     </div>
 
     <div class="section-card">
@@ -107,6 +115,8 @@ const health = ref<HealthResponse | null>(null)
 const hLoading = ref(false)
 const tmdbApiKey = ref('')
 const tmdbSaving = ref(false)
+const tmdbImgProxy = ref('')
+const tmdbProxySaving = ref(false)
 
 const labelMap: Record<string, string> = { TMDB_API_KEY: 'TMDB API Key', EMBY_HOST: 'Emby 服务器', EMBY_API_KEY: 'Emby API Key' }
 const webhookToken = ref('')
@@ -160,6 +170,24 @@ async function saveTmdbApiKey() {
   }
 }
 
+async function saveTmdbProxy() {
+  tmdbProxySaving.value = true
+  try {
+    await systemApi.updateSetting('TMDB_IMG_PROXY', tmdbImgProxy.value)
+    msg.success('TMDB 图片代理已保存')
+  } catch {
+    msg.error('保存失败')
+  } finally {
+    tmdbProxySaving.value = false
+  }
+}
+
+function loadTmdbProxy() {
+  for (const s of settings.value) {
+    if (s.setting_key === 'TMDB_IMG_PROXY') tmdbImgProxy.value = s.value_json || s.value || ''
+  }
+}
+
 function masked(item: SettingItem) {
   if (item.setting_key.includes('KEY') && item.value) {
     const v = String(item.value)
@@ -182,6 +210,7 @@ function handleLogout() {
 onMounted(async () => {
   await loadSettings()
   await loadTmdbSetting()
+  loadTmdbProxy()
   loadHealth()
   loadWebhookInfo()
 })

@@ -111,6 +111,10 @@ async def receive_emby_webhook(
     if str(event_type).lower() in PLAYBACK_EVENTS:
         asyncio.create_task(_quick_risk_scan())
 
+    # 新剧集入库触发日历状态更新
+    if str(event_type).lower() in ("library.new", "itemadded", "library_new"):
+        asyncio.create_task(_notify_calendar(payload))
+
     return ApiResponse.ok(message="ok")
 
 
@@ -131,6 +135,21 @@ async def _quick_risk_scan():
         await _auto_unban_expired()
     except Exception as e:
         logger.error(f"Quick risk scan error: {e}")
+
+
+async def _notify_calendar(payload: dict):
+    """通知日历模块新剧集入库，触发状态更新"""
+    try:
+        from app.modules.calendar import service as cal_service
+        item = payload.get("Item", {})
+        if isinstance(item, dict):
+            series_id = item.get("SeriesId", "")
+            season = item.get("ParentIndexNumber", 0)
+            episode = item.get("IndexNumber", 0)
+            if series_id and season and episode:
+                await cal_service.mark_episode_ready(series_id, season, episode)
+    except Exception as e:
+        logger.debug(f"日历通知失败: {e}")
 
 
 @router.get("/info")

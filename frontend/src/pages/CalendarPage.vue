@@ -39,7 +39,7 @@
         v-for="day in days"
         :key="day.date"
         class="day-card"
-        :class="{ today: day.is_today, empty: day.items.length === 0 }"
+        :class="{ today: day.is_today }"
       >
         <!-- 日期头部 -->
         <div class="day-head">
@@ -51,7 +51,7 @@
             </div>
           </div>
           <span v-if="day.is_today" class="today-badge">今天</span>
-          <span v-else class="day-count" v-if="day.items.length > 0">{{ day.items.length }} 集</span>
+          <span v-else-if="day.items.length > 0" class="day-count">{{ day.items.length }} 集</span>
         </div>
 
         <!-- 剧集列表 -->
@@ -60,8 +60,10 @@
             v-for="(item, idx) in day.items"
             :key="`${item.tmdb_id}-${item.season}-${item.episode}-${idx}`"
             class="ep-card"
-            :class="item.status"
+            :class="[item.status, { expanded: expandedId === itemKey(item, idx) }]"
+            @click="toggleExpand(item, idx)"
           >
+            <!-- 主行 -->
             <img :src="item.poster_url" class="ep-poster" loading="lazy" @error="onImgErr" />
             <div class="ep-body">
               <div class="ep-title">{{ item.series_name }}</div>
@@ -71,12 +73,31 @@
               </div>
               <div class="ep-name" v-if="item.episode_name">{{ item.episode_name }}</div>
             </div>
+            <div class="ep-expand-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </div>
+
+            <!-- 展开详情 -->
+            <div class="ep-detail" v-if="expandedId === itemKey(item, idx)">
+              <div class="ep-overview" v-if="item.series_overview">
+                <div class="detail-label">剧集简介</div>
+                <p>{{ item.series_overview }}</p>
+              </div>
+              <div class="ep-overview" v-if="item.ep_overview">
+                <div class="detail-label">本集简介</div>
+                <p>{{ item.ep_overview }}</p>
+              </div>
+              <div class="ep-no-detail" v-if="!item.series_overview && !item.ep_overview">
+                暂无简介
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- 空状态 -->
         <div class="day-empty" v-else>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
           <span>无更新</span>
         </div>
       </div>
@@ -113,12 +134,16 @@ const weekOffset = ref(0)
 const days = ref<any[]>([])
 const dateRange = ref('')
 const stats = reactive({ total_series: 0, total_upcoming: 0, ready: 0, pending: 0 })
+const expandedId = ref('')
 
 function pad(n: any) { return String(n ?? 0).padStart(2, '0') }
 function dayNum(d: string) { return parseInt(d.split('-')[2], 10) }
 function dayFullDate(d: string) {
   const p = d.split('-')
   return `${p[0]}年${parseInt(p[1])}月${parseInt(p[2])}日`
+}
+function itemKey(item: any, idx: number) {
+  return `${item.tmdb_id}-${item.season}-${item.episode}-${idx}`
 }
 function statusClass(s: string) {
   return s === 'ready' ? 'tag-ready' : s === 'missing' ? 'tag-missing' : s === 'today' ? 'tag-today' : 'tag-pending'
@@ -128,6 +153,11 @@ function statusLabel(s: string) {
 }
 function onImgErr(e: Event) {
   (e.target as HTMLImageElement).classList.add('hide')
+}
+
+function toggleExpand(item: any, idx: number) {
+  const key = itemKey(item, idx)
+  expandedId.value = expandedId.value === key ? '' : key
 }
 
 async function loadData(refresh = false) {
@@ -148,6 +178,7 @@ async function loadData(refresh = false) {
 
 function changeWeek(dir: number) {
   weekOffset.value += dir
+  expandedId.value = ''
   loadData()
 }
 
@@ -183,7 +214,6 @@ onMounted(() => loadData())
 /* 天卡片 */
 .day-card { background: var(--card); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 2px solid transparent; }
 .day-card.today { border-color: var(--brand); box-shadow: 0 2px 16px rgba(59,130,246,0.12); }
-.day-card.empty { opacity: 0.6; }
 
 /* 日期头部 */
 .day-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
@@ -200,18 +230,28 @@ onMounted(() => loadData())
 .ep-list { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
 
 /* 单集卡片 */
-.ep-card { display: flex; gap: 12px; padding: 10px; border-radius: 12px; transition: background 0.2s; }
+.ep-card { display: flex; flex-wrap: wrap; padding: 10px; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
 .ep-card.ready { background: rgba(16,185,129,0.06); }
 .ep-card.missing { background: rgba(239,68,68,0.06); }
 .ep-card.today { background: rgba(59,130,246,0.06); }
 .ep-card.upcoming { background: rgba(245,158,11,0.06); }
+.ep-card.expanded { background: rgba(0,0,0,0.04); }
 .ep-poster { width: 52px; height: 72px; border-radius: 10px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 .ep-poster.hide { display: none; }
-.ep-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.ep-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding-left: 12px; }
 .ep-title { font-size: 0.95rem; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ep-meta-row { display: flex; align-items: center; gap: 8px; }
 .ep-num { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
 .ep-name { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep-expand-icon { display: flex; align-items: center; padding: 0 4px; color: var(--text-muted); transition: transform 0.2s; }
+.ep-card.expanded .ep-expand-icon { transform: rotate(180deg); }
+
+/* 展开详情 */
+.ep-detail { width: 100%; padding: 12px 0 4px; border-top: 1px solid var(--border); margin-top: 8px; }
+.ep-overview { margin-bottom: 8px; }
+.detail-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
+.ep-overview p { font-size: 0.82rem; color: var(--text); line-height: 1.6; margin: 0; }
+.ep-no-detail { font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 8px 0; }
 
 /* Tags */
 .tag { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; }
@@ -221,7 +261,7 @@ onMounted(() => loadData())
 .tag-pending { background: rgba(245,158,11,0.15); color: #f59e0b; }
 
 /* 空日 */
-.day-empty { display: flex; align-items: center; justify-content: center; padding: 1.2rem 0; gap: 6px; color: var(--text-muted); font-size: 0.8rem; }
+.day-empty { display: flex; align-items: center; justify-content: center; padding: 1.2rem 0; color: var(--text-muted); font-size: 0.8rem; opacity: 0.5; }
 
 /* 加载 / 空 */
 .loading-wrap, .empty-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; padding: 4rem 1rem; color: var(--text-muted); font-size: 0.9rem; }
