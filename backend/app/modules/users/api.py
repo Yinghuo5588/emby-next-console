@@ -130,7 +130,5 @@ async def get_avatar(user_id: str):
                 return Response(content=resp.content, media_type=resp.headers.get("content-type", "image/jpeg"))
     except Exception:
         pass
-    # 默认返回空 1x1 透明 PNG
-    import base64
-    empty_png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
-    return Response(content=empty_png, media_type="image/png")
+    # Emby 没有头像 → 返回 404，前端显示首字母 fallback
+    return Response(status_code=404)
