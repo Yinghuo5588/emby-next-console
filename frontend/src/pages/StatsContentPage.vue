@@ -148,7 +148,7 @@
           <h4>观看用户</h4>
           <div class="viewer-list">
             <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row">
-              <n-avatar :src="`/api/v1/proxy/user_image/${v.user_id}`" :size="28" round fallback-src="">{{ v.username?.charAt(0) || '?' }}</n-avatar>
+              <n-avatar :src="`/api/v1/manage/users/${v.user_id}/avatar`" :size="28" round fallback-src="">{{ v.username?.charAt(0) || '?' }}</n-avatar>
               <div class="viewer-body">
                 <div class="viewer-name">{{ v.username }}</div>
                 <div class="viewer-meta">{{ v.duration_hours }}h · {{ v.play_count }}次</div>
