@@ -63,6 +63,10 @@ services:
   frontend:
     image: ghcr.io/${GITHUB_REPOSITORY:-owner/emby-next-console}-frontend:latest
     container_name: emby-frontend
+    build:
+      context: ./frontend
+      args:
+        CACHE_BUST: "1"
     ports:
       - "3000:80"
     depends_on:
