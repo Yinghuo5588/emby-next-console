@@ -10,6 +10,14 @@
       <n-tag v-if="selectedUserId" size="small" closable @click="clearUserFilter">👤 {{ selectedUserName }}</n-tag>
     </div>
 
+    <div class="search-bar">
+      <n-input v-model:value="searchText" placeholder="搜索影视名称..." clearable size="small" @update:value="onSearch">
+        <template #prefix>
+          <n-icon size="14"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></n-icon>
+        </template>
+      </n-input>
+    </div>
+
     <div class="content-list">
       <div v-if="loading" class="empty-text">加载中...</div>
       <div v-else-if="items.length === 0" class="empty-text">暂无数据</div>
@@ -179,6 +187,8 @@ const contentType = ref('all')
 const period = ref('30d')
 const sortBy = ref('duration')
 const page = ref(1)
+const searchText = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 const size = ref(20)
 const total = ref(0)
 const items = ref<any[]>([])
@@ -266,6 +276,7 @@ async function loadRankings() {
       type: contentType.value,
       period: period.value,
       sort: sortBy.value,
+      search: searchText.value || undefined,
       page: page.value,
       size: size.value,
     }
@@ -275,6 +286,11 @@ async function loadRankings() {
     items.value = data.items || []
     total.value = data.total || 0
   } finally { loading.value = false }
+}
+
+function onSearch() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { page.value = 1; loadRankings() }, 400)
 }
 
 async function selectItem(item_id: string) {
@@ -292,6 +308,7 @@ onMounted(() => { loadRankings() })
 <style scoped>
 .stats-page { padding: 0.5rem 0; }
 .active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.search-bar { margin-bottom: 10px; }
 .card-list { display: flex; flex-direction: column; gap: 10px; }
 
 /* ===== 简洁卡片 ===== */

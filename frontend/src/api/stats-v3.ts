@@ -94,7 +94,7 @@ export const statsApiV3 = {
     client.get('/stats/top-content', { params: { limit, period } }),
   topUsers: (limit: number = 5, period: string = '7d') =>
     client.get('/stats/top-users', { params: { limit, period } }),
-  contentRankings: (params: { type?: string; period?: string; sort?: string; page?: number; size?: number; user_id?: string }) =>
+  contentRankings: (params: { type?: string; period?: string; sort?: string; search?: string; page?: number; size?: number; user_id?: string }) =>
     client.get('/stats/content-rankings', { params }),
   contentDetail: (item_id: string) => client.get(`/stats/content/${item_id}`),
   userRankings: (params: { period?: string; page?: number; size?: number }) =>

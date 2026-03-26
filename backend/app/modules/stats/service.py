@@ -248,6 +248,7 @@ async def get_content_rankings(
     content_type: str = "all",
     period: str = "30d",
     sort: str = "duration",
+    search: str = None,
     page: int = 1,
     size: int = 20,
     user_id: str = None,
@@ -293,6 +294,11 @@ async def get_content_rankings(
         key=lambda x: x["total_duration_min"] if sort == "duration" else x["play_count"],
         reverse=True,
     )
+
+    # 搜索过滤
+    if search:
+        kw = search.strip().lower()
+        all_items = [x for x in all_items if kw in x["name"].lower()]
 
     total = len(all_items)
     start = (page - 1) * size

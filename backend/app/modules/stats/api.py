@@ -76,6 +76,7 @@ async def content_rankings(
     type: str = Query("all", regex=r"^(all|movie|series)$"),
     period: str = Query("30d", regex=r"^(30d|90d|all)$"),
     sort: str = Query("duration", regex=r"^(duration|count)$"),
+    search: str = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=50),
     user_id: str = Query(None),
@@ -83,7 +84,7 @@ async def content_rankings(
 ):
     """内容排行榜（筛选+分页）"""
     data = await service.get_content_rankings(
-        content_type=type, period=period, sort=sort, page=page, size=size, user_id=user_id
+        content_type=type, period=period, sort=sort, search=search, page=page, size=size, user_id=user_id
     )
     return ApiResponse.ok(data=data)
 
