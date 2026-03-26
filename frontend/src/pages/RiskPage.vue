@@ -266,10 +266,7 @@
         <div class="bl-add">
           <n-input v-model:value="newItem" placeholder="客户端名称" size="small" @keyup.enter="addBl" />
           <n-button type="primary" size="small" :disabled="!newItem.trim()" @click="addBl">添加</n-button>
-        </div>
-        <div v-if="suggestions.length > 0" class="bl-suggest">
-          <span class="bl-suggest-label">历史客户端：</span>
-          <button v-for="s in suggestions" :key="s" class="bl-suggest-btn" :class="{ disabled: isBlacklisted(s) }" @click="addBlDirect(s)">{{ s }}</button>
+          <n-button size="small" quaternary @click="showHistory = true">历史客户端</n-button>
         </div>
         <n-empty v-if="blacklist.length === 0" description="空" />
         <div v-else class="bl-tags">
@@ -336,6 +333,26 @@
         </div>
       </div>
     </template>
+
+    <!-- 历史客户端抽屉 -->
+    <div v-if="showHistory" class="vi-detail-overlay" @click="showHistory = false">
+      <div class="vi-detail-drawer" @click.stop>
+        <div class="vi-detail-head">
+          <span>历史客户端</span>
+          <n-button quaternary size="tiny" @click="showHistory = false">✕</n-button>
+        </div>
+        <div class="vi-detail-body">
+          <div v-if="suggestions.length === 0" class="empty-sm">暂无记录</div>
+          <div v-else class="bl-history-list">
+            <div v-for="s in suggestions" :key="s" class="bl-history-item">
+              <span class="bl-history-name">{{ s }}</span>
+              <n-button v-if="!isBlacklisted(s)" size="tiny" type="warning" @click="addBlDirect(s)">拉黑</n-button>
+              <n-tag v-else size="tiny" type="warning">已拉黑</n-tag>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 违规详情抽屉 -->
     <div v-if="viDetail" class="vi-detail-overlay" @click="viDetail = null">
@@ -404,6 +421,7 @@ const scanning = ref(false)
 const sweeping = ref(false)
 const blacklist = ref<string[]>([])
 const newItem = ref('')
+const showHistory = ref(false)
 const suggestions = ref<string[]>([])
 const evFilter = reactive({ status: 'open' })
 const liveSessions = ref<any[]>([])
@@ -747,6 +765,12 @@ onMounted(loadAll)
 .bl-suggest-btn { padding: 3px 8px; border-radius: 8px; border: 1px dashed var(--border); background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
 .bl-suggest-btn:hover:not(.disabled) { border-color: var(--brand); border-style: solid; color: var(--brand); }
 .bl-suggest-btn.disabled { opacity: 0.4; cursor: default; text-decoration: line-through; }
+
+/* 历史客户端 */
+.bl-history-list { display: flex; flex-direction: column; gap: 4px; }
+.bl-history-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.bl-history-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty-sm { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 13px; }
 
 .log-list {
   position: relative;
