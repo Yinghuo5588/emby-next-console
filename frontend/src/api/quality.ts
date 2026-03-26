@@ -21,13 +21,13 @@ export interface QualityItem {
 }
 
 export const qualityApi = {
-  startScan: () => apiClient.post('/quality/scan'),
-  scanStatus: () => apiClient.get('/quality/scan-status'),
-  overview: () => apiClient.get<QualityOverview>('/quality/overview'),
+  startScan: () => apiClient.post('/quality/scan').then(r => r.data),
+  scanStatus: () => apiClient.get('/quality/scan-status').then(r => r.data),
+  overview: (): Promise<QualityOverview> => apiClient.get('/quality/overview').then(r => r.data),
   items: (params: {
     resolution?: string; video_range?: string; is_ignored?: boolean
     sort?: string; page?: number; size?: number
-  }) => apiClient.get('/quality/items', { params }),
-  ignore: (id: string) => apiClient.post(`/quality/${id}/ignore`),
-  unignore: (id: string) => apiClient.delete(`/quality/${id}/ignore`),
+  }) => apiClient.get('/quality/items', { params }).then(r => r.data),
+  ignore: (id: string) => apiClient.post(`/quality/${id}/ignore`).then(r => r.data),
+  unignore: (id: string) => apiClient.delete(`/quality/${id}/ignore`).then(r => r.data),
 }
