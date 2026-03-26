@@ -20,9 +20,40 @@
     <!-- 操作抽屉 -->
     <div v-if="showDrawer" class="action-drawer">
       <div class="drawer-actions">
-        <n-button size="small" :loading="scanning" @click="handleScan">🔄 扫描</n-button>
-        <n-button size="small" type="warning" :loading="sweeping" @click="handleSweep">🧹 扫荡</n-button>
-        <n-button size="small" @click="loadAll">🔃 刷新</n-button>
+        <n-button size="small" :loading="scanning" @click="handleScan">
+          <span class="btn-content">
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M13 3V6H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M3 13V10H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4.2 6.3A4.8 4.8 0 0 1 13 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M11.8 9.7A4.8 4.8 0 0 1 3 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>扫描</span>
+          </span>
+        </n-button>
+        <n-button size="small" type="warning" :loading="sweeping" @click="handleSweep">
+          <span class="btn-content">
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M6 3.5h6.5l-1.6 3.1c-.2.4-.6.7-1.1.7H7.7c-.5 0-.9-.3-1.1-.7L5 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M4 12.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M7 7.5 5.5 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M9 7.5l1.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M4 3.5h1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>扫荡</span>
+          </span>
+        </n-button>
+        <n-button size="small" @click="loadAll">
+          <span class="btn-content">
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M13 3V6H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M3 13V10H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4.2 6.3A4.8 4.8 0 0 1 13 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M11.8 9.7A4.8 4.8 0 0 1 3 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>刷新</span>
+          </span>
+        </n-button>
       </div>
     </div>
 
@@ -38,7 +69,13 @@
       <!-- 实时播放 -->
       <div class="section-card">
         <div class="section-head">
-          <span class="section-title">🔴 实时播放</span>
+          <span class="section-title">
+            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" fill="currentColor" fill-opacity="0.12"/>
+              <path d="M6.4 5.4 10.6 8l-4.2 2.6V5.4Z" fill="currentColor"/>
+            </svg>
+            <span>实时播放</span>
+          </span>
           <n-button text size="tiny" @click="loadSessions">刷新</n-button>
         </div>
         <LoadingState v-if="sessionsLoading" compact />
@@ -46,7 +83,13 @@
         <div v-else class="session-list">
           <div v-for="s in liveSessions" :key="s.Id" class="session-card">
             <div class="sc-top">
-              <span class="sc-user">{{ s.UserName || '未知' }}</span>
+              <span class="sc-user-wrap">
+                <svg class="user-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="5.2" r="2.4" stroke="currentColor" stroke-width="1.4"/>
+                  <path d="M3.8 12.5c.9-2 2.4-3 4.2-3s3.3 1 4.2 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                <span class="sc-user">{{ s.UserName || '未知' }}</span>
+              </span>
               <n-tag v-if="s.Client" size="tiny" type="info">{{ s.Client }}</n-tag>
             </div>
             <div class="sc-media">{{ s.NowPlayingItem?.Name || '-' }}</div>
@@ -61,7 +104,14 @@
       <!-- 并发状态 -->
       <div class="section-card">
         <div class="section-head">
-          <span class="section-title">📊 并发状态</span>
+          <span class="section-title">
+            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 12.5V8.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M8 12.5V4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M13 12.5V6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            <span>并发状态</span>
+          </span>
           <n-button text size="tiny" @click="loadConcurrent">刷新</n-button>
         </div>
         <LoadingState v-if="concurrentLoading" compact />
@@ -83,7 +133,14 @@
       <!-- 风控事件 -->
       <div class="section-card">
         <div class="section-head">
-          <span class="section-title">⚠️ 风控事件</span>
+          <span class="section-title">
+            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 2.6 13.2 11.8c.4.7-.1 1.6-.9 1.6H3.7c-.8 0-1.3-.9-.9-1.6L8 2.6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M8 6v3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="8" cy="11.3" r=".75" fill="currentColor"/>
+            </svg>
+            <span>风控事件</span>
+          </span>
           <div class="filter-pills">
             <button v-for="s in ['', 'open', 'resolved', 'ignored']" :key="s" class="pill" :class="{ active: evFilter.status === s }" @click="evFilter.status = s; loadEvents()">{{ sLabel(s) }}</button>
           </div>
@@ -93,7 +150,15 @@
         <div v-else class="ev-list">
           <div v-for="ev in events" :key="ev.event_id" class="ev-item" :class="{ 'ev-high': ev.severity === 'high' && ev.status === 'open', 'ev-open': ev.status === 'open' }">
             <div class="ev-main">
-              <div class="ev-title"><n-tag :type="svType(ev.severity)" size="tiny">{{ svLabel(ev.severity) }}</n-tag> <span>{{ ev.title }}</span></div>
+              <div class="ev-title">
+                <n-tag :type="svType(ev.severity)" size="tiny">
+                  <span class="sev-tag-inner">
+                    <span class="sev-dot" :class="`sev-${ev.severity}`"></span>
+                    <span>{{ svLabel(ev.severity) }}</span>
+                  </span>
+                </n-tag>
+                <span>{{ ev.title }}</span>
+              </div>
               <div class="ev-desc">{{ ev.description || '-' }}</div>
               <div class="ev-time">{{ fmtTime(ev.detected_at) }}</div>
             </div>
@@ -114,11 +179,24 @@
       <!-- 策略配置 -->
       <div class="section-card">
         <div class="section-head">
-          <span class="section-title">⚙️ 策略配置</span>
+          <span class="section-title">
+            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 2.8v1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="M8 11.8v1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="M3.6 8H2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="M13.8 8h-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="m4.9 4.9-1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="m12.1 12.1-1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="m11.1 4.9 1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <path d="m3.9 12.1 1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="8" cy="8" r="2.4" stroke="currentColor" stroke-width="1.4"/>
+            </svg>
+            <span>策略配置</span>
+          </span>
           <n-button text size="tiny" :loading="policyLoading" @click="savePolicy">保存</n-button>
         </div>
         <div v-if="policy" class="policy-grid">
-          <div class="policy-group">
+          <div class="policy-group policy-client">
             <div class="pg-title">客户端管控</div>
             <div class="pr-row">
               <span class="pr-label">模式</span>
@@ -158,7 +236,7 @@
               <n-input v-model:value="policy.client_policy[currentMsgKey]" size="small" placeholder="留空用默认文案" style="flex:1" />
             </div>
           </div>
-          <div class="policy-group">
+          <div class="policy-group policy-concurrent">
             <div class="pg-title">并发管控</div>
             <div class="pr-row">
               <span class="pr-label">全局默认并发</span>
@@ -176,7 +254,15 @@
 
       <!-- 黑名单 -->
       <div class="section-card">
-        <div class="section-head"><span class="section-title">🚫 客户端黑名单</span></div>
+        <div class="section-head">
+          <span class="section-title">
+            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.5"/>
+              <path d="m4.5 11.5 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>客户端黑名单</span>
+          </span>
+        </div>
         <div class="bl-add">
           <n-input v-model:value="newItem" placeholder="客户端名称" size="small" @keyup.enter="addBl" />
           <n-button type="primary" size="small" :disabled="!newItem.trim()" @click="addBl">添加</n-button>
@@ -197,7 +283,13 @@
       <!-- 违规记录 -->
       <div class="section-card">
         <div class="section-head">
-          <span class="section-title">📉 违规记录</span>
+          <span class="section-title">
+            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 4v8.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m5.3 6.2 2.2 2.2 3.2-3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>违规记录</span>
+          </span>
           <n-button text size="tiny" @click="loadViolations">刷新</n-button>
         </div>
         <n-empty v-if="violationItems.length === 0" description="暂无记录" />
@@ -221,14 +313,31 @@
 
       <!-- 执法日志 -->
       <div class="section-card">
-        <div class="section-head"><span class="section-title">📋 执法日志</span></div>
+        <div class="section-head">
+          <span class="section-title">
+            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 4.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M4 8h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M4 11.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="2.5" cy="4.5" r=".8" fill="currentColor"/>
+              <circle cx="2.5" cy="8" r=".8" fill="currentColor"/>
+              <circle cx="2.5" cy="11.5" r=".8" fill="currentColor"/>
+            </svg>
+            <span>执法日志</span>
+          </span>
+        </div>
         <n-empty v-if="logs.length === 0" description="暂无记录" />
         <div v-else class="log-list">
           <div v-for="l in logs" :key="l.id" class="log-item">
-            <n-tag :type="logType(l.action)" size="tiny">{{ logLabel(l.action) }}</n-tag>
-            <span class="log-target">{{ l.target }}</span>
-            <span class="log-reason">{{ l.reason }}</span>
-            <span class="log-time">{{ fmtTime(l.created_at) }}</span>
+            <div class="log-dot" :class="logDotClass(l.action)"></div>
+            <div class="log-body">
+              <div class="log-top">
+                <n-tag :type="logType(l.action)" size="tiny">{{ logLabel(l.action) }}</n-tag>
+                <span class="log-target">{{ l.target }}</span>
+                <span class="log-time">{{ fmtTime(l.created_at) }}</span>
+              </div>
+              <span class="log-reason">{{ l.reason }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -248,7 +357,6 @@ import apiClient from '@/api/client'
 
 const msg = useMessage()
 
-// ── Tab ──
 type TabKey = 'overview' | 'policy' | 'records'
 const activeTab = ref<TabKey>('overview')
 const showDrawer = ref(false)
@@ -267,7 +375,6 @@ function handleTabClick(key: TabKey) {
   }
 }
 
-// ── 数据 ──
 const summary = ref<any>(null)
 const events = ref<any[]>([])
 const evLoading = ref(false)
@@ -307,7 +414,6 @@ const msgTemplates = [
 const currentActionLabel = computed(() => (msgTemplates.find(m => m.key === 'msg_' + policy.value?.client_policy?.action)?.label) || '')
 const currentMsgKey = computed(() => 'msg_' + (policy.value?.client_policy?.action || ''))
 
-// ── 加载 ──
 async function loadSummary() { try { summary.value = (await riskApi.summary()).data } catch {} }
 async function loadEvents() {
   evLoading.value = true
@@ -400,6 +506,9 @@ function svLabel(s: string) { return ({ high: '高危', medium: '中危', low: '
 function sLabel(s: string) { return ({ '': '全部', open: '待处理', resolved: '已解决', ignored: '已忽略' })[s] ?? s }
 function logType(a: string) { return ({ kick: 'error', ban: 'error', unban: 'success', device_sweep: 'warning' })[a] as any ?? 'default' }
 function logLabel(a: string) { return ({ kick: '踢出', ban: '封禁', unban: '解封', device_sweep: '设备清除' })[a] ?? a }
+function logDotClass(a: string) {
+  return ({ kick: 'is-red', ban: 'is-red', unban: 'is-green', device_sweep: 'is-orange', sweep: 'is-orange' })[a] ?? 'is-gray'
+}
 function fmtTime(iso: string) {
   const d = new Date(iso), diff = Date.now() - d.getTime()
   if (diff < 60000) return '刚刚'
@@ -414,7 +523,6 @@ onMounted(loadAll)
 <style scoped>
 .ctrl-page { padding-bottom: 24px; }
 
-/* ── Tab ── */
 .risk-tabs {
   display: flex;
   gap: 0;
@@ -450,7 +558,6 @@ onMounted(loadAll)
 .tab-chevron.open { transform: rotate(180deg); opacity: 0.8; }
 .risk-tab.has-drawer .tab-chevron { opacity: 0.8; }
 
-/* ── 操作抽屉 ── */
 .action-drawer {
   margin-bottom: 12px;
   animation: slideDown 0.2s ease;
@@ -462,80 +569,236 @@ onMounted(loadAll)
 .drawer-actions {
   display: flex;
   gap: 8px;
-  padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(245,247,250,0.92));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+.btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-icon { flex-shrink: 0; }
+
+.overview-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+.section-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 2px;
+}
+.section-icon { color: var(--primary); flex-shrink: 0; }
+
+.session-list { display: flex; flex-direction: column; gap: 8px; }
+.session-card {
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(248,250,252,0.9), rgba(255,255,255,0.98));
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.session-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  border-color: rgba(59, 130, 246, 0.16);
+}
+.sc-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.sc-user-wrap { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.user-icon { color: var(--text-muted); flex-shrink: 0; }
+.sc-user { font-weight: 700; font-size: 13px; }
+.sc-media { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 2px;
+}
+:deep(.sc-actions .n-button) {
+  border-radius: 999px;
+  font-weight: 600;
 }
 
-/* ── 概览 ── */
-.overview-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
-.section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
-.section-title { font-size: 14px; font-weight: 600; }
-.session-list { display: flex; flex-direction: column; gap: 8px; }
-.session-card { padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); }
-.sc-top { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
-.sc-user { font-weight: 600; font-size: 13px; }
-.sc-media { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sc-actions { display: flex; gap: 6px; }
 .cc-list { display: flex; flex-direction: column; gap: 8px; }
-.cc-card { padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); }
-.cc-card.exceeded { border-color: var(--danger); background: rgba(255,59,48,0.04); }
-.cc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.cc-name { font-weight: 600; font-size: 13px; }
-.cc-sess { font-size: 12px; color: var(--text-muted); padding: 2px 0; display: flex; gap: 6px; }
-.cc-client { color: var(--brand); font-weight: 500; white-space: nowrap; }
+.cc-card {
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(248,250,252,0.92), rgba(255,255,255,0.98));
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.cc-card.exceeded {
+  border-color: rgba(220, 38, 38, 0.12);
+  border-left: 3px solid var(--danger);
+  background: linear-gradient(90deg, rgba(255,59,48,0.08), rgba(255,255,255,0.98) 28%);
+}
+.cc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.cc-name { font-weight: 800; font-size: 14px; }
+.cc-sess { font-size: 12px; color: var(--text-muted); padding: 3px 0; display: flex; gap: 6px; }
+.cc-client { color: var(--brand); font-weight: 600; white-space: nowrap; }
 .cc-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .filter-pills { display: flex; gap: 4px; }
 .pill { border: none; background: var(--bg); color: var(--text-muted); font-size: 12px; padding: 4px 10px; border-radius: 20px; cursor: pointer; font-family: inherit; }
 .pill.active { background: var(--brand); color: #fff; }
+
 .ev-list { display: flex; flex-direction: column; gap: 8px; }
-.ev-item { display: flex; gap: 10px; padding: 10px; border-radius: var(--radius); border: 1px solid var(--border); }
-.ev-item.ev-high.ev-open { border-color: var(--danger); background: rgba(208,48,80,0.05); }
-.ev-item.ev-open:not(.ev-high) { border-color: var(--warning); }
+.ev-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(248,250,252,0.9), rgba(255,255,255,0.98));
+}
+.ev-item.ev-high.ev-open {
+  border-color: rgba(208,48,80,0.12);
+  border-left: 3px solid var(--danger);
+  background: linear-gradient(90deg, rgba(208,48,80,0.08), rgba(255,255,255,0.98) 26%);
+}
+.ev-item.ev-open:not(.ev-high) { border-color: rgba(245, 158, 11, 0.18); }
 .ev-main { flex: 1; min-width: 0; }
-.ev-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
-.ev-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 3px; }
+.ev-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.ev-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
 .ev-time { font-size: 11px; color: var(--text-muted); }
 .ev-acts { display: flex; gap: 4px; flex-direction: column; flex-shrink: 0; }
 .ev-status { flex-shrink: 0; }
+.sev-tag-inner { display: inline-flex; align-items: center; gap: 5px; }
+.sev-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.sev-high { background: #ef4444; }
+.sev-medium { background: #f59e0b; }
+.sev-low { background: #3b82f6; }
 
-/* ── 策略 ── */
 .policy-grid { display: grid; gap: 12px; }
-.policy-group { background: var(--bg); border-radius: 10px; padding: 12px; }
-.pg-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
-.pr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.policy-group {
+  background: linear-gradient(180deg, rgba(248,250,252,0.88), rgba(255,255,255,0.98));
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-left: 3px solid var(--primary);
+}
+.policy-client { border-left-color: #3b82f6; }
+.policy-concurrent { border-left-color: #8b5cf6; }
+.pg-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.pr-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(15, 23, 42, 0.06); gap: 8px; }
 .pr-row:last-child { border-bottom: none; }
 .pr-label { font-size: 13px; flex-shrink: 0; }
 .pr-unit { font-size: 12px; color: var(--text-muted); margin-left: 4px; }
-.pr-radio { display: flex; gap: 4px; }
-.rbtn { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
-.rbtn.active { background: var(--primary); color: white; border-color: var(--primary); }
-.rbtn:hover:not(.active) { border-color: var(--primary); }
+.pr-radio { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.rbtn {
+  padding: 5px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255,255,255,0.92);
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.18s ease;
+  font-weight: 600;
+}
+.rbtn.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 8px 18px rgba(59, 130, 246, 0.22); }
+.rbtn:hover:not(.active) { border-color: var(--primary); background: rgba(59, 130, 246, 0.06); transform: translateY(-1px); }
 
-/* ── 黑名单 ── */
 .bl-add { display: flex; gap: 8px; margin-bottom: 10px; }
 .bl-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .bl-suggest { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .bl-suggest-label { font-size: 12px; color: var(--text-muted); }
-.bl-suggest-btn { padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--border); background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
+.bl-suggest-btn { padding: 3px 8px; border-radius: 8px; border: 1px dashed var(--border); background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
 .bl-suggest-btn:hover:not(.disabled) { border-color: var(--primary); border-style: solid; color: var(--primary); }
 .bl-suggest-btn.disabled { opacity: 0.4; cursor: default; text-decoration: line-through; }
 
-/* ── 记录 ── */
-.log-list { display: flex; flex-direction: column; gap: 6px; }
-.log-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: wrap; }
-.log-item:last-child { border-bottom: none; }
-.log-target { font-weight: 500; }
-.log-reason { color: var(--text-muted); flex: 1; min-width: 0; }
-.log-time { color: var(--text-muted); white-space: nowrap; font-size: 11px; }
-.vi-list { display: flex; flex-direction: column; gap: 6px; }
-.vi-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: var(--bg); flex-wrap: wrap; }
-.vi-item.vi-locked { border-left: 3px solid var(--danger); }
+.log-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 16px;
+}
+.log-list::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(148,163,184,0.45), rgba(148,163,184,0.12));
+  border-radius: 999px;
+}
+.log-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0 8px 4px;
+}
+.log-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+  margin-top: 6px;
+  margin-left: -19px;
+  border: 2px solid rgba(255,255,255,0.95);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+.log-dot.is-red { background: #ef4444; }
+.log-dot.is-green { background: #22c55e; }
+.log-dot.is-orange { background: #f59e0b; }
+.log-dot.is-gray { background: #94a3b8; }
+.log-body {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(248,250,252,0.75);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.log-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.log-target { font-weight: 700; }
+.log-reason { color: var(--text-muted); display: block; font-size: 12px; line-height: 1.5; }
+.log-time { color: var(--text-muted); white-space: nowrap; font-size: 11px; margin-left: auto; }
+
+.vi-list { display: flex; flex-direction: column; gap: 10px; }
+.vi-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(248,250,252,0.88), rgba(255,255,255,0.96));
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  flex-wrap: wrap;
+}
+.vi-item.vi-locked {
+  border-left: 3px solid var(--danger);
+  background: linear-gradient(90deg, rgba(255, 59, 48, 0.12), rgba(255, 240, 240, 0.92) 22%, rgba(255,255,255,0.98));
+}
 .vi-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-.vi-client { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vi-type { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--border); color: var(--text-muted); }
+.vi-client { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vi-type { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--border); color: var(--text-muted); }
 .vi-count { font-size: 13px; font-weight: 700; color: var(--warning); }
 .vi-last { font-size: 11px; color: var(--text-muted); }
 .vi-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
