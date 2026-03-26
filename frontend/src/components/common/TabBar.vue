@@ -71,30 +71,15 @@ const authStore = useAuthStore()
 const showMore = ref(false)
 
 const tabs = [
-  { id: 'dashboard', label: '仪表盘', path: '/' },
-  { id: 'users', label: '用户', path: '/users' },
   { id: 'stats', label: '统计', path: '/stats' },
-  { id: 'risk', label: '风控', path: '/risk' },
+  { id: 'users', label: '用户', path: '/users' },
+  { id: 'risk', label: '管控', path: '/risk' },
   { id: 'more', label: '更多', path: '' },
 ]
 
 const moreSections = [
   {
     title: '',
-    items: [
-      { icon: '🔔', label: '通知', action: () => router.push('/notifications') },
-    ],
-  },
-  {
-    title: '用户管理',
-    items: [
-      { icon: '👥', label: '用户列表', action: () => router.push('/users') },
-      { icon: '🎟️', label: '邀请管理', action: () => router.push('/users/invites') },
-      { icon: '📋', label: '权限模板', action: () => router.push('/users/templates') },
-    ],
-  },
-  {
-    title: '其他',
     items: [
       { icon: '🎬', label: '媒体管理', action: () => router.push('/media') },
       { icon: '📊', label: '质量盘点', action: () => router.push('/quality') },
