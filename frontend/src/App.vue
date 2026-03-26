@@ -18,11 +18,33 @@
                 </router-view>
               </div>
               <nav class="bottom-nav">
-                <router-link v-for="tab in tabs" :key="tab.path" :to="tab.path" class="nav-item" :class="{ active: isActive(tab.path) }">
-                  <span class="nav-icon" v-html="tab.icon"></span>
-                  <span class="nav-label">{{ tab.label }}</span>
-                </router-link>
+                <template v-for="tab in tabs" :key="tab.path">
+                  <router-link v-if="!tab.isMore" :to="tab.path" class="nav-item" :class="{ active: isActive(tab.path) }">
+                    <span class="nav-icon" v-html="tab.icon"></span>
+                    <span class="nav-label">{{ tab.label }}</span>
+                  </router-link>
+                  <button v-else class="nav-item" @click.prevent="showMore = !showMore">
+                    <span class="nav-icon" v-html="tab.icon"></span>
+                    <span class="nav-label">{{ tab.label }}</span>
+                  </button>
+                </template>
               </nav>
+              <!-- More Bottom Sheet -->
+              <Teleport to="body">
+                <Transition name="fade">
+                  <div v-if="showMore" class="more-overlay" @click="showMore = false" />
+                </Transition>
+                <Transition name="slide-up">
+                  <div v-if="showMore" class="more-sheet">
+                    <div class="more-handle" />
+                    <button v-for="item in moreItems" :key="item.label" class="more-item" @click="$router.push(item.path); showMore = false">
+                      <span class="more-item-icon">{{ item.icon }}</span>
+                      <span>{{ item.label }}</span>
+                    </button>
+                    <button class="more-item more-item-cancel" @click="showMore = false">取消</button>
+                  </div>
+                </Transition>
+              </Teleport>
             </div>
           </template>
         </n-dialog-provider>
@@ -32,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { darkTheme } from 'naive-ui'
 import type { GlobalThemeOverrides } from 'naive-ui'
@@ -47,7 +69,13 @@ const tabs = [
   { path: '/stats', label: '统计', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>' },
   { path: '/users', label: '用户', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' },
   { path: '/risk', label: '管控', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.76 3h16.94a2 2 0 0 0 1.76-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' },
-  { path: '/settings', label: '设置', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' },
+  { path: '', label: '更多', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>', isMore: true },
+]
+
+const showMore = ref(false)
+const moreItems = [
+  { icon: '📊', label: '质量盘点', path: '/quality' },
+  { icon: '⚙️', label: '设置', path: '/settings' },
 ]
 
 function isActive(path: string) {
@@ -147,4 +175,63 @@ const themeOverrides: GlobalThemeOverrides = {
   font-size: 0.65rem;
   font-weight: 500;
 }
+.more-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+.more-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2001;
+  background: var(--surface, rgba(255,255,255,0.95));
+  backdrop-filter: blur(20px);
+  border-radius: 16px 16px 0 0;
+  padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
+}
+.more-handle {
+  width: 36px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: var(--text-tertiary, #c7c7cc);
+  margin: 4px auto 12px;
+}
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: none;
+  color: var(--text, #1c1c1e);
+  font-size: 16px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 12px;
+}
+.more-item:active {
+  background: var(--bg-secondary, #f2f2f7);
+}
+.more-item-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+}
+.more-item-cancel {
+  justify-content: center;
+  color: var(--brand, #007AFF);
+  font-weight: 600;
+  margin-top: 8px;
+  background: var(--bg-secondary, #f2f2f7);
+}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.slide-up-enter-active, .slide-up-leave-active { transition: transform 0.25s ease; }
+.slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
 </style>
