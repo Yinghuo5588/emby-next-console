@@ -124,25 +124,26 @@ async def search_tmdb_first(name: str, media_type: str = "movie") -> dict:
     if not api_key or not name.strip():
         return {"overview": "", "poster_path": "", "backdrop_path": ""}
 
-    url = f"https://api.themoviedb.org/3/search/{media_type}"
+    async def _do_search(client, url, params):
+        resp = await client.get(url, params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        first = (data.get("results") or [{}])[0] if (data.get("results") or []) else {}
+        return {
+            "overview": first.get("overview") or "",
+            "poster_path": first.get("poster_path") or "",
+            "backdrop_path": first.get("backdrop_path") or "",
+        }
+
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                url,
-                params={
-                    "api_key": api_key,
-                    "query": name.strip(),
-                    "language": "zh-CN",
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            first = (data.get("results") or [{}])[0] if (data.get("results") or []) else {}
-            return {
-                "overview": first.get("overview") or "",
-                "poster_path": first.get("poster_path") or "",
-                "backdrop_path": first.get("backdrop_path") or "",
-            }
+            base = {"api_key": api_key, "query": name.strip(), "language": "zh-CN"}
+            # 先按类型搜索
+            result = await _do_search(client, f"https://api.themoviedb.org/3/search/{media_type}", base)
+            # 没结果时用 multi 搜索
+            if not result["overview"] and not result["poster_path"]:
+                result = await _do_search(client, "https://api.themoviedb.org/3/search/multi", base)
+            return result
     except Exception as e:
         logger.warning("TMDB 查询失败: %s", e)
         return {"overview": "", "poster_path": "", "backdrop_path": ""}
@@ -360,7 +361,13 @@ async def get_content_detail(item_id: str, period: str = "30d") -> dict:
 
     if not overview.strip():
         tmdb_type = "tv" if item_type in ("Series", "Episode") else "movie"
-        tmdb_data = await search_tmdb_first(name=name, media_type=tmdb_type)
+        # 优先用 Emby 原始标题搜索 TMDB
+        orig_name = ""
+        try:
+            orig_name = info.get("OriginalTitle") or ""
+        except Exception:
+            pass
+        tmdb_data = await search_tmdb_first(name=orig_name or name, media_type=tmdb_type)
         overview = tmdb_data.get("overview") or overview
 
     pf = _period_filter(period)

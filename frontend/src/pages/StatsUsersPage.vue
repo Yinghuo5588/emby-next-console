@@ -126,7 +126,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { NButton, NAvatar, NDrawer, NDrawerContent, NSelect } from 'naive-ui'
 import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -137,6 +137,7 @@ import HeatmapChart from '@/components/charts/HeatmapChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
 const route = useRoute()
+const router = useRouter()
 const { width: winWidth } = useWindowSize()
 const isMobile = computed(() => winWidth.value < 768)
 
