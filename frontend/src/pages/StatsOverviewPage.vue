@@ -91,7 +91,7 @@
         <div v-else class="rank-list">
           <div v-for="(item, i) in topUsers" :key="i" class="rank-item">
             <span class="rank-num" :class="{ 'rank-top': i < 3 }">{{ i + 1 }}</span>
-            <n-avatar :src="`/api/v1/manage/users/${item.user_id}/avatar`" :size="36" round class="rank-avatar">{{ item.username?.charAt(0) || '?' }}</n-avatar>
+            <span class="avatar-wrap"><img :src="`/api/v1/manage/users/${item.user_id}/avatar`" @error="($event.target as HTMLImageElement).classList.add('hide')" />{{ item.username?.charAt(0) || '?' }}</span>
             <div class="rank-body">
               <div class="rank-name">{{ item.username }}</div>
               <div class="rank-sub">{{ item.play_count }} 次 · {{ item.total_duration_hours }}h</div>

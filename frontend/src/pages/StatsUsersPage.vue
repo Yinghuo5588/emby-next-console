@@ -31,7 +31,7 @@
           :class="{ active: selectedDetailUserId === item.user_id }"
           @click="selectUser(item.user_id)">
           <span class="ranking-num" :class="{ 'num-top': i < 3 }">{{ (page - 1) * size + i + 1 }}</span>
-          <n-avatar :size="36" round class="ranking-avatar" :src="`/api/v1/manage/users/${item.user_id}/avatar`">{{ item.username?.charAt(0) || '?' }}</n-avatar>
+          <span class="avatar-wrap ranking-avatar"><img :src="`/api/v1/manage/users/${item.user_id}/avatar`" @error="($event.target as HTMLImageElement).classList.add('hide')" />{{ item.username?.charAt(0) || '?' }}</span>
           <div class="ranking-body">
             <div class="ranking-name">{{ item.username }}</div>
             <div class="ranking-meta">
