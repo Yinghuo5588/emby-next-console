@@ -8,209 +8,221 @@
       </template>
     </PageHeader>
 
-    <!-- 概览 -->
-    <div class="overview-row">
-      <StatCard label="待处理" :value="summary?.open_count ?? 0" :danger="(summary?.open_count ?? 0) > 0" />
-      <StatCard label="高危" :value="summary?.high_count ?? 0" :danger="(summary?.high_count ?? 0) > 0" />
-      <StatCard label="播放中" :value="liveSessions.length" />
-      <StatCard label="黑名单" :value="blacklist.length" />
+    <!-- 二级导航 -->
+    <div class="risk-tabs">
+      <button v-for="tab in tabs" :key="tab.key" class="risk-tab" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
+        {{ tab.label }}
+      </button>
     </div>
 
-    <!-- 策略配置 -->
-    <div class="section-card">
-      <div class="section-head">
-        <span class="section-title">⚙️ 策略配置</span>
-        <n-button text size="tiny" :loading="policyLoading" @click="savePolicy">保存</n-button>
+    <!-- ═══ 总览 ═══ -->
+    <template v-if="activeTab === 'overview'">
+      <div class="overview-row">
+        <StatCard label="待处理" :value="summary?.open_count ?? 0" :danger="(summary?.open_count ?? 0) > 0" />
+        <StatCard label="高危" :value="summary?.high_count ?? 0" :danger="(summary?.high_count ?? 0) > 0" />
+        <StatCard label="播放中" :value="liveSessions.length" />
+        <StatCard label="黑名单" :value="blacklist.length" />
       </div>
-      <div v-if="policy" class="policy-grid">
-        <!-- 客户端管控 -->
-        <div class="policy-group">
-          <div class="pg-title">客户端管控</div>
-          <div class="pr-row">
-            <span class="pr-label">模式</span>
-            <div class="pr-radio">
-              <button class="rbtn" :class="{ active: policy.client_policy.mode === 'blacklist' }" @click="policy.client_policy.mode = 'blacklist'">黑名单</button>
-              <button class="rbtn" :class="{ active: policy.client_policy.mode === 'whitelist' }" @click="policy.client_policy.mode = 'whitelist'">白名单</button>
-            </div>
-          </div>
-          <div class="pr-row">
-            <span class="pr-label">模糊匹配</span>
-            <n-switch v-model:value="policy.client_policy.fuzzy_match" size="small" />
-          </div>
-          <div class="pr-row">
-            <span class="pr-label">执行动作</span>
-            <div class="pr-radio">
-              <button v-for="a in clientActions" :key="a.value" class="rbtn" :class="{ active: policy.client_policy.action === a.value }" @click="policy.client_policy.action = a.value">{{ a.label }}</button>
-            </div>
-          </div>
-          <div class="pr-row">
-            <span class="pr-label">复发加重</span>
-            <n-switch v-model:value="policy.client_policy.escalation" size="small" />
-          </div>
-          <div class="pr-row">
-            <span class="pr-label">封禁时长</span>
-            <n-input-number v-model:value="policy.client_policy.ban_hours" size="small" :min="1" :max="720" :show-button="false" style="width:80px" />
-            <span class="pr-unit">小时</span>
-          </div>
-          <!-- 复发加重开启：显示所有弹窗模板 -->
-          <template v-if="policy.client_policy.escalation">
-            <div class="pg-title" style="margin-top:10px">弹窗内容（支持 {client} {user_name} {ban_hours} 变量）</div>
-            <div class="pr-row" v-for="m in msgTemplates" :key="m.key">
-              <span class="pr-label">{{ m.label }}</span>
-              <n-input v-model:value="policy.client_policy[m.key]" size="small" placeholder="留空用默认文案" style="flex:1" />
-            </div>
-          </template>
-          <!-- 单步操作：只显示当前选中动作的弹窗 -->
-          <div v-else class="pr-row">
-            <span class="pr-label">{{ currentActionLabel }} 弹窗内容</span>
-            <n-input v-model:value="policy.client_policy[currentMsgKey]" size="small" placeholder="留空用默认文案" style="flex:1" />
-          </div>
+
+      <!-- 实时播放 -->
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title">🔴 实时播放</span>
+          <n-button text size="tiny" @click="loadSessions">刷新</n-button>
         </div>
-        <!-- 并发管控 -->
-        <div class="policy-group">
-          <div class="pg-title">并发管控</div>
-          <div class="pr-row">
-            <span class="pr-label">全局默认并发</span>
-            <n-input-number v-model:value="policy.concurrent_policy.default_max" size="small" :min="1" :max="20" :show-button="false" style="width:80px" />
-          </div>
-          <div class="pr-row">
-            <span class="pr-label">超限处理</span>
-            <div class="pr-radio">
-              <button v-for="a in concurrentActions" :key="a.value" class="rbtn" :class="{ active: policy.concurrent_policy.action === a.value }" @click="policy.concurrent_policy.action = a.value">{{ a.label }}</button>
+        <LoadingState v-if="sessionsLoading" compact />
+        <n-empty v-else-if="liveSessions.length === 0" description="暂无播放" />
+        <div v-else class="session-list">
+          <div v-for="s in liveSessions" :key="s.Id" class="session-card">
+            <div class="sc-top">
+              <span class="sc-user">{{ s.UserName || '未知' }}</span>
+              <n-tag v-if="s.Client" size="tiny" type="info">{{ s.Client }}</n-tag>
+            </div>
+            <div class="sc-media">{{ s.NowPlayingItem?.Name || '-' }}</div>
+            <div class="sc-actions">
+              <n-button size="tiny" type="error" :loading="kicking === s.Id" @click="doKick(s.Id, s.DeviceId || '', 'soft')">停止</n-button>
+              <n-button size="tiny" type="error" quaternary :loading="kicking === s.Id+'h'" @click="doKick(s.Id, s.DeviceId || '', 'hard')">强踢</n-button>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 实时播放 -->
-    <div class="section-card">
-      <div class="section-head">
-        <span class="section-title">🔴 实时播放</span>
-        <n-button text size="tiny" @click="loadSessions">刷新</n-button>
-      </div>
-      <LoadingState v-if="sessionsLoading" compact />
-      <n-empty v-else-if="liveSessions.length === 0" description="暂无播放" />
-      <div v-else class="session-list">
-        <div v-for="s in liveSessions" :key="s.Id" class="session-card">
-          <div class="sc-top">
-            <span class="sc-user">{{ s.UserName || '未知' }}</span>
-            <n-tag v-if="s.Client" size="tiny" type="info">{{ s.Client }}</n-tag>
-          </div>
-          <div class="sc-media">{{ s.NowPlayingItem?.Name || '-' }}</div>
-          <div class="sc-actions">
-            <n-button size="tiny" type="error" :loading="kicking === s.Id" @click="doKick(s.Id, s.DeviceId || '', 'soft')">停止</n-button>
-            <n-button size="tiny" type="error" quaternary :loading="kicking === s.Id+'h'" @click="doKick(s.Id, s.DeviceId || '', 'hard')">强踢</n-button>
+      <!-- 并发状态 -->
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title">📊 并发状态</span>
+          <n-button text size="tiny" @click="loadConcurrent">刷新</n-button>
+        </div>
+        <LoadingState v-if="concurrentLoading" compact />
+        <n-empty v-else-if="concurrent.length === 0" description="无活跃用户" />
+        <div v-else class="cc-list">
+          <div v-for="u in concurrent" :key="u.user_id" class="cc-card" :class="{ exceeded: u.exceeded }">
+            <div class="cc-top">
+              <span class="cc-name">{{ u.user_name || u.user_id }}</span>
+              <n-tag :type="u.exceeded ? 'error' : 'success'" size="tiny">{{ u.current }}/{{ u.max }}</n-tag>
+            </div>
+            <div v-for="sess in u.sessions" :key="sess.session_id" class="cc-sess">
+              <span class="cc-client">{{ sess.client }}</span>
+              <span class="cc-title">{{ sess.title }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 并发状态 -->
-    <div class="section-card">
-      <div class="section-head">
-        <span class="section-title">📊 并发状态</span>
-        <n-button text size="tiny" @click="loadConcurrent">刷新</n-button>
+      <!-- 黑名单 -->
+      <div class="section-card">
+        <div class="section-head"><span class="section-title">🚫 客户端黑名单</span></div>
+        <div class="bl-add">
+          <n-input v-model:value="newItem" placeholder="客户端名称" size="small" @keyup.enter="addBl" />
+          <n-button type="primary" size="small" :disabled="!newItem.trim()" @click="addBl">添加</n-button>
+        </div>
+        <div v-if="suggestions.length > 0" class="bl-suggest">
+          <span class="bl-suggest-label">历史客户端：</span>
+          <button v-for="s in suggestions" :key="s" class="bl-suggest-btn" :class="{ disabled: isBlacklisted(s) }" @click="addBlDirect(s)">{{ s }}</button>
+        </div>
+        <n-empty v-if="blacklist.length === 0" description="空" />
+        <div v-else class="bl-tags">
+          <n-tag v-for="item in blacklist" :key="item" closable type="warning" size="small" @close="removeBl(item)">{{ item }}</n-tag>
+        </div>
       </div>
-      <LoadingState v-if="concurrentLoading" compact />
-      <n-empty v-else-if="concurrent.length === 0" description="无活跃用户" />
-      <div v-else class="cc-list">
-        <div v-for="u in concurrent" :key="u.user_id" class="cc-card" :class="{ exceeded: u.exceeded }">
-          <div class="cc-top">
-            <span class="cc-name">{{ u.user_name || u.user_id }}</span>
-            <n-tag :type="u.exceeded ? 'error' : 'success'" size="tiny">{{ u.current }}/{{ u.max }}</n-tag>
+
+      <!-- 风控事件 -->
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title">⚠️ 风控事件</span>
+          <div class="filter-pills">
+            <button v-for="s in ['', 'open', 'resolved', 'ignored']" :key="s" class="pill" :class="{ active: evFilter.status === s }" @click="evFilter.status = s; loadEvents()">{{ sLabel(s) }}</button>
           </div>
-          <div v-for="sess in u.sessions" :key="sess.session_id" class="cc-sess">
-            <span class="cc-client">{{ sess.client }}</span>
-            <span class="cc-title">{{ sess.title }}</span>
+        </div>
+        <LoadingState v-if="evLoading && events.length === 0" />
+        <n-empty v-else-if="events.length === 0" description="系统正常 ✅" />
+        <div v-else class="ev-list">
+          <div v-for="ev in events" :key="ev.event_id" class="ev-item" :class="{ 'ev-high': ev.severity === 'high' && ev.status === 'open', 'ev-open': ev.status === 'open' }">
+            <div class="ev-main">
+              <div class="ev-title"><n-tag :type="svType(ev.severity)" size="tiny">{{ svLabel(ev.severity) }}</n-tag> <span>{{ ev.title }}</span></div>
+              <div class="ev-desc">{{ ev.description || '-' }}</div>
+              <div class="ev-time">{{ fmtTime(ev.detected_at) }}</div>
+            </div>
+            <div v-if="ev.status === 'open'" class="ev-acts">
+              <n-button size="tiny" type="primary" :loading="acting === ev.event_id" @click="doAction(ev.event_id, 'resolve')">解决</n-button>
+              <n-button size="tiny" quaternary :loading="acting === ev.event_id" @click="doAction(ev.event_id, 'ignore')">忽略</n-button>
+            </div>
+            <div v-else class="ev-status">
+              <n-tag :type="ev.status === 'resolved' ? 'success' : 'default'" size="small">{{ ev.status === 'resolved' ? '已解决' : '已忽略' }}</n-tag>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </template>
 
-    <!-- 黑名单 -->
-    <div class="section-card">
-      <div class="section-head"><span class="section-title">🚫 客户端黑名单</span></div>
-      <div class="bl-add">
-        <n-input v-model:value="newItem" placeholder="客户端名称" size="small" @keyup.enter="addBl" />
-        <n-button type="primary" size="small" :disabled="!newItem.trim()" @click="addBl">添加</n-button>
-      </div>
-      <div v-if="suggestions.length > 0" class="bl-suggest">
-        <span class="bl-suggest-label">历史客户端：</span>
-        <button v-for="s in suggestions" :key="s" class="bl-suggest-btn" :class="{ disabled: isBlacklisted(s) }" @click="addBlDirect(s)">{{ s }}</button>
-      </div>
-      <n-empty v-if="blacklist.length === 0" description="空" />
-      <div v-else class="bl-tags">
-        <n-tag v-for="item in blacklist" :key="item" closable type="warning" size="small" @close="removeBl(item)">{{ item }}</n-tag>
-      </div>
-    </div>
-
-    <!-- 风控事件 -->
-    <div class="section-card">
-      <div class="section-head">
-        <span class="section-title">⚠️ 风控事件</span>
-        <div class="filter-pills">
-          <button v-for="s in ['', 'open', 'resolved', 'ignored']" :key="s" class="pill" :class="{ active: evFilter.status === s }" @click="evFilter.status = s; loadEvents()">{{ sLabel(s) }}</button>
+    <!-- ═══ 策略 ═══ -->
+    <template v-if="activeTab === 'policy'">
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title">⚙️ 策略配置</span>
+          <n-button text size="tiny" :loading="policyLoading" @click="savePolicy">保存</n-button>
+        </div>
+        <div v-if="policy" class="policy-grid">
+          <!-- 客户端管控 -->
+          <div class="policy-group">
+            <div class="pg-title">客户端管控</div>
+            <div class="pr-row">
+              <span class="pr-label">模式</span>
+              <div class="pr-radio">
+                <button class="rbtn" :class="{ active: policy.client_policy.mode === 'blacklist' }" @click="policy.client_policy.mode = 'blacklist'">黑名单</button>
+                <button class="rbtn" :class="{ active: policy.client_policy.mode === 'whitelist' }" @click="policy.client_policy.mode = 'whitelist'">白名单</button>
+              </div>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">模糊匹配</span>
+              <n-switch v-model:value="policy.client_policy.fuzzy_match" size="small" />
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">执行动作</span>
+              <div class="pr-radio">
+                <button v-for="a in clientActions" :key="a.value" class="rbtn" :class="{ active: policy.client_policy.action === a.value }" @click="policy.client_policy.action = a.value">{{ a.label }}</button>
+              </div>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">复发加重</span>
+              <n-switch v-model:value="policy.client_policy.escalation" size="small" />
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">封禁时长</span>
+              <n-input-number v-model:value="policy.client_policy.ban_hours" size="small" :min="1" :max="720" :show-button="false" style="width:80px" />
+              <span class="pr-unit">小时</span>
+            </div>
+            <template v-if="policy.client_policy.escalation">
+              <div class="pg-title" style="margin-top:10px">弹窗内容（支持 {client} {user_name} {ban_hours} 变量）</div>
+              <div class="pr-row" v-for="m in msgTemplates" :key="m.key">
+                <span class="pr-label">{{ m.label }}</span>
+                <n-input v-model:value="policy.client_policy[m.key]" size="small" placeholder="留空用默认文案" style="flex:1" />
+              </div>
+            </template>
+            <div v-else class="pr-row">
+              <span class="pr-label">{{ currentActionLabel }} 弹窗内容</span>
+              <n-input v-model:value="policy.client_policy[currentMsgKey]" size="small" placeholder="留空用默认文案" style="flex:1" />
+            </div>
+          </div>
+          <!-- 并发管控 -->
+          <div class="policy-group">
+            <div class="pg-title">并发管控</div>
+            <div class="pr-row">
+              <span class="pr-label">全局默认并发</span>
+              <n-input-number v-model:value="policy.concurrent_policy.default_max" size="small" :min="1" :max="20" :show-button="false" style="width:80px" />
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">超限处理</span>
+              <div class="pr-radio">
+                <button v-for="a in concurrentActions" :key="a.value" class="rbtn" :class="{ active: policy.concurrent_policy.action === a.value }" @click="policy.concurrent_policy.action = a.value">{{ a.label }}</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <LoadingState v-if="evLoading && events.length === 0" />
-      <n-empty v-else-if="events.length === 0" description="系统正常 ✅" />
-      <div v-else class="ev-list">
-        <div v-for="ev in events" :key="ev.event_id" class="ev-item" :class="{ 'ev-high': ev.severity === 'high' && ev.status === 'open', 'ev-open': ev.status === 'open' }">
-          <div class="ev-main">
-            <div class="ev-title"><n-tag :type="svType(ev.severity)" size="tiny">{{ svLabel(ev.severity) }}</n-tag> <span>{{ ev.title }}</span></div>
-            <div class="ev-desc">{{ ev.description || '-' }}</div>
-            <div class="ev-time">{{ fmtTime(ev.detected_at) }}</div>
-          </div>
-          <div v-if="ev.status === 'open'" class="ev-acts">
-            <n-button size="tiny" type="primary" :loading="acting === ev.event_id" @click="doAction(ev.event_id, 'resolve')">解决</n-button>
-            <n-button size="tiny" quaternary :loading="acting === ev.event_id" @click="doAction(ev.event_id, 'ignore')">忽略</n-button>
-          </div>
-          <div v-else class="ev-status">
-            <n-tag :type="ev.status === 'resolved' ? 'success' : 'default'" size="small">{{ ev.status === 'resolved' ? '已解决' : '已忽略' }}</n-tag>
-          </div>
-        </div>
-      </div>
-    </div>
+    </template>
 
-    <!-- 违规记录 -->
-    <div class="section-card">
-      <div class="section-head">
-        <span class="section-title">📉 违规记录</span>
-        <n-button text size="tiny" @click="loadViolations">刷新</n-button>
-      </div>
-      <n-empty v-if="violationItems.length === 0" description="暂无记录" />
-      <div v-else class="vi-list">
-        <div v-for="v in violationItems" :key="v.id" class="vi-item" :class="{ 'vi-locked': isLocked(v) }">
-          <div class="vi-main">
-            <span class="vi-client">{{ v.client_name || '未知客户端' }}</span>
-            <span class="vi-type">{{ v.violation_type === 'client_blocked' ? '客户端' : '并发' }}</span>
-            <span class="vi-count">×{{ v.violation_count }}</span>
-            <span v-if="v.last_action" class="vi-last">{{ actionLabel(v.last_action) }}</span>
+    <!-- ═══ 记录 ═══ -->
+    <template v-if="activeTab === 'records'">
+      <!-- 违规记录 -->
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title">📉 违规记录</span>
+          <n-button text size="tiny" @click="loadViolations">刷新</n-button>
+        </div>
+        <n-empty v-if="violationItems.length === 0" description="暂无记录" />
+        <div v-else class="vi-list">
+          <div v-for="v in violationItems" :key="v.id" class="vi-item" :class="{ 'vi-locked': isLocked(v) }">
+            <div class="vi-main">
+              <span class="vi-client">{{ v.client_name || '未知客户端' }}</span>
+              <span class="vi-type">{{ v.violation_type === 'client_blocked' ? '客户端' : '并发' }}</span>
+              <span class="vi-count">×{{ v.violation_count }}</span>
+              <span v-if="v.last_action" class="vi-last">{{ actionLabel(v.last_action) }}</span>
+            </div>
+            <div class="vi-meta">
+              <span class="vi-user">{{ v.user_id }}</span>
+              <span class="vi-time">{{ fmtTime(v.last_violation_at) }}</span>
+              <n-tag v-if="isLocked(v)" type="error" size="tiny">封禁中</n-tag>
+            </div>
+            <n-button size="tiny" quaternary type="error" @click="deleteViolation(v.id)">清除</n-button>
           </div>
-          <div class="vi-meta">
-            <span class="vi-user">{{ v.user_id }}</span>
-            <span class="vi-time">{{ fmtTime(v.last_violation_at) }}</span>
-            <n-tag v-if="isLocked(v)" type="error" size="tiny">封禁中</n-tag>
-          </div>
-          <n-button size="tiny" quaternary type="error" @click="deleteViolation(v.id)">清除</n-button>
         </div>
       </div>
-    </div>
 
-    <!-- 执法日志 -->
-    <div class="section-card">
-      <div class="section-head"><span class="section-title">📋 执法日志</span></div>
-      <n-empty v-if="logs.length === 0" description="暂无记录" />
-      <div v-else class="log-list">
-        <div v-for="l in logs" :key="l.id" class="log-item">
-          <n-tag :type="logType(l.action)" size="tiny">{{ logLabel(l.action) }}</n-tag>
-          <span class="log-target">{{ l.target }}</span>
-          <span class="log-reason">{{ l.reason }}</span>
-          <span class="log-time">{{ fmtTime(l.created_at) }}</span>
+      <!-- 执法日志 -->
+      <div class="section-card">
+        <div class="section-head"><span class="section-title">📋 执法日志</span></div>
+        <n-empty v-if="logs.length === 0" description="暂无记录" />
+        <div v-else class="log-list">
+          <div v-for="l in logs" :key="l.id" class="log-item">
+            <n-tag :type="logType(l.action)" size="tiny">{{ logLabel(l.action) }}</n-tag>
+            <span class="log-target">{{ l.target }}</span>
+            <span class="log-reason">{{ l.reason }}</span>
+            <span class="log-time">{{ fmtTime(l.created_at) }}</span>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -225,6 +237,17 @@ import type { RiskActionLog, ConcurrentItem, RiskPolicy, RiskViolation } from '@
 import apiClient from '@/api/client'
 
 const msg = useMessage()
+
+// ── Tab ──
+type TabKey = 'overview' | 'policy' | 'records'
+const activeTab = ref<TabKey>('overview')
+const tabs = [
+  { key: 'overview' as const, label: '总览' },
+  { key: 'policy' as const, label: '策略' },
+  { key: 'records' as const, label: '记录' },
+]
+
+// ── 数据 ──
 const summary = ref<any>(null)
 const events = ref<any[]>([])
 const evLoading = ref(false)
@@ -264,6 +287,7 @@ const msgTemplates = [
 const currentActionLabel = computed(() => (msgTemplates.find(m => m.key === 'msg_' + policy.value?.client_policy?.action)?.label) || '')
 const currentMsgKey = computed(() => 'msg_' + (policy.value?.client_policy?.action || ''))
 
+// ── 加载 ──
 async function loadSummary() { try { summary.value = (await riskApi.summary()).data } catch {} }
 async function loadEvents() {
   evLoading.value = true
@@ -369,6 +393,37 @@ onMounted(loadAll)
 
 <style scoped>
 .ctrl-page { padding-bottom: 24px; }
+
+/* ── Tab ── */
+.risk-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: 3px;
+  margin-bottom: 1rem;
+}
+.risk-tab {
+  flex: 1;
+  text-align: center;
+  padding: 0.5rem 0.25rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.2s;
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+}
+.risk-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+/* ── 概览 ── */
 .overview-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
 .section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
@@ -402,21 +457,9 @@ onMounted(loadAll)
 .ev-time { font-size: 11px; color: var(--text-muted); }
 .ev-acts { display: flex; gap: 4px; flex-direction: column; flex-shrink: 0; }
 .ev-status { flex-shrink: 0; }
-.log-list { display: flex; flex-direction: column; gap: 6px; }
-.log-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: wrap; }
-.log-item:last-child { border-bottom: none; }
-.log-target { font-weight: 500; }
-.log-reason { color: var(--text-muted); flex: 1; min-width: 0; }
-.log-time { color: var(--text-muted); white-space: nowrap; font-size: 11px; }
-@media (min-width: 769px) {
-  .overview-row { grid-template-columns: repeat(4, 1fr); }
-  .ev-item { flex-direction: row; }
-  .ev-acts { flex-direction: row; }
-}
 
-/* 策略配置 */
+/* ── 策略 ── */
 .policy-grid { display: grid; gap: 12px; }
-@media (min-width: 769px) { .policy-grid { grid-template-columns: repeat(2, 1fr); } }
 .policy-group { background: var(--bg); border-radius: 10px; padding: 12px; }
 .pg-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
 .pr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
@@ -428,7 +471,13 @@ onMounted(loadAll)
 .rbtn.active { background: var(--primary); color: white; border-color: var(--primary); }
 .rbtn:hover:not(.active) { border-color: var(--primary); }
 
-/* 违规记录 */
+/* ── 记录 ── */
+.log-list { display: flex; flex-direction: column; gap: 6px; }
+.log-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: wrap; }
+.log-item:last-child { border-bottom: none; }
+.log-target { font-weight: 500; }
+.log-reason { color: var(--text-muted); flex: 1; min-width: 0; }
+.log-time { color: var(--text-muted); white-space: nowrap; font-size: 11px; }
 .vi-list { display: flex; flex-direction: column; gap: 6px; }
 .vi-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: var(--bg); flex-wrap: wrap; }
 .vi-item.vi-locked { border-left: 3px solid var(--danger); }
@@ -440,10 +489,17 @@ onMounted(loadAll)
 .vi-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
 .vi-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
 
-/* 历史客户端建议 */
+/* ── 历史客户端建议 ── */
 .bl-suggest { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .bl-suggest-label { font-size: 12px; color: var(--text-muted); }
 .bl-suggest-btn { padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--border); background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text); transition: all 0.15s; }
 .bl-suggest-btn:hover:not(.disabled) { border-color: var(--primary); border-style: solid; color: var(--primary); }
 .bl-suggest-btn.disabled { opacity: 0.4; cursor: default; text-decoration: line-through; }
+
+@media (min-width: 769px) {
+  .overview-row { grid-template-columns: repeat(4, 1fr); }
+  .ev-item { flex-direction: row; }
+  .ev-acts { flex-direction: row; }
+  .policy-grid { grid-template-columns: repeat(2, 1fr); }
+}
 </style>
