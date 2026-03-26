@@ -93,7 +93,7 @@
             <span class="rank-num" :class="{ 'rank-top': i < 3 }">{{ i + 1 }}</span>
             <span class="avatar-wrap"><img :src="`/api/v1/manage/users/${item.user_id}/avatar`" @error="($event.target as HTMLImageElement).classList.add('hide')" />{{ item.username?.charAt(0) || '?' }}</span>
             <div class="rank-body">
-              <div class="rank-name rank-name-link" @click="$router.push(`/users/${item.user_id}`)">{{ item.username }}</div>
+              <div class="rank-name">{{ item.username }} <n-button size="tiny" quaternary @click="$router.push(`/users/${item.user_id}`)">详情</n-button></div>
               <div class="rank-sub">{{ item.play_count }} 次 · {{ item.total_duration_hours }}h</div>
             </div>
           </div>
@@ -199,9 +199,7 @@ onMounted(loadAll)
 .rank-top { color: var(--brand); }
 .rank-avatar { flex-shrink: 0; }
 .rank-body { flex: 1; min-width: 0; }
-.rank-name { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rank-name-link { color: var(--brand); cursor: pointer; }
-.rank-name-link:hover { text-decoration: underline; }
+.rank-name { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
 .rank-sub { font-size: 0.7rem; color: var(--text-muted); }
 .empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
 .empty-chart { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.85rem; }
