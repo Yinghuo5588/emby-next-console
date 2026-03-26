@@ -290,7 +290,7 @@ onMounted(loadUsers)
 .batch-count { font-size: 0.85rem; font-weight: 600; color: var(--brand); }
 .batch-actions { display: flex; gap: 6px; }
 .batch-toggle { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; }
-.fab { position: fixed; bottom: 2rem; right: 1.5rem; width: 52px; height: 52px; box-shadow: 0 4px 16px rgba(0,122,255,0.3); z-index: 50; }
+.fab { position: fixed; bottom: calc(80px + 0.5rem); right: 1.5rem; width: 52px; height: 52px; box-shadow: 0 4px 16px rgba(0,122,255,0.3); z-index: 50; }
 .modal-card { border-radius: 16px; }
 .form-row { display: flex; gap: 1rem; }
 .flex-1 { flex: 1; }
@@ -298,6 +298,6 @@ onMounted(loadUsers)
 .slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
 
 @media (max-width: 767px) {
-  .fab { bottom: 1.5rem; right: 1rem; }
+  .fab { bottom: calc(80px + 0.5rem); right: 1rem; width: 48px; height: 48px; }
 }
 </style>
