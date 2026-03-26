@@ -2,11 +2,10 @@
 import logging
 from datetime import datetime
 
-from sqlalchemy import text, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.core.emby import emby
-from app.db.session import get_session
+from app.db.session import AsyncSessionFactory
 
 logger = logging.getLogger("app.quality")
 
@@ -27,7 +26,6 @@ def get_scan_status() -> dict:
 
 # ── 分类逻辑 ──────────────────────────────────────
 def _classify(width: int | None, height: int | None, video_range: str | None) -> tuple[str, str]:
-    """返回 (resolution, video_range)"""
     w = width or 0
     h = height or 0
     if w >= 3840 or h >= 2160:
@@ -50,20 +48,14 @@ def _classify(width: int | None, height: int | None, video_range: str | None) ->
 
 
 def _extract_video_info(media_streams: list[dict]) -> tuple[int | None, int | None, str | None]:
-    """从 MediaStreams 中提取视频流信息"""
     for s in media_streams or []:
         if s.get("Type") == "Video":
             return s.get("Width"), s.get("Height"), s.get("VideoRange")
     return None, None, None
 
 
-def _build_poster_url(item_id: str) -> str:
-    return f"/api/v1/manage/users/{item_id}/avatar"  # 用代理端点
-
-
 # ── 扫描逻辑 ──────────────────────────────────────
 async def scan_all_items() -> None:
-    """异步扫描 Emby 全部媒体项，写入 quality_items 表"""
     global _scan_state
     _scan_state = {
         "running": True,
@@ -79,7 +71,7 @@ async def scan_all_items() -> None:
         start_index = 0
         first_page = True
 
-        async for db in get_session():
+        async with AsyncSessionFactory() as db:
             while True:
                 resp = await emby.get("/Items", params={
                     "Recursive": "true",
@@ -100,7 +92,6 @@ async def scan_all_items() -> None:
                 if not items:
                     break
 
-                # 批量 upsert
                 for item in items:
                     item_id = item.get("Id", "")
                     name = item.get("Name", "")
@@ -155,21 +146,17 @@ async def scan_all_items() -> None:
 
 # ── 查询逻辑 ──────────────────────────────────────
 async def get_overview() -> dict:
-    """聚合统计"""
-    async for db in get_session():
-        # 分辨率分布
+    async with AsyncSessionFactory() as db:
         res_rows = (await db.execute(text(
             "SELECT resolution, COUNT(*) as cnt FROM quality_items WHERE is_ignored = false GROUP BY resolution"
         ))).all()
         resolution = {r[0]: r[1] for r in res_rows}
 
-        # 动态范围分布
         vr_rows = (await db.execute(text(
             "SELECT video_range, COUNT(*) as cnt FROM quality_items WHERE is_ignored = false GROUP BY video_range"
         ))).all()
         video_range = {r[0]: r[1] for r in vr_rows}
 
-        # 总数
         total = (await db.execute(text(
             "SELECT COUNT(*) FROM quality_items WHERE is_ignored = false"
         ))).scalar_one()
@@ -190,7 +177,6 @@ async def get_items(
     page: int = 1,
     size: int = 25,
 ) -> dict:
-    """分页列表"""
     conditions = ["is_ignored = :ignored"]
     params: dict = {"ignored": is_ignored if is_ignored is not None else False}
 
@@ -213,7 +199,7 @@ async def get_items(
     params["limit"] = size
     params["offset"] = (page - 1) * size
 
-    async for db in get_session():
+    async with AsyncSessionFactory() as db:
         count_row = (await db.execute(text(f"SELECT COUNT(*) FROM quality_items WHERE {where}"), params)).scalar_one()
         rows = (await db.execute(
             text(f"SELECT item_id, name, path, resolution, video_range, width, height, item_type, poster_url, is_ignored FROM quality_items WHERE {where} ORDER BY {order} LIMIT :limit OFFSET :offset"),
@@ -230,7 +216,7 @@ async def get_items(
 
 
 async def set_ignored(item_id: str, ignore: bool) -> None:
-    async for db in get_session():
+    async with AsyncSessionFactory() as db:
         await db.execute(
             text("UPDATE quality_items SET is_ignored = :ignored WHERE item_id = :item_id"),
             {"ignored": ignore, "item_id": item_id},
