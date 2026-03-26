@@ -76,7 +76,7 @@
       <div class="setting-row">
         <span>ℹ️</span>
         <span class="sr-label">Emby Next Console</span>
-        <span class="sr-value">v1.0.2</span>
+        <span class="sr-value">v1.0.3</span>
       </div>
     </div>
   </div>
