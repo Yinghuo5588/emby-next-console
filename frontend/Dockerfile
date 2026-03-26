@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --include=dev
 
+ARG CACHE_BUST=1774493799
 COPY . .
 RUN npm run build
 
