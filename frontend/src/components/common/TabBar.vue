@@ -81,12 +81,7 @@ const moreSections = [
   {
     title: '',
     items: [
-      { icon: '🎬', label: '媒体管理', action: () => router.push('/media') },
       { icon: '📊', label: '质量盘点', action: () => router.push('/quality') },
-      { icon: '📅', label: '追剧日历', action: () => router.push('/calendar') },
-      { icon: '🌐', label: '用户门户', action: () => router.push('/portal') },
-      { icon: '⚡', label: '任务中心', action: () => router.push('/tasks') },
-      { icon: '🎨', label: '海报工坊', action: () => router.push('/poster') },
       { icon: '⚙️', label: '设置', action: () => router.push('/settings') },
     ],
   },
