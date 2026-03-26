@@ -1,6 +1,24 @@
 <template>
   <div class="quality-page">
-    <PageHeader title="质量盘点" subtitle="扫描媒体库，分析视频质量" />
+    <PageHeader title="质量盘点" subtitle="扫描媒体库，分析视频质量">
+      <template #actions>
+        <div class="header-actions">
+          <n-button size="small" secondary round @click="openIgnoredView">
+            查看忽略
+            <span v-if="ignoredCount > 0" class="header-btn-count">{{ ignoredCount }}</span>
+          </n-button>
+          <n-button
+            v-if="!scanStatus.running"
+            type="primary"
+            size="small"
+            round
+            @click="startScan"
+          >
+            {{ hasData ? '重新扫描' : '开始扫描' }}
+          </n-button>
+        </div>
+      </template>
+    </PageHeader>
 
     <!-- 扫描状态 -->
     <div v-if="scanStatus.running" class="scan-card">
@@ -12,33 +30,82 @@
       <n-button size="tiny" type="error" @click="startScan">重试</n-button>
     </div>
 
-    <!-- 操作栏 -->
-    <div class="action-row">
-      <n-button v-if="!scanStatus.running" type="primary" size="small" round @click="startScan">
-        {{ hasData ? '重新扫描' : '开始扫描' }}
-      </n-button>
-      <n-button v-if="filterResolution || filterRange" size="small" quaternary round @click="clearFilter">
-        清除筛选
-      </n-button>
-    </div>
-
-    <!-- 环形图区 -->
-    <div v-if="hasData" class="charts-section">
-      <div class="chart-card">
-        <div class="chart-title">分辨率分布</div>
-        <div ref="resChartRef" class="chart-box"></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">动态范围分布</div>
-        <div ref="vrChartRef" class="chart-box"></div>
-      </div>
-    </div>
-
-    <!-- 筛选提示 -->
-    <div v-if="activeFilter" class="filter-row">
+    <!-- 清除筛选按钮 -->
+    <div v-if="activeFilter" class="action-row">
       <n-tag type="info" size="small" round closable @close="clearFilter">
         {{ activeFilter }}
       </n-tag>
+    </div>
+
+    <!-- 环形图区（支持翻转） -->
+    <div v-if="hasData" class="charts-section">
+      <!-- 分辨率卡片 -->
+      <div
+        class="chart-card-wrapper"
+        :class="{ flipped: flippedCard === 'resolution' }"
+        @click="flipCard('resolution')"
+      >
+        <div class="chart-card-inner">
+          <!-- 正面：环形图 -->
+          <div class="chart-card-front">
+            <div class="chart-title">分辨率分布</div>
+            <div ref="resChartRef" class="chart-box"></div>
+            <div class="flip-hint">点击查看详情</div>
+          </div>
+          <!-- 背面：明细列表 -->
+          <div class="chart-card-back">
+            <div class="chart-title">分辨率明细</div>
+            <div class="detail-rows">
+              <div
+                v-for="entry in resolutionEntries"
+                :key="entry.key"
+                class="detail-row"
+                :class="{ selected: filterResolution === entry.key }"
+                @click.stop="toggleResFilter(entry.key)"
+              >
+                <span class="detail-dot" :style="{ background: entry.color }"></span>
+                <span class="detail-name">{{ entry.key }}</span>
+                <span class="detail-count">{{ entry.count }}</span>
+                <span class="detail-pct">{{ entry.percent }}%</span>
+              </div>
+            </div>
+            <div class="flip-hint">点击返回图表</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 动态范围卡片 -->
+      <div
+        class="chart-card-wrapper"
+        :class="{ flipped: flippedCard === 'range' }"
+        @click="flipCard('range')"
+      >
+        <div class="chart-card-inner">
+          <div class="chart-card-front">
+            <div class="chart-title">动态范围分布</div>
+            <div ref="vrChartRef" class="chart-box"></div>
+            <div class="flip-hint">点击查看详情</div>
+          </div>
+          <div class="chart-card-back">
+            <div class="chart-title">动态范围明细</div>
+            <div class="detail-rows">
+              <div
+                v-for="entry in rangeEntries"
+                :key="entry.key"
+                class="detail-row"
+                :class="{ selected: filterRange === entry.key }"
+                @click.stop="toggleRangeFilter(entry.key)"
+              >
+                <span class="detail-dot" :style="{ background: entry.color }"></span>
+                <span class="detail-name">{{ entry.key }}</span>
+                <span class="detail-count">{{ entry.count }}</span>
+                <span class="detail-pct">{{ entry.percent }}%</span>
+              </div>
+            </div>
+            <div class="flip-hint">点击返回图表</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -115,6 +182,13 @@ const page = ref(1)
 const pageSize = 25
 const total = ref(0)
 const loading = ref(false)
+const ignoredCount = ref(0)
+
+// ── 翻转 ──
+const flippedCard = ref<string | null>(null)
+function flipCard(card: string) {
+  flippedCard.value = flippedCard.value === card ? null : card
+}
 
 // ── 筛选 ──
 const filterResolution = ref<string | null>(null)
@@ -131,6 +205,57 @@ function clearFilter() {
   filterRange.value = null
   page.value = 1
   loadItems()
+  renderCharts()
+}
+
+function toggleResFilter(key: string) {
+  filterResolution.value = filterResolution.value === key ? null : key
+  filterRange.value = null
+  page.value = 1
+  loadItems()
+  renderCharts()
+}
+
+function toggleRangeFilter(key: string) {
+  filterRange.value = filterRange.value === key ? null : key
+  filterResolution.value = null
+  page.value = 1
+  loadItems()
+  renderCharts()
+}
+
+// ── 忽略 ──
+async function openIgnoredView() {
+  filterResolution.value = null
+  filterRange.value = null
+  // 切换到忽略筛选：我们用 is_ignored 参数
+  isIgnoredView.value = true
+  page.value = 1
+  await loadIgnoredItems()
+}
+
+const isIgnoredView = ref(false)
+
+async function loadIgnoredItems() {
+  loading.value = true
+  try {
+    const res = await qualityApi.items({ is_ignored: true, page: page.value, size: pageSize })
+    items.value = res.items || []
+    total.value = res.total || 0
+  } catch {
+    message.error('加载列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadIgnoredCount() {
+  try {
+    const res = await qualityApi.items({ is_ignored: true, page: 1, size: 1 })
+    ignoredCount.value = res.total || 0
+  } catch {
+    ignoredCount.value = 0
+  }
 }
 
 // ── 扫描 ──
@@ -142,12 +267,30 @@ const scanPercent = computed(() => {
 const hasData = computed(() => overview.value.total > 0)
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
-// ── 图表 ──
+// ── 明细 ──
 const RESOLUTION_ORDER = ['4K', '1080P', '720P', 'SD']
 const RESOLUTION_COLORS = ['#007AFF', '#5AC8FA', '#5856D6', '#8E8E93']
 const VR_ORDER = ['Dolby Vision', 'HDR10+', 'HDR10', 'HLG', 'SDR']
 const VR_COLORS = ['#FF9500', '#FF3B30', '#FF6B35', '#AF52DE', '#8E8E93']
 
+interface DetailEntry { key: string; count: number; percent: number; color: string }
+
+function buildEntries(data: Record<string, number>, order: string[], colors: string[]): DetailEntry[] {
+  const totalCount = Object.values(data).reduce((s, v) => s + v, 0) || 1
+  return order
+    .filter(k => (data[k] || 0) > 0)
+    .map(k => ({
+      key: k,
+      count: data[k],
+      percent: Math.round((data[k] / totalCount) * 1000) / 10,
+      color: colors[order.indexOf(k)] || '#8E8E93',
+    }))
+}
+
+const resolutionEntries = computed(() => buildEntries(overview.value.resolution, RESOLUTION_ORDER, RESOLUTION_COLORS))
+const rangeEntries = computed(() => buildEntries(overview.value.video_range, VR_ORDER, VR_COLORS))
+
+// ── 图表 ──
 const resChartRef = ref<HTMLElement>()
 const vrChartRef = ref<HTMLElement>()
 let resChart: echarts.ECharts | null = null
@@ -187,9 +330,15 @@ function buildDonutOption(
       center: ['50%', '52%'],
       avoidLabelOverlap: true,
       itemStyle: { borderRadius: 6, borderColor: uiStore.isDark ? '#1c1c1e' : '#fff', borderWidth: 2 },
-      label: { show: false },
+      label: {
+        show: true,
+        fontSize: 11,
+        color: uiStore.isDark ? '#e5e5ea' : '#3c3c43',
+        formatter: '{b}',
+      },
+      labelLine: { show: true, length: 6, length2: 8 },
       emphasis: {
-        label: { show: true, fontSize: 12, fontWeight: 'bold' },
+        label: { show: true, fontSize: 13, fontWeight: 'bold' },
         itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.15)' },
       },
       data: seriesData,
@@ -225,27 +374,11 @@ function renderCharts() {
       resChart?.dispose()
       resChart = echarts.init(resChartRef.value)
       resChart.setOption(buildDonutOption(overview.value.resolution, RESOLUTION_ORDER, RESOLUTION_COLORS, '分辨率', filterResolution.value))
-      resChart.off('click')
-      resChart.on('click', (params: any) => {
-        filterResolution.value = filterResolution.value === params.name ? null : params.name
-        filterRange.value = null
-        page.value = 1
-        loadItems()
-        renderCharts()
-      })
     }
     if (vrChartRef.value) {
       vrChart?.dispose()
       vrChart = echarts.init(vrChartRef.value)
       vrChart.setOption(buildDonutOption(overview.value.video_range, VR_ORDER, VR_COLORS, '动态范围', filterRange.value))
-      vrChart.off('click')
-      vrChart.on('click', (params: any) => {
-        filterRange.value = filterRange.value === params.name ? null : params.name
-        filterResolution.value = null
-        page.value = 1
-        loadItems()
-        renderCharts()
-      })
     }
   })
 }
@@ -262,6 +395,9 @@ async function loadOverview() {
 }
 
 async function loadItems() {
+  if (isIgnoredView.value) {
+    return loadIgnoredItems()
+  }
   loading.value = true
   try {
     const res = await qualityApi.items({
@@ -280,6 +416,7 @@ async function loadItems() {
 }
 
 async function startScan() {
+  isIgnoredView.value = false
   try {
     await qualityApi.startScan()
     message.success('扫描已开始')
@@ -295,6 +432,7 @@ function pollScan() {
     if (!scanStatus.value.running) {
       clearInterval(timer)
       loadItems()
+      loadIgnoredCount()
     }
   }, 2000)
 }
@@ -311,6 +449,8 @@ async function toggleIgnore(item: any) {
       message.success('已忽略')
     }
     loadOverview()
+    loadIgnoredCount()
+    if (isIgnoredView.value) loadIgnoredItems()
   } catch {
     message.error('操作失败')
   }
@@ -336,12 +476,24 @@ watch(page, loadItems)
 onMounted(() => {
   loadOverview()
   loadItems()
+  loadIgnoredCount()
 })
 </script>
 
 <style scoped>
 .quality-page {
   padding-bottom: 100px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.header-btn-count {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .scan-card {
@@ -365,43 +517,138 @@ onMounted(() => {
 }
 
 .action-row {
-  display: flex;
-  gap: 8px;
   margin-bottom: 12px;
 }
 
+/* ── 翻转卡片 ── */
 .charts-section {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
 }
-.chart-card {
+
+.chart-card-wrapper {
   flex: 1;
-  background: var(--surface-grouped);
-  border-radius: 14px;
-  padding: 10px 4px 8px;
+  perspective: 800px;
+  cursor: pointer;
   min-width: 0;
 }
+
+.chart-card-inner {
+  position: relative;
+  width: 100%;
+  min-height: 230px;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.chart-card-wrapper.flipped .chart-card-inner {
+  transform: rotateY(180deg);
+}
+
+.chart-card-front,
+.chart-card-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background: var(--surface-grouped);
+  border-radius: 14px;
+  padding: 12px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chart-card-back {
+  transform: rotateY(180deg);
+  padding: 12px 14px 10px;
+  justify-content: center;
+}
+
 .chart-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-align: center;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
+
 .chart-box {
   width: 100%;
   height: 180px;
 }
 
-.filter-row {
-  margin-bottom: 12px;
+.flip-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  margin-top: 4px;
+  text-align: center;
 }
 
+/* ── 背面明细 ── */
+.detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.detail-row:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.detail-row.selected {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.detail-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.detail-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.detail-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.detail-pct {
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── 列表 ── */
 .list-section {
   display: flex;
   flex-direction: column;
 }
+
 .item-row {
   display: flex;
   align-items: center;
@@ -409,6 +656,7 @@ onMounted(() => {
   padding: 8px 0;
   border-bottom: 0.5px solid var(--separator);
 }
+
 .item-poster {
   width: 44px;
   height: 62px;
@@ -417,15 +665,18 @@ onMounted(() => {
   background: var(--bg-secondary);
   flex-shrink: 0;
 }
+
 .item-poster img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
 .item-body {
   flex: 1;
   min-width: 0;
 }
+
 .item-name {
   font-size: 14px;
   font-weight: 500;
@@ -433,12 +684,14 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .item-meta {
   display: flex;
   align-items: center;
   gap: 4px;
   margin-top: 4px;
 }
+
 .item-type {
   font-size: 10px;
   color: var(--text-muted);
@@ -452,6 +705,7 @@ onMounted(() => {
   margin-top: 16px;
   padding-bottom: 20px;
 }
+
 .pager-info {
   font-size: 13px;
   color: var(--text-muted);
@@ -465,11 +719,8 @@ onMounted(() => {
 }
 
 @media (min-width: 769px) {
-  .charts-section {
-    gap: 16px;
-  }
-  .chart-box {
-    height: 220px;
-  }
+  .charts-section { gap: 16px; }
+  .chart-box { height: 220px; }
+  .chart-card-inner { min-height: 270px; }
 }
 </style>
