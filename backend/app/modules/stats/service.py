@@ -263,13 +263,17 @@ async def get_content_rankings(
         type_filter = " AND ItemType IN ('Series', 'Episode')"
 
     user_filter = f" AND UserId = '{str(user_id).replace(chr(39), chr(39)+chr(39))}'" if user_id else ""
+    search_filter = ""
+    if search:
+        kw = search.replace("'", "''").strip()
+        search_filter = f" AND ItemName LIKE '%{kw}%'"
 
     order = "total_duration DESC" if sort == "duration" else "play_count DESC"
 
     rows = await _query(
         f"SELECT ItemName, ItemId, ItemType, "
         f"COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as total_duration "
-        f"FROM PlaybackActivity WHERE {pf}{type_filter}{user_filter} "
+        f"FROM PlaybackActivity WHERE {pf}{type_filter}{user_filter}{search_filter} "
         f"GROUP BY ItemName ORDER BY {order} LIMIT 500"
     )
 
@@ -295,7 +299,7 @@ async def get_content_rankings(
         reverse=True,
     )
 
-    # 搜索过滤
+    # 搜索过滤（SQL 已处理，此处仅做兜底）
     if search:
         kw = search.strip().lower()
         all_items = [x for x in all_items if kw in x["name"].lower()]
