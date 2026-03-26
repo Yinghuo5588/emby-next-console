@@ -488,6 +488,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
     if fav_rows:
         f = fav_rows[0]
         top_fav = {
+            "item_id": str(f.get("ItemId", "")),
             "name": _clean_name(f.get("ItemName", ""), f.get("ItemType", "")),
             "hours": round(f["dur"] / 3600, 1),
             "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(f.get('ItemName', ''), f.get('ItemType', '')))}" if f.get("ItemId") else "",

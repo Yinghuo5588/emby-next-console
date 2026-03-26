@@ -78,7 +78,7 @@
             <span class="rank-num" :class="{ 'rank-top': i < 3 }">{{ i + 1 }}</span>
             <n-avatar :src="item.poster_url" :size="36" round class="rank-avatar" />
             <div class="rank-body">
-              <div class="rank-name">{{ item.name }}</div>
+              <div class="rank-name"><span class="link-name" @click="$router.push(`/stats/content?item=${item.item_id}`)">{{ item.name }}</span></div>
               <div class="rank-sub">{{ item.play_count }} 次 · {{ item.total_duration_hours }}h</div>
             </div>
           </div>

@@ -168,7 +168,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent, NSelect, NInput, NIcon } from 'naive-ui'
 import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -177,6 +177,7 @@ import AreaChart from '@/components/charts/AreaChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
 const router = useRouter()
+const route = useRoute()
 const { width: winWidth } = useWindowSize()
 const isMobile = computed(() => winWidth.value < 768)
 
@@ -307,7 +308,13 @@ async function selectItem(item_id: string) {
 
 watch([contentType, period, sortBy, selectedUserId], () => { page.value = 1; loadRankings() })
 watch(page, loadRankings)
-onMounted(() => { loadRankings() })
+onMounted(async () => {
+  await loadRankings()
+  const itemId = typeof route.query.item === 'string' ? route.query.item : ''
+  if (itemId) {
+    await selectItem(itemId)
+  }
+})
 </script>
 
 <style scoped>

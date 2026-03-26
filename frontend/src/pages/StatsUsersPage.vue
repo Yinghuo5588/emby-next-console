@@ -88,10 +88,10 @@
               <span class="legend-item"><span class="dot episode"></span>剧集 {{ userDetail.preference.episode_plays }}</span>
             </div>
           </div>
-          <div v-if="userDetail.top_fav" class="fav-item">
+          <div v-if="userDetail.top_fav" class="fav-item" @click="router.push(`/stats/content?item=${userDetail.top_fav.item_id}`)">
             <n-avatar :src="userDetail.top_fav.poster_url" :size="32" round />
             <div>
-              <div class="fav-name">最爱: {{ userDetail.top_fav.name }}</div>
+              <div class="fav-name fav-link">最爱: {{ userDetail.top_fav.name }}</div>
               <div class="fav-sub">{{ userDetail.top_fav.hours }}h</div>
             </div>
           </div>
@@ -273,8 +273,9 @@ onMounted(async () => {
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .dot.movie { background: #ff9500; }
 .dot.episode { background: #34c759; }
-.fav-item { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+.fav-item { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; cursor: pointer; }
 .fav-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
+.fav-link { color: var(--brand); }
 .fav-sub { font-size: 0.7rem; color: var(--text-muted); }
 .empty-chart { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.8rem; }
 @media (max-width: 767px) {
