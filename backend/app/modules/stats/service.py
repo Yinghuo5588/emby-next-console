@@ -254,12 +254,13 @@ async def get_content_rankings(
     user_id: str = None,
 ) -> dict:
     """内容排行榜（筛选+分页）"""
-    pf = _period_filter(period)
+    # 搜索时忽略类型/时间筛选，全库搜索
+    pf = _period_filter(period) if not search else "1=1"
 
     type_filter = ""
-    if content_type == "movie":
+    if not search and content_type == "movie":
         type_filter = " AND ItemType = 'Movie'"
-    elif content_type == "series":
+    elif not search and content_type == "series":
         type_filter = " AND ItemType IN ('Series', 'Episode')"
 
     user_filter = f" AND UserId = '{str(user_id).replace(chr(39), chr(39)+chr(39))}'" if user_id else ""
@@ -298,11 +299,6 @@ async def get_content_rankings(
         key=lambda x: x["total_duration_min"] if sort == "duration" else x["play_count"],
         reverse=True,
     )
-
-    # 搜索过滤（SQL 已处理，此处仅做兜底）
-    if search:
-        kw = search.strip().lower()
-        all_items = [x for x in all_items if kw in x["name"].lower()]
 
     total = len(all_items)
     start = (page - 1) * size
