@@ -315,7 +315,7 @@ async def _scan_logic(db) -> dict[str, Any]:
     concurrent_action = pp.get("action", "warn")
 
     sessions = await emby.get_sessions(active_only=True)
-    await users_service._ensure_meta_loaded()
+    await users_service._reload_meta()
 
     blocked: list[dict[str, Any]] = []
     violations: list[dict[str, Any]] = []
@@ -648,7 +648,7 @@ async def scan(db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
 @router.get("/status")
 async def concurrent_status(db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
     sessions = await emby.get_sessions(active_only=True)
-    await users_service._ensure_meta_loaded()
+    await users_service._reload_meta()
     policy = await _get_policy(db)
     default_max = int(policy["concurrent_policy"].get("default_max", 2) or 2)
     grouped: dict[str, list[dict[str, Any]]] = {}

@@ -15,20 +15,18 @@ logger = logging.getLogger("app.users")
 
 
 # ════════════════════════════════════════════════════════════
-# Meta 缓存（内存版，启动后懒加载）
+# Meta 缓存（每次从 DB 重新加载，避免多 worker 缓存不一致）
 # ════════════════════════════════════════════════════════════
 _meta_cache: dict[str, dict] = {}  # user_id -> {expire_date, max_concurrent, is_vip, note, template_name}
-_meta_loaded = False
 
 
-async def _ensure_meta_loaded():
-    global _meta_loaded
-    if _meta_loaded:
-        return
+async def _reload_meta():
+    """从 DB 重新加载所有 meta 到内存缓存（每次查询都调用，数据量小开销可忽略）"""
     try:
         async with AsyncSessionFactory() as session:
             from sqlalchemy import select
             result = await session.execute(select(UsersMeta))
+            _meta_cache.clear()
             for row in result.scalars().all():
                 _meta_cache[row.user_id] = {
                     "expire_date": row.expire_date.isoformat() if row.expire_date else None,
@@ -38,12 +36,11 @@ async def _ensure_meta_loaded():
                     "template_name": row.template_name or "",
                 }
     except Exception as e:
-        logger.warning(f"Failed to load users_meta from DB: {e}")
-    _meta_loaded = True
+        logger.warning(f"Failed to reload users_meta from DB: {e}")
 
 
 async def _save_meta(user_id: str, data: dict):
-    await _ensure_meta_loaded()
+    await _reload_meta()
     _meta_cache[user_id] = data
     # 异步写 DB
     try:
@@ -70,7 +67,7 @@ async def _save_meta(user_id: str, data: dict):
 
 async def list_users() -> list[dict]:
     """获取所有用户，合并 meta，自动检测过期"""
-    await _ensure_meta_loaded()
+    await _reload_meta()
     emby_users = await emby.get_users()
     now = datetime.now(timezone.utc)
     result = []
@@ -131,7 +128,7 @@ async def get_user(user_id: str) -> dict | None:
     u = await emby.get_user(user_id)
     if not u:
         return None
-    await _ensure_meta_loaded()
+    await _reload_meta()
     policy = u.get("Policy", {}) or {}
     meta = _meta_cache.get(user_id, {})
     return {
@@ -315,7 +312,7 @@ async def update_user(user_id: str, **kwargs) -> dict:
         await emby.post(f"/Users/{user_id}/Policy", json=current_policy)
 
     # 4. 更新 meta
-    await _ensure_meta_loaded()
+    await _reload_meta()
     meta = _meta_cache.get(user_id, {}).copy()
     for key in ["expire_date", "max_concurrent", "is_vip", "note"]:
         if key in kwargs and kwargs[key] is not None:
@@ -331,7 +328,7 @@ async def delete_user(user_id: str) -> bool:
         resp = await emby.delete(f"/Users/{user_id}")
         resp.raise_for_status()
         # 清理 meta
-        await _ensure_meta_loaded()
+        await _reload_meta()
         _meta_cache.pop(user_id, None)
         return True
     except Exception as e:
