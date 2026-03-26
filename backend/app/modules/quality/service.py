@@ -25,33 +25,39 @@ def get_scan_status() -> dict:
 
 
 # ── 分类逻辑 ──────────────────────────────────────
-def _classify(width: int | None, height: int | None, video_range: str | None) -> tuple[str, str]:
+def _classify_resolution(width: int | None, height: int | None) -> str:
     w = width or 0
     h = height or 0
     if w >= 3840 or h >= 2160:
-        res = "4K"
+        return "4K"
     elif w >= 1920 or h >= 1080:
-        res = "1080P"
+        return "1080P"
     elif w >= 1280 or h >= 720:
-        res = "720P"
-    else:
-        res = "SD"
-
-    vr = (video_range or "").upper()
-    if "DV" in vr or "DOVI" in vr:
-        vr = "DV"
-    elif "HDR" in vr:
-        vr = "HDR10"
-    else:
-        vr = "SDR"
-    return res, vr
+        return "720P"
+    return "SD"
 
 
-def _extract_video_info(media_streams: list[dict]) -> tuple[int | None, int | None, str | None]:
+def _classify_video_range(stream: dict) -> str:
+    """根据 VideoRange + ExtendedVideoType 分类动态范围"""
+    video_range = (stream.get("VideoRange") or "").upper()
+    extended_type = (stream.get("ExtendedVideoType") or "").upper()
+
+    if video_range == "DOVI" or extended_type == "DOLBYVISION":
+        return "Dolby Vision"
+    if extended_type == "HDR10PLUS":
+        return "HDR10+"
+    if video_range == "HDR10" or extended_type == "HDR10":
+        return "HDR10"
+    if video_range == "HLG" or extended_type == "HYPERLOGGAMMA":
+        return "HLG"
+    return "SDR"
+
+
+def _extract_video_info(media_streams: list[dict]) -> tuple[int | None, int | None, str]:
     for s in media_streams or []:
         if s.get("Type") == "Video":
-            return s.get("Width"), s.get("Height"), s.get("VideoRange")
-    return None, None, None
+            return s.get("Width"), s.get("Height"), _classify_video_range(s)
+    return None, None, "SDR"
 
 
 # ── 扫描逻辑 ──────────────────────────────────────
@@ -98,8 +104,8 @@ async def scan_all_items() -> None:
                     path = item.get("Path", "")
                     item_type = item.get("Type", "")
                     media_streams = item.get("MediaStreams", [])
-                    width, height, vr_raw = _extract_video_info(media_streams)
-                    resolution, video_range = _classify(width, height, vr_raw)
+                    width, height, video_range = _extract_video_info(media_streams)
+                    resolution = _classify_resolution(width, height)
 
                     await db.execute(text("""
                         INSERT INTO quality_items (item_id, name, path, resolution, video_range, width, height, item_type, poster_url, is_ignored, scanned_at)
@@ -191,7 +197,9 @@ async def get_items(
     order_map = {
         "name": "name ASC",
         "resolution": "CASE resolution WHEN '4K' THEN 1 WHEN '1080P' THEN 2 WHEN '720P' THEN 3 ELSE 4 END ASC",
-        "video_range": "CASE video_range WHEN 'DV' THEN 1 WHEN 'HDR10' THEN 2 ELSE 3 END ASC",
+        "video_range": """CASE video_range
+            WHEN 'Dolby Vision' THEN 1 WHEN 'HDR10+' THEN 2
+            WHEN 'HDR10' THEN 3 WHEN 'HLG' THEN 4 ELSE 5 END ASC""",
         "type": "item_type ASC, name ASC",
     }
     order = order_map.get(sort, "name ASC")
