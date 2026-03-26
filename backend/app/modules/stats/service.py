@@ -361,13 +361,16 @@ async def get_content_detail(item_id: str, period: str = "30d") -> dict:
 
     if not overview.strip():
         tmdb_type = "tv" if item_type in ("Series", "Episode") else "movie"
-        # 优先用 Emby 原始标题搜索 TMDB
+        # 优先用 Emby 原始标题搜索 TMDB，去掉 " - 第N季" 等后缀
         orig_name = ""
         try:
             orig_name = info.get("OriginalTitle") or ""
         except Exception:
             pass
-        tmdb_data = await search_tmdb_first(name=orig_name or name, media_type=tmdb_type)
+        search_name = orig_name or name
+        # 去掉 " - 第1季" / " - Season 1" 等后缀
+        search_name = re.split(r'\s*-\s*(?:第\d+季|Season\s*\d+|S\d+)', search_name, flags=re.I)[0].strip()
+        tmdb_data = await search_tmdb_first(name=search_name, media_type=tmdb_type)
         overview = tmdb_data.get("overview") or overview
 
     pf = _period_filter(period)
