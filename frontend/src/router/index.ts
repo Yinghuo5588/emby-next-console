@@ -32,6 +32,12 @@ const router = createRouter({
       meta: { title: '用户分析' },
     },
     {
+      path: '/quality',
+      name: 'Quality',
+      component: () => import('@/pages/QualityPage.vue'),
+      meta: { title: '质量盘点' },
+    },
+    {
       path: '/users',
       name: 'Users',
       component: () => import('@/pages/UsersPage.vue'),
