@@ -225,7 +225,7 @@ function clearUserFilter() {
 }
 
 const typeOptions = [{ label: '全部', value: 'all' }, { label: '电影', value: 'movie' }, { label: '剧集', value: 'series' }]
-const periodOptions = [{ label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
+const periodOptions = [{ label: '周', value: '7d' }, { label: '月', value: '30d' }, { label: '季', value: '90d' }, { label: '全部', value: 'all' }]
 const sortOptions = [{ label: '按时长', value: 'duration' }, { label: '按次数', value: 'count' }]
 
 const contentTypeLabel = computed(() => typeOptions.find(t => t.value === contentType.value)?.label || '')
@@ -295,7 +295,7 @@ function onSearch() {
 
 async function selectItem(item_id: string) {
   selectedItemId.value = item_id
-  const res = await statsApiV3.contentDetail(item_id)
+  const res = await statsApiV3.contentDetail(item_id, period.value)
   detail.value = res.data?.data ?? res.data
   showDetail.value = true
 }

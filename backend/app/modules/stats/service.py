@@ -308,7 +308,7 @@ async def get_content_rankings(
     return {"total": total, "items": page_items}
 
 
-async def get_content_detail(item_id: str) -> dict:
+async def get_content_detail(item_id: str, period: str = "30d") -> dict:
     """单个内容详情"""
     # 安全转义 item_id
     safe_id = str(item_id).replace("'", "''")
@@ -338,12 +338,13 @@ async def get_content_detail(item_id: str) -> dict:
     except Exception:
         pass
 
-    # 播放趋势（近 30 天，按天）
+    # 播放趋势（按时间段）
+    pf = _period_filter(period)
     rows = await _query(
         f"SELECT DATE(DateCreated) as date, COUNT(*) as play_count, "
         f"COALESCE(SUM(PlayDuration), 0) as duration "
         f"FROM PlaybackActivity WHERE ItemId = '{safe_id}' "
-        f"AND DateCreated >= date('now', '-30 days') "
+        f"AND {pf} "
         f"GROUP BY date ORDER BY date"
     )
     trend = {r["date"]: {"plays": r["play_count"], "hours": round(r["duration"] / 3600, 1)} for r in rows} if rows else {}

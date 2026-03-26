@@ -92,10 +92,10 @@ async def content_rankings(
 @router.get("/content/{item_id}")
 async def content_detail(
     item_id: str,
-    
+    period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
 ):
     """单个内容详情：趋势 + 观看用户 + 分季"""
-    data = await service.get_content_detail(item_id)
+    data = await service.get_content_detail(item_id, period=period)
     return ApiResponse.ok(data=data)
 
 
