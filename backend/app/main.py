@@ -19,6 +19,7 @@ from app.modules.dashboard.api import router as dashboard_router
 from app.modules.users.api import router as users_router
 from app.modules.risk.api import router as risk_router
 from app.modules.webhook.api import router as webhook_router
+from app.modules.quality.api import router as quality_router
 from app.core.risk_monitor import start_monitor, stop_monitor
 
 logging.basicConfig(level=logging.INFO)
@@ -56,6 +57,7 @@ app.include_router(dashboard_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(risk_router, prefix=API_PREFIX)
 app.include_router(webhook_router, prefix=API_PREFIX)
+app.include_router(quality_router, prefix=API_PREFIX)
 
 
 @app.get("/healthz", tags=["health"])
