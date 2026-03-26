@@ -295,18 +295,12 @@
         <n-empty v-if="violationItems.length === 0" description="暂无记录" />
         <div v-else class="vi-list">
           <div v-for="v in violationItems" :key="v.id" class="vi-item" :class="{ 'vi-locked': isLocked(v) }">
-            <div class="vi-main">
-              <span class="vi-client">{{ v.client_name || '未知客户端' }}</span>
-              <span class="vi-type">{{ v.violation_type === 'client_blocked' ? '客户端' : '并发' }}</span>
-              <span class="vi-count">×{{ v.violation_count }}</span>
-              <span v-if="v.last_action" class="vi-last">{{ actionLabel(v.last_action) }}</span>
-            </div>
-            <div class="vi-meta">
-              <span class="vi-user" @click.stop="router.push(`/users/${v.user_id}`)">{{ v.user_name || v.user_id }}</span>
-              <span class="vi-time">{{ fmtTime(v.last_violation_at) }}</span>
-              <n-tag v-if="isLocked(v)" type="error" size="tiny">封禁中</n-tag>
-            </div>
-            <n-button size="tiny" quaternary type="error" @click="deleteViolation(v.id)">清除</n-button>
+            <span class="vi-user" @click.stop="router.push(`/users/${v.user_id}`)">{{ v.user_name || v.user_id }}</span>
+            <span class="vi-type">{{ v.violation_type === 'client_blocked' ? '客户端违规' : '并发超限' }}</span>
+            <span class="vi-count">×{{ v.violation_count }}</span>
+            <n-tag v-if="isLocked(v)" type="error" size="tiny">封禁中</n-tag>
+            <span class="vi-time">{{ fmtTime(v.last_violation_at) }}</span>
+            <n-button size="tiny" quaternary @click.stop="viDetail = v">详情</n-button>
           </div>
         </div>
       </div>
@@ -342,6 +336,30 @@
         </div>
       </div>
     </template>
+
+    <!-- 违规详情抽屉 -->
+    <div v-if="viDetail" class="vi-detail-overlay" @click="viDetail = null">
+      <div class="vi-detail-drawer" @click.stop>
+        <div class="vi-detail-head">
+          <span>违规详情</span>
+          <n-button quaternary size="tiny" @click="viDetail = null">✕</n-button>
+        </div>
+        <div class="vi-detail-body">
+          <div class="vd-row"><span class="vd-label">用户</span><span class="vd-value vd-link" @click="router.push(`/users/${viDetail.user_id}`); viDetail = null">{{ viDetail.user_name || viDetail.user_id }}</span></div>
+          <div class="vd-row"><span class="vd-label">客户端</span><span class="vd-value">{{ viDetail.client_name || '未知' }}</span></div>
+          <div class="vd-row"><span class="vd-label">违规类型</span><span class="vd-value">{{ viDetail.violation_type === 'client_blocked' ? '客户端违规' : '并发超限' }}</span></div>
+          <div class="vd-row"><span class="vd-label">违规次数</span><span class="vd-value vd-count">×{{ viDetail.violation_count }}</span></div>
+          <div class="vd-row"><span class="vd-label">最近动作</span><span class="vd-value">{{ viDetail.last_action ? actionLabel(viDetail.last_action) : '无' }}</span></div>
+          <div class="vd-row"><span class="vd-label">最后违规</span><span class="vd-value">{{ fmtTime(viDetail.last_violation_at) }}</span></div>
+          <div v-if="viDetail.device_id" class="vd-row"><span class="vd-label">设备 ID</span><span class="vd-value vd-mono">{{ viDetail.device_id }}</span></div>
+          <div v-if="viDetail.locked_until" class="vd-row"><span class="vd-label">封禁至</span><span class="vd-value vd-danger">{{ fmtTime(viDetail.locked_until) }}</span></div>
+          <div v-if="isLocked(viDetail)" class="vd-row"><span class="vd-label">状态</span><n-tag type="error" size="small">封禁中</n-tag></div>
+        </div>
+        <div class="vi-detail-foot">
+          <n-button size="small" type="error" quaternary @click="deleteViolation(viDetail.id); viDetail = null">清除记录</n-button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -394,6 +412,7 @@ const logs = ref<RiskActionLog[]>([])
 const concurrent = ref<ConcurrentItem[]>([])
 const concurrentLoading = ref(false)
 const violationItems = ref<RiskViolation[]>([])
+const viDetail = ref<RiskViolation | null>(null)
 const policy = ref<RiskPolicy | null>(null)
 const policyLoading = ref(false)
 const clientActions = [
@@ -783,29 +802,36 @@ onMounted(loadAll)
 .log-reason { color: var(--text-muted); display: block; font-size: 12px; line-height: 1.5; }
 .log-time { color: var(--text-muted); white-space: nowrap; font-size: 11px; margin-left: auto; }
 
-.vi-list { display: flex; flex-direction: column; gap: 10px; }
+.vi-list { display: flex; flex-direction: column; gap: 8px; }
 .vi-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(248,250,252,0.88), rgba(255,255,255,0.96));
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  flex-wrap: wrap;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  transition: border-color 0.2s; font-size: 13px;
 }
-.vi-item.vi-locked {
-  border-left: 3px solid var(--danger);
-  background: linear-gradient(90deg, rgba(255, 59, 48, 0.12), rgba(255, 240, 240, 0.92) 22%, rgba(255,255,255,0.98));
-}
-.vi-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-.vi-client { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vi-type { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--border); color: var(--text-muted); }
-.vi-count { font-size: 13px; font-weight: 700; color: var(--warning); }
-.vi-last { font-size: 11px; color: var(--text-muted); }
-.vi-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
-.vi-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; color: var(--brand); cursor: pointer; font-weight: 500; }
+.vi-item.vi-locked { border-left: 3px solid var(--danger); }
+.vi-type { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--border); color: var(--text-muted); white-space: nowrap; }
+.vi-count { font-weight: 700; color: var(--warning); white-space: nowrap; }
+.vi-user { color: var(--brand); cursor: pointer; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; flex-shrink: 0; }
 .vi-user:hover { text-decoration: underline; }
+.vi-time { margin-left: auto; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+/* 违规详情抽屉 */
+.vi-detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: flex; justify-content: flex-end; }
+.vi-detail-drawer { width: min(340px, 85vw); height: 100%; background: var(--bg); display: flex; flex-direction: column; animation: slideInRight 0.25s ease; }
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.vi-detail-head { display: flex; justify-content: space-between; align-items: center; padding: 16px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--border); }
+.vi-detail-body { flex: 1; overflow-y: auto; padding: 16px; }
+.vd-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.vd-row:last-child { border-bottom: none; }
+.vd-label { font-size: 12px; color: var(--text-muted); }
+.vd-value { font-size: 13px; font-weight: 600; text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vd-link { color: var(--brand); cursor: pointer; }
+.vd-link:hover { text-decoration: underline; }
+.vd-count { color: var(--warning); }
+.vd-mono { font-family: monospace; font-size: 11px; }
+.vd-danger { color: var(--danger); }
+.vi-detail-foot { padding: 12px 16px; border-top: 1px solid var(--border); }
 
 @media (min-width: 769px) {
   .overview-row { grid-template-columns: repeat(4, 1fr); }
