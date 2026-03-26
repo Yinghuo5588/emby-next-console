@@ -9,7 +9,7 @@ import httpx
 from app.core.emby import emby
 from app.core.settings import settings
 from app.db.models.calendar import CalendarEntry
-from app.db.session import async_session
+from app.db.session import AsyncSessionFactory
 from sqlalchemy import select, and_, or_
 
 logger = logging.getLogger("app.calendar")
@@ -197,7 +197,7 @@ async def _fetch_tmdb_episodes(tmdb_id: int, week_start: date, week_end: date) -
 
 async def _save_to_db(items: list[dict]):
     """将剧集条目写入 calendar_entries 表（更新已有条目的状态）"""
-    async with async_session() as db:
+    async with AsyncSessionFactory() as db:
         for item in items:
             if not all([item.get("series_id"), item.get("season"), item.get("episode")]):
                 continue
