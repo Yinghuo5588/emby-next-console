@@ -225,7 +225,7 @@ function chartClick(type: 'resolution' | 'range') {
 // ── 数据加载 ──
 async function loadOverview() {
   try {
-    overview.value = await qualityApi.getOverview()
+    overview.value = await qualityApi.overview()
     renderCharts()
   } catch (e: any) {
     message.error('加载失败: ' + e.message)
@@ -235,7 +235,7 @@ async function loadOverview() {
 async function loadItems() {
   loading.value = true
   try {
-    const res = await qualityApi.getItems({
+    const res = await qualityApi.items({
       resolution: filterResolution.value || undefined,
       video_range: filterRange.value || undefined,
       page: page.value,
@@ -252,7 +252,7 @@ async function loadItems() {
 
 async function startScan() {
   try {
-    await qualityApi.scan()
+    await qualityApi.startScan()
     message.success('扫描已开始')
     pollScan()
   } catch {
