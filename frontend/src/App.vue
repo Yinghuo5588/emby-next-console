@@ -74,6 +74,7 @@ const tabs = [
 
 const showMore = ref(false)
 const moreItems = [
+  { icon: '📅', label: '追剧日历', path: '/calendar' },
   { icon: '📊', label: '质量盘点', path: '/quality' },
   { icon: '⚙️', label: '设置', path: '/settings' },
 ]

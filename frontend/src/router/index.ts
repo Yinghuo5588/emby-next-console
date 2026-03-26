@@ -56,6 +56,12 @@ const router = createRouter({
       meta: { title: '管控中心' },
     },
     {
+      path: '/calendar',
+      name: 'Calendar',
+      component: () => import('@/pages/CalendarPage.vue'),
+      meta: { title: '追剧日历' },
+    },
+    {
       path: '/settings',
       name: 'Settings',
       component: () => import('@/pages/SettingsPage.vue'),
