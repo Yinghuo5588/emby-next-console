@@ -1,273 +1,418 @@
 <template>
-  <div class="page">
-    <PageHeader title="质量盘点" :subtitle="lastScanTime ? `上次扫描: ${lastScanTime}` : undefined">
-      <template #actions>
-        <n-button size="small" :type="scanRunning ? 'warning' : 'primary'" :loading="scanRunning" @click="startScan">
-          {{ scanRunning ? `扫描中 ${scanStatus.scanned}/${scanStatus.total}` : '开始扫描' }}
-        </n-button>
-      </template>
-    </PageHeader>
+  <div class="quality-page">
+    <PageHeader title="质量盘点" subtitle="扫描媒体库，分析视频质量" />
 
-    <div class="body">
-      <!-- 空状态 -->
-      <div v-if="!scanRunning && overview.total === 0 && !overview.scan?.finished_at" class="empty-state">
-        <div class="empty-icon">🎬</div>
-        <div class="empty-title">还没有扫描数据</div>
-        <div class="empty-desc">点击「开始扫描」获取媒体库质量信息</div>
-        <n-button type="primary" size="large" @click="startScan">开始扫描</n-button>
+    <!-- 扫描状态 -->
+    <div v-if="scanStatus.running" class="scan-bar">
+      <n-progress type="line" :percentage="scanPercent" :show-indicator="false" status="info" />
+      <div class="scan-info">扫描中 {{ scanStatus.scanned }}/{{ scanStatus.total }}</div>
+    </div>
+    <div v-else-if="scanStatus.error" class="scan-bar scan-error">
+      <span>❌ {{ scanStatus.error }}</span>
+      <n-button size="small" type="error" @click="startScan">重试</n-button>
+    </div>
+
+    <!-- 操作栏 -->
+    <div class="action-bar">
+      <n-button v-if="!scanStatus.running" type="primary" size="small" @click="startScan">
+        {{ hasData ? '重新扫描' : '开始扫描' }}
+      </n-button>
+      <n-button v-if="activeFilter" size="small" quaternary @click="clearFilter">
+        清除筛选 ✕
+      </n-button>
+    </div>
+
+    <!-- 环形图 -->
+    <div v-if="hasData" class="charts-row">
+      <div class="chart-card" @click="chartClick('resolution')">
+        <div ref="resChartRef" class="chart-box"></div>
       </div>
+      <div class="chart-card" @click="chartClick('range')">
+        <div ref="vrChartRef" class="chart-box"></div>
+      </div>
+    </div>
 
-      <template v-else>
-        <!-- 统计卡片 -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-label">分辨率分布</div>
-            <div class="stat-bars">
-              <div v-for="(count, key) in overview.resolution" :key="key" class="stat-bar">
-                <span class="bar-label">{{ key }}</span>
-                <div class="bar-track"><div class="bar-fill" :style="{ width: barWidth(count) + '%' }" :class="'bar-' + key.toLowerCase()" /></div>
-                <span class="bar-value">{{ count }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">动态范围</div>
-            <div class="stat-bars">
-              <div v-for="(count, key) in overview.video_range" :key="key" class="stat-bar">
-                <span class="bar-label">{{ key }}</span>
-                <div class="bar-track"><div class="bar-fill" :style="{ width: barWidth(count) + '%' }" :class="'bar-vr-' + key.toLowerCase()" /></div>
-                <span class="bar-value">{{ count }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="stat-total">
-            共 <strong>{{ overview.total }}</strong> 个媒体项
-          </div>
-        </div>
+    <!-- 筛选提示 -->
+    <div v-if="activeFilter" class="filter-chip">
+      <n-tag closable @close="clearFilter" type="info" size="medium">
+        {{ activeFilter }}
+      </n-tag>
+    </div>
 
-        <!-- 筛选 Tab -->
-        <div class="filter-tabs">
-          <button v-for="f in filterOptions" :key="f.value" class="filter-tab" :class="{ active: activeFilter === f.value }" @click="activeFilter = f.value; loadItems()">
-            {{ f.label }}
-            <span v-if="f.count != null" class="filter-count">{{ f.count }}</span>
-          </button>
-        </div>
-
-        <!-- 媒体列表 -->
-        <div class="media-list">
-          <div v-for="item in items" :key="item.item_id" class="media-item">
-            <img :src="item.poster_url" :alt="item.name" class="media-poster" loading="lazy" />
-            <div class="media-info">
-              <div class="media-name">{{ item.name }}</div>
-              <div class="media-meta">
-                <span class="badge" :class="'badge-' + item.resolution.toLowerCase()">{{ item.resolution }}</span>
-                <span class="badge" :class="'badge-vr-' + item.video_range.toLowerCase()">{{ item.video_range }}</span>
-                <span class="media-type">{{ item.item_type === 'Movie' ? '电影' : '剧集' }}</span>
-              </div>
-              <div class="media-path" :title="item.path">{{ item.path }}</div>
-            </div>
-            <button class="ignore-btn" :class="{ ignored: item.is_ignored }" @click="toggleIgnore(item)">
-              {{ item.is_ignored ? '↩' : '✕' }}
-            </button>
+    <!-- 列表 -->
+    <div v-if="hasData" class="item-list">
+      <div v-for="item in items" :key="item.item_id" class="item-row">
+        <n-avatar
+          :src="item.poster_url"
+          :size="40"
+          round
+          fallback-src=""
+        >{{ item.name?.charAt(0) }}</n-avatar>
+        <div class="item-info">
+          <div class="item-name">{{ item.name }}</div>
+          <div class="item-meta">
+            <n-tag :type="resTagType(item.resolution)" size="tiny" round>{{ item.resolution }}</n-tag>
+            <n-tag :type="vrTagType(item.video_range)" size="tiny" round>{{ item.video_range }}</n-tag>
+            <span class="item-type">{{ item.item_type === 'Movie' ? '电影' : '剧集' }}</span>
           </div>
         </div>
+      </div>
+      <n-pagination
+        v-if="totalPages > 1"
+        v-model:page="page"
+        :page-count="totalPages"
+        class="pagination"
+      />
+    </div>
 
-        <!-- 分页 -->
-        <div v-if="totalPages > 1" class="pagination">
-          <n-button size="small" :disabled="page <= 1" @click="page--; loadItems()">上一页</n-button>
-          <span class="page-info">{{ page }} / {{ totalPages }}</span>
-          <n-button size="small" :disabled="page >= totalPages" @click="page++; loadItems()">下一页</n-button>
-        </div>
-      </template>
+    <div v-if="!hasData && !scanStatus.running" class="empty">
+      <n-empty description="暂无数据，请先扫描" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NButton, useMessage } from 'naive-ui'
-import PageHeader from '@/components/common/PageHeader.vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { useMessage } from 'naive-ui'
+import * as echarts from 'echarts/core'
+import { PieChart } from 'echarts/charts'
+import { TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { qualityApi } from '@/api/quality'
+import PageHeader from '@/components/common/PageHeader.vue'
+
+echarts.use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const message = useMessage()
 
-const overview = ref<any>({ resolution: {}, video_range: {}, total: 0, scan: {} })
-const scanStatus = ref<any>({ running: false, total: 0, scanned: 0 })
-const scanRunning = computed(() => scanStatus.value.running)
+// ── 数据 ──
+const overview = ref<{ resolution: Record<string,number>; video_range: Record<string,number>; total: number; scan: any }>({
+  resolution: {}, video_range: {}, total: 0, scan: {}
+})
 const items = ref<any[]>([])
-const total = ref(0)
 const page = ref(1)
-const activeFilter = ref('all')
 const pageSize = 25
-const totalPages = computed(() => Math.ceil(total.value / pageSize))
-let pollTimer: ReturnType<typeof setInterval> | null = null
+const total = ref(0)
+const loading = ref(false)
 
-const filterOptions = computed(() => {
-  const r = overview.value.resolution || {}
-  return [
-    { label: '全部', value: 'all', count: overview.value.total },
-    { label: '4K', value: '4K', count: r['4K'] || 0 },
-    { label: '1080P', value: '1080P', count: r['1080P'] || 0 },
-    { label: '720P', value: '720P', count: r['720P'] || 0 },
-    { label: '标清', value: 'SD', count: r['SD'] || 0 },
-    { label: '已忽略', value: 'ignored', count: null },
-  ]
+// ── 筛选 ──
+const filterResolution = ref<string | null>(null)
+const filterRange = ref<string | null>(null)
+const activeFilter = computed(() => {
+  const parts = []
+  if (filterResolution.value) parts.push(`分辨率: ${filterResolution.value}`)
+  if (filterRange.value) parts.push(`动态范围: ${filterRange.value}`)
+  return parts.join(' + ') || ''
 })
 
-const lastScanTime = computed(() => {
-  const t = overview.value.scan?.finished_at
-  if (!t) return ''
-  return new Date(t).toLocaleString()
-})
-
-function barWidth(count: number) {
-  const total = overview.value.total || 1
-  return Math.max(5, (count / total) * 100)
+function clearFilter() {
+  filterResolution.value = null
+  filterRange.value = null
+  page.value = 1
+  loadItems()
 }
 
+// ── 扫描 ──
+const scanStatus = computed(() => overview.value.scan || { running: false })
+const scanPercent = computed(() => {
+  const s = scanStatus.value
+  if (!s.total) return 0
+  return Math.round((s.scanned / s.total) * 100)
+})
+const hasData = computed(() => overview.value.total > 0)
+const totalPages = computed(() => Math.ceil(total.value / pageSize))
+
+// ── 环形图 ──
+const resChartRef = ref<HTMLElement>()
+const vrChartRef = ref<HTMLElement>()
+let resChart: echarts.ECharts | null = null
+let vrChart: echarts.ECharts | null = null
+
+const RESOLUTION_ORDER = ['4K', '1080P', '720P', 'SD']
+const RESOLUTION_COLORS = ['#3b82f6', '#60a5fa', '#93c5fd', '#cbd5e1']
+
+const VR_ORDER = ['Dolby Vision', 'HDR10+', 'HDR10', 'HLG', 'SDR']
+const VR_COLORS = ['#f59e0b', '#ef4444', '#f97316', '#a855f7', '#94a3b8']
+
+function buildDonutOption(
+  data: Record<string, number>,
+  order: string[],
+  colors: string[],
+  title: string
+) {
+  const seriesData = order
+    .filter(k => (data[k] || 0) > 0)
+    .map((k, i) => ({
+      name: k,
+      value: data[k] || 0,
+      itemStyle: { color: colors[order.indexOf(k)] },
+    }))
+
+  const total = seriesData.reduce((s, d) => s + d.value, 0)
+
+  return {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    series: [{
+      type: 'pie',
+      radius: ['55%', '78%'],
+      center: ['50%', '55%'],
+      avoidLabelOverlap: true,
+      label: { show: false },
+      emphasis: {
+        label: { show: true, fontSize: 13, fontWeight: 'bold' },
+      },
+      labelLine: { show: false },
+      data: seriesData,
+    }],
+    graphic: [{
+      type: 'text',
+      left: 'center',
+      top: '42%',
+      style: {
+        text: String(total),
+        textAlign: 'center',
+        fill: 'var(--text)',
+        fontSize: 22,
+        fontWeight: 700,
+      },
+    }, {
+      type: 'text',
+      left: 'center',
+      top: '56%',
+      style: {
+        text: title,
+        textAlign: 'center',
+        fill: 'var(--text-muted)',
+        fontSize: 11,
+      },
+    }],
+  }
+}
+
+function renderCharts() {
+  nextTick(() => {
+    if (resChartRef.value) {
+      resChart?.dispose()
+      resChart = echarts.init(resChartRef.value)
+      resChart.setOption(buildDonutOption(overview.value.resolution, RESOLUTION_ORDER, RESOLUTION_COLORS, '分辨率'))
+    }
+    if (vrChartRef.value) {
+      vrChart?.dispose()
+      vrChart = echarts.init(vrChartRef.value)
+      vrChart.setOption(buildDonutOption(overview.value.video_range, VR_ORDER, VR_COLORS, '动态范围'))
+    }
+  })
+}
+
+// ── 点击筛选 ──
+function chartClick(type: 'resolution' | 'range') {
+  const chart = type === 'resolution' ? resChart : vrChart
+  if (!chart) return
+
+  chart.on('click', (params: any) => {
+    if (type === 'resolution') {
+      filterResolution.value = filterResolution.value === params.name ? null : params.name
+      filterRange.value = null
+    } else {
+      filterRange.value = filterRange.value === params.name ? null : params.name
+      filterResolution.value = null
+    }
+    page.value = 1
+    loadItems()
+  })
+}
+
+// ── 数据加载 ──
 async function loadOverview() {
   try {
-    const { data } = await qualityApi.overview()
-    overview.value = data.data ?? data
-  } catch {}
+    overview.value = await qualityApi.getOverview()
+    renderCharts()
+  } catch (e: any) {
+    message.error('加载失败: ' + e.message)
+  }
 }
 
 async function loadItems() {
+  loading.value = true
   try {
-    const params: any = { page: page.value, size: pageSize }
-    if (activeFilter.value === 'ignored') params.is_ignored = true
-    else if (activeFilter.value !== 'all') params.resolution = activeFilter.value
-    const { data } = await qualityApi.items(params)
-    const result = data.data ?? data
-    items.value = result.items ?? []
-    total.value = result.total ?? 0
-  } catch {}
-}
-
-async function pollScanStatus() {
-  try {
-    const { data } = await qualityApi.scanStatus()
-    scanStatus.value = data.data ?? data
-    if (!scanStatus.value.running) {
-      await loadOverview()
-      await loadItems()
-    }
-  } catch {}
+    const res = await qualityApi.getItems({
+      resolution: filterResolution.value || undefined,
+      video_range: filterRange.value || undefined,
+      page: page.value,
+      size: pageSize,
+    })
+    items.value = res.items
+    total.value = res.total
+  } catch (e: any) {
+    message.error('加载列表失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 async function startScan() {
   try {
-    await qualityApi.startScan()
-    message.success('扫描已启动')
-    startPolling()
+    await qualityApi.scan()
+    message.success('扫描已开始')
+    pollScan()
   } catch {
     message.error('启动扫描失败')
   }
 }
 
-async function toggleIgnore(item: any) {
-  try {
-    if (item.is_ignored) {
-      await qualityApi.unignore(item.item_id)
-      message.success('已取消忽略')
-    } else {
-      await qualityApi.ignore(item.item_id)
-      message.success('已忽略')
+function pollScan() {
+  const timer = setInterval(async () => {
+    await loadOverview()
+    if (!scanStatus.value.running) {
+      clearInterval(timer)
+      loadItems()
     }
-    item.is_ignored = !item.is_ignored
-  } catch {
-    message.error('操作失败')
+  }, 2000)
+}
+
+// ── 筛选变化 ──
+watch([filterResolution, filterRange], () => {
+  // highlight selected segment
+  if (resChart) {
+    const opt = buildDonutOption(overview.value.resolution, RESOLUTION_ORDER, RESOLUTION_COLORS, '分辨率')
+    resChart.setOption(opt, true)
+    if (filterResolution.value) {
+      resChart.dispatchAction({ type: 'highlight', name: filterResolution.value })
+    }
   }
-}
-
-function startPolling() {
-  if (pollTimer) return
-  pollTimer = setInterval(pollScanStatus, 3000)
-}
-
-function stopPolling() {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-}
-
-onMounted(async () => {
-  await loadOverview()
-  await loadItems()
-  if (overview.value.scan?.running) startPolling()
+  if (vrChart) {
+    const opt = buildDonutOption(overview.value.video_range, VR_ORDER, VR_COLORS, '动态范围')
+    vrChart.setOption(opt, true)
+    if (filterRange.value) {
+      vrChart.dispatchAction({ type: 'highlight', name: filterRange.value })
+    }
+  }
 })
-onUnmounted(stopPolling)
+
+watch(page, loadItems)
+
+// ── 标签样式 ──
+function resTagType(res: string) {
+  return res === '4K' ? 'info' : res === '1080P' ? 'success' : 'warning'
+}
+function vrTagType(vr: string) {
+  if (vr === 'Dolby Vision') return 'warning'
+  if (vr === 'HDR10+' || vr === 'HDR10') return 'error'
+  if (vr === 'HLG') return 'info'
+  return 'default'
+}
+
+onMounted(() => {
+  loadOverview()
+  loadItems()
+})
 </script>
 
 <style scoped>
-.page { padding-bottom: calc(var(--tab-height) + 16px); }
-.body { padding: 16px; }
+.quality-page {
+  padding-bottom: 100px;
+}
 
-/* 空状态 */
-.empty-state { text-align: center; padding: 60px 20px; }
-.empty-icon { font-size: 48px; margin-bottom: 16px; }
-.empty-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-.empty-desc { color: var(--text-muted); margin-bottom: 24px; }
+.scan-bar {
+  margin: 0 0 12px;
+  background: var(--surface-grouped, #f2f2f7);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.scan-info {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.scan-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--danger, #ff3b30);
+  font-size: 13px;
+}
 
-/* 统计 */
-.stats-grid { margin-bottom: 20px; }
-.stat-card { background: var(--surface-grouped); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
-.stat-label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-.stat-bars { display: flex; flex-direction: column; gap: 10px; }
-.stat-bar { display: flex; align-items: center; gap: 8px; }
-.bar-label { font-size: 13px; font-weight: 600; width: 48px; text-align: right; flex-shrink: 0; }
-.bar-track { flex: 1; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; min-width: 4px; }
-.bar-4k { background: linear-gradient(90deg, #6366f1, #818cf8); }
-.bar-1080p { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-.bar-720p { background: linear-gradient(90deg, #10b981, #34d399); }
-.bar-sd { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
-.bar-vr-dv { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-.bar-vr-hdr10 { background: linear-gradient(90deg, #ef4444, #f87171); }
-.bar-vr-sdr { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
-.bar-value { font-size: 13px; font-weight: 600; width: 40px; text-align: right; flex-shrink: 0; }
-.stat-total { text-align: center; font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.action-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
 
-/* 筛选 */
-.filter-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 12px; -webkit-overflow-scrolling: touch; }
-.filter-tab { flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface-grouped); color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
-.filter-tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
-.filter-count { font-size: 11px; opacity: 0.7; }
-.filter-tab.active .filter-count { opacity: 1; }
+.charts-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.chart-card {
+  flex: 1;
+  background: var(--surface-grouped, #f2f2f7);
+  border-radius: 14px;
+  padding: 8px;
+  cursor: pointer;
+}
+.chart-box {
+  width: 100%;
+  height: 180px;
+}
 
-/* 媒体列表 */
-.media-list { display: flex; flex-direction: column; gap: 1px; }
-.media-item { display: flex; gap: 12px; padding: 12px; background: var(--surface-grouped); border-radius: var(--radius); align-items: center; }
-.media-item + .media-item { margin-top: 8px; }
-.media-poster { width: 48px; height: 68px; border-radius: 6px; object-fit: cover; background: var(--bg-secondary); flex-shrink: 0; }
-.media-info { flex: 1; min-width: 0; }
-.media-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.media-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
-.media-type { font-size: 11px; color: var(--text-muted); }
-.media-path { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.filter-chip {
+  margin-bottom: 12px;
+}
 
-/* 徽章 */
-.badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
-.badge-4k { background: #eef2ff; color: #4f46e5; }
-.badge-1080p { background: #eff6ff; color: #2563eb; }
-.badge-720p { background: #ecfdf5; color: #059669; }
-.badge-sd { background: #f1f5f9; color: #64748b; }
-.badge-vr-dv { background: #fffbeb; color: #d97706; }
-.badge-vr-hdr10 { background: #fef2f2; color: #dc2626; }
-.badge-vr-sdr { background: #f1f5f9; color: #64748b; }
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 0.5px solid var(--separator, rgba(0,0,0,0.06));
+}
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+.item-name {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.item-type {
+  font-size: 11px;
+  color: var(--text-muted);
+}
 
-/* 忽略按钮 */
-.ignore-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-grouped); color: var(--text-muted); font-size: 14px; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
-.ignore-btn:hover { border-color: var(--danger); color: var(--danger); }
-.ignore-btn.ignored { border-color: var(--brand); color: var(--brand); }
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
 
-/* 分页 */
-.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px 0; }
-.page-info { font-size: 13px; color: var(--text-muted); }
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
 
-/* 桌面端 */
 @media (min-width: 769px) {
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .stat-total { grid-column: 1 / -1; }
-  .media-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
-  .media-item + .media-item { margin-top: 0; }
+  .charts-row {
+    gap: 16px;
+  }
+  .chart-box {
+    height: 220px;
+  }
 }
 </style>
