@@ -152,7 +152,7 @@
             <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row">
               <span class="avatar-wrap"><img :src="`/api/v1/manage/users/${v.user_id}/avatar`" @error="($event.target as HTMLImageElement).classList.add('hide')" />{{ v.username?.charAt(0) || '?' }}</span>
               <div class="viewer-body">
-                <div class="viewer-name">{{ v.username }} <n-button size="tiny" quaternary @click="router.push(`/users/${v.user_id}`)">详情</n-button></div>
+                <div class="viewer-name"><span class="link-name" @click="router.push(`/users/${v.user_id}`)">{{ v.username }}</span> <n-button size="tiny" quaternary @click="router.push(`/stats/users?user=${v.user_id}`)">分析</n-button></div>
                 <div class="viewer-meta">
                   <span class="tag tag-duration">{{ v.duration_hours }}h</span>
                   <span class="tag tag-plays">{{ v.play_count }}次</span>
@@ -469,7 +469,8 @@ onMounted(() => { loadRankings() })
 .viewer-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
 .viewer-body { flex: 1; }
 .viewer-name { font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
-.viewer-name:hover { text-decoration: underline; }
+.link-name { color: var(--brand); cursor: pointer; }
+.link-name:hover { text-decoration: underline; }
 .viewer-meta { font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 6px; }
 @media (max-width: 767px) {
   .media-card { padding: 8px 10px; gap: 10px; border-radius: 12px; }
