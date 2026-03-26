@@ -74,6 +74,7 @@ const activeKey = computed(() => {
   if (path.startsWith('/stats/content')) return '/stats/content'
   if (path.startsWith('/stats/users')) return '/stats/users'
   if (path.startsWith('/stats')) return '/stats'
+  if (path.startsWith('/quality')) return '/quality'
   return path
 })
 
@@ -103,7 +104,14 @@ const menuOptions: MenuOption[] = [
       { label: '用户分析', key: '/stats/users' },
     ],
   },
-  { label: '媒体管理', key: '/media', icon: renderIcon(MediaIcon) },
+  {
+    label: '媒体',
+    key: '/media',
+    icon: renderIcon(MediaIcon),
+    children: [
+      { label: '质量盘点', key: '/quality' },
+    ],
+  },
   { label: '追剧日历', key: '/calendar', icon: renderIcon(CalendarIcon) },
   { label: 'Risk', key: '/risk', icon: renderIcon(RiskIcon) },
   { label: 'Notifications', key: '/notifications', icon: renderIcon(NotificationsIcon) },
