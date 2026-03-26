@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from app.db.session import AsyncSessionDep
 from app.shared.responses import ApiResponse
@@ -21,6 +21,16 @@ async def get_settings(db: AsyncSessionDep):
 @router.patch("/settings/{key}", response_model=ApiResponse[SettingItem])
 async def update_setting(key: str, body: SettingUpdateRequest, db: AsyncSessionDep):
     return ApiResponse.ok(data=await SystemService(db).update_setting(key, body.value))
+
+
+@router.get("/settings/tmdb", response_model=ApiResponse[SettingItem])
+async def get_tmdb_setting(db: AsyncSessionDep):
+    return ApiResponse.ok(data=await SystemService(db).get_tmdb_setting())
+
+
+@router.put("/settings/tmdb", response_model=ApiResponse[SettingItem])
+async def update_tmdb_setting(body: SettingUpdateRequest, db: AsyncSessionDep):
+    return ApiResponse.ok(data=await SystemService(db).update_tmdb_setting(body.value))
 
 
 @router.get("/jobs", response_model=ApiResponse[list[JobRunItem]])

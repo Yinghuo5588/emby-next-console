@@ -2,7 +2,20 @@
   <div class="settings-page">
     <PageHeader title="设置" desc="系统配置" />
 
-    <!-- Webhook 配置 -->
+    <div class="section-card">
+      <div class="section-title">🎬 TMDB 配置</div>
+      <p class="section-desc">用于补全内容详情里的 TMDB 简介与图片信息。</p>
+      <div class="tmdb-form">
+        <n-input
+          v-model:value="tmdbApiKey"
+          type="password"
+          show-password-on="click"
+          placeholder="请输入 TMDB API Key"
+        />
+        <n-button type="primary" :loading="tmdbSaving" @click="saveTmdbApiKey">保存</n-button>
+      </div>
+    </div>
+
     <div class="section-card">
       <div class="section-title">🔗 Webhook 配置</div>
       <p class="section-desc">在 Emby 后台 → 通知 → Webhook 中添加以下 URL</p>
@@ -41,7 +54,6 @@
       </div>
     </div>
 
-    <!-- 系统状态 -->
     <div class="section-card">
       <div class="section-title">系统状态</div>
       <div v-if="health" class="health-grid">
@@ -51,7 +63,6 @@
       <n-button size="small" quaternary @click="loadHealth" :loading="hLoading">刷新</n-button>
     </div>
 
-    <!-- 配置项 -->
     <div class="section-card">
       <div class="section-title">配置项</div>
       <div v-for="item in settings" :key="item.setting_key" class="setting-row">
@@ -61,7 +72,6 @@
       <n-empty v-if="!sLoading && settings.length === 0" description="无配置" />
     </div>
 
-    <!-- 账户 -->
     <div class="section-card">
       <div class="section-title">账户</div>
       <div class="setting-row clickable" @click="handleLogout">
@@ -84,7 +94,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NButton, NEmpty, useDialog, useMessage } from 'naive-ui'
+import { NButton, NEmpty, NInput, useDialog, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { systemApi } from '@/api/system'
 import type { SettingItem, HealthResponse } from '@/api/system'
@@ -95,10 +105,10 @@ const settings = ref<SettingItem[]>([])
 const sLoading = ref(false)
 const health = ref<HealthResponse | null>(null)
 const hLoading = ref(false)
+const tmdbApiKey = ref('')
+const tmdbSaving = ref(false)
 
 const labelMap: Record<string, string> = { TMDB_API_KEY: 'TMDB API Key', EMBY_HOST: 'Emby 服务器', EMBY_API_KEY: 'Emby API Key' }
-
-// Webhook
 const webhookToken = ref('')
 
 const webhookUrl = computed(() => {
@@ -120,19 +130,34 @@ async function loadHealth() {
 }
 async function loadWebhookInfo() {
   try {
-    // 从配置项里取 token
-    const embySetting = settings.value.find(s => s.setting_key === 'EMBY_HOST')
-    // 直接用 settings 里的默认 token（环境变量 EMBY_WEBHOOK_TOKEN）
-    // 前端无法直接读环境变量，从 system settings 里读
     for (const s of settings.value) {
       if (s.setting_key === 'EMBY_WEBHOOK_TOKEN') {
         webhookToken.value = s.value || ''
         break
       }
     }
-    // 如果 settings 里没有，用已知默认值
     if (!webhookToken.value) webhookToken.value = 'embyconsole'
   } catch {}
+}
+async function loadTmdbSetting() {
+  try {
+    const res = await systemApi.getTmdbSetting()
+    tmdbApiKey.value = String(res.data?.value || '')
+  } catch {
+    tmdbApiKey.value = ''
+  }
+}
+async function saveTmdbApiKey() {
+  tmdbSaving.value = true
+  try {
+    await systemApi.updateTmdbSetting(tmdbApiKey.value)
+    msg.success('TMDB API Key 已保存')
+    await loadSettings()
+  } catch {
+    msg.error('保存失败')
+  } finally {
+    tmdbSaving.value = false
+  }
 }
 
 function masked(item: SettingItem) {
@@ -156,6 +181,7 @@ function handleLogout() {
 
 onMounted(async () => {
   await loadSettings()
+  await loadTmdbSetting()
   loadHealth()
   loadWebhookInfo()
 })
@@ -179,12 +205,14 @@ onMounted(async () => {
 .dot.ok { background: var(--success); }
 .dot.err { background: var(--danger); }
 .val { color: var(--text-muted); font-size: 12px; }
-
-/* Webhook blocks */
 .webhook-block { margin-bottom: 10px; }
 .wl-label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; }
 .wl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .wl-code { background: var(--bg); padding: 6px 10px; border-radius: 8px; font-size: 12px; word-break: break-all; flex: 1; min-width: 0; }
 .wl-code.full-example { font-size: 11px; }
 .wl-or { font-size: 12px; color: var(--text-muted); }
+.tmdb-form { display: flex; gap: 10px; align-items: center; }
+@media (max-width: 767px) {
+  .tmdb-form { flex-direction: column; align-items: stretch; }
+}
 </style>

@@ -3,7 +3,6 @@
     <PageHeader title="用户分析" />
     <StatsTabs />
 
-    <!-- 顶部搜索 -->
     <div class="top-bar">
       <n-select
         v-model:value="selectedUserId"
@@ -21,7 +20,6 @@
       />
     </div>
 
-    <!-- 用户列表 -->
     <div class="ranking-card">
       <div v-if="loading" class="empty-text">加载中...</div>
       <div v-else-if="items.length === 0" class="empty-text">暂无数据</div>
@@ -52,11 +50,8 @@
       </div>
     </div>
 
-    <!-- 用户画像抽屉 -->
     <n-drawer v-model:show="showDrawer" :width="isMobile ? undefined : 560" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '90vh' : undefined">
       <n-drawer-content v-if="userDetail" :title="userDetail.username" closable>
-
-        <!-- KPI -->
         <div class="kpi-row">
           <div class="kpi-item">
             <div class="kpi-val">{{ userDetail.kpis.total_plays }}</div>
@@ -72,7 +67,6 @@
           </div>
         </div>
 
-        <!-- 时间筛选 + 入驻天数 -->
         <div class="header-row">
           <div class="segment-group small">
             <button v-for="p in periodOptions" :key="p.value"
@@ -82,7 +76,6 @@
           <span class="age-text">入驻 <b>{{ userDetail.account_age_days }}</b> 天</span>
         </div>
 
-        <!-- 内容偏好 -->
         <div class="section-sub">
           <h4>内容偏好</h4>
           <div class="pref-bar-wrap">
@@ -104,19 +97,16 @@
           </div>
         </div>
 
-        <!-- 播放趋势 -->
         <div class="section-sub" v-if="trendHasData">
           <h4>播放趋势</h4>
           <AreaChart :xData="trendXData" :series="[{ name: '播放时长', data: trendYData }]" height="200px" />
         </div>
 
-        <!-- 观影生物钟 -->
         <div class="section-sub" v-if="heatmapHasData">
           <h4>观影生物钟</h4>
           <HeatmapChart :data="userDetail.heatmap" height="240px" />
         </div>
 
-        <!-- 软件分布 + 硬件分布 -->
         <div class="section-sub dist-row">
           <div>
             <h4>软件分布</h4>
@@ -136,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { NButton, NAvatar, NDrawer, NDrawerContent, NSelect } from 'naive-ui'
 import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -145,6 +136,7 @@ import AreaChart from '@/components/charts/AreaChart.vue'
 import HeatmapChart from '@/components/charts/HeatmapChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
+const route = useRoute()
 const { width: winWidth } = useWindowSize()
 const isMobile = computed(() => winWidth.value < 768)
 
@@ -156,14 +148,10 @@ const loading = ref(false)
 const selectedDetailUserId = ref<string | null>(null)
 const showDrawer = ref(false)
 const userDetail = ref<any>(null)
-
-// 搜索用户
 const selectedUserId = ref<string | null>(null)
 const userOptions = ref<{ label: string; value: string }[]>([])
 const searchingUsers = ref(false)
 let searchTimer: any = null
-
-// 抽屉内时间筛选（默认7天）
 const detailPeriod = ref('7d')
 const periodOptions = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 
@@ -189,16 +177,13 @@ function onSelectUser(uid: string | null) {
 }
 
 const maxDuration = computed(() => Math.max(...items.value.map(i => i.total_duration_hours), 1))
-
 const trendXData = computed(() => Object.keys(userDetail.value?.trend || {}))
 const trendYData = computed(() => Object.values(userDetail.value?.trend || {}) as number[])
 const trendHasData = computed(() => Object.keys(userDetail.value?.trend || {}).length > 0)
-
 const heatmapHasData = computed(() => {
   const hm = userDetail.value?.heatmap
   return hm?.some((row: number[]) => row.some((v: number) => v > 0))
 })
-
 const moviePercent = computed(() => {
   if (!userDetail.value) return 0
   const m = userDetail.value.preference.movie_plays || 0
@@ -228,15 +213,21 @@ async function loadUserDetail() {
 
 async function selectUser(uid: string) {
   selectedDetailUserId.value = uid
+  selectedUserId.value = uid
   showDrawer.value = true
   const res = await statsApiV3.userDetail(uid, detailPeriod.value)
   userDetail.value = res.data?.data ?? res.data
 }
 
-// 时间筛选变化重新加载详情
 watch(detailPeriod, loadUserDetail)
 watch(page, loadRankings)
-onMounted(loadRankings)
+onMounted(async () => {
+  await loadRankings()
+  const uid = typeof route.query.user === 'string' ? route.query.user : ''
+  if (uid) {
+    await selectUser(uid)
+  }
+})
 </script>
 
 <style scoped>

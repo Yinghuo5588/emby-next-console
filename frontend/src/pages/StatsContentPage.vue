@@ -30,12 +30,10 @@
           :class="{ active: selectedItemId === item.item_id }"
           @click="selectItem(item.item_id)"
         >
-          <!-- 排名 -->
           <div class="card-rank" :class="{ 'rank-1': i === 0, 'rank-2': i === 1, 'rank-3': i === 2 }">
             <span>{{ (page - 1) * size + i + 1 }}</span>
           </div>
 
-          <!-- 海报 -->
           <div class="poster-wrap">
             <img
               v-if="item.poster_url"
@@ -47,7 +45,6 @@
             <div v-else class="poster-fallback">{{ item.name?.charAt(0) || '?' }}</div>
           </div>
 
-          <!-- 信息 -->
           <div class="card-body">
             <div class="card-title">{{ item.display_title || item.name }}</div>
             <div class="card-tags">
@@ -58,7 +55,6 @@
             </div>
           </div>
 
-          <!-- 右侧统计 -->
           <div class="card-stats">
             <div class="stat-play">
               <span class="stat-icon">▶</span>
@@ -81,7 +77,6 @@
       </div>
     </div>
 
-    <!-- 筛选抽屉 -->
     <n-drawer v-model:show="showFilter" :width="320" placement="bottom" height="420px">
       <n-drawer-content title="筛选" closable :body-content-style="{ padding: '16px' }">
         <div class="filter-group">
@@ -127,7 +122,6 @@
       </n-drawer-content>
     </n-drawer>
 
-    <!-- 详情抽屉（保留 hero 风格） -->
     <n-drawer v-model:show="showDetail" :width="isMobile ? undefined : 520" :placement="isMobile ? 'bottom' : 'right'" :height="isMobile ? '92vh' : undefined">
       <n-drawer-content v-if="detail" :title="detail.name" closable>
         <div class="detail-hero" :style="detailHeroStyle(detail)">
@@ -155,11 +149,14 @@
         <div class="detail-section" v-if="detail.viewers?.length > 0">
           <h4>观看用户</h4>
           <div class="viewer-list">
-            <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row">
+            <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row" @click="router.push(`/stats/users?user=${v.user_id}`)">
               <span class="avatar-wrap"><img :src="`/api/v1/manage/users/${v.user_id}/avatar`" @error="($event.target as HTMLImageElement).classList.add('hide')" />{{ v.username?.charAt(0) || '?' }}</span>
               <div class="viewer-body">
-                <div class="viewer-name">{{ v.username }}</div>
-                <div class="viewer-meta">{{ v.duration_hours }}h · {{ v.play_count }}次</div>
+                <div class="viewer-name" @click.stop="router.push(`/users/${v.user_id}`)">{{ v.username }}</div>
+                <div class="viewer-meta">
+                  <span class="tag tag-duration">{{ v.duration_hours }}h</span>
+                  <span class="tag tag-plays">{{ v.play_count }}次</span>
+                </div>
               </div>
             </div>
           </div>
@@ -171,13 +168,15 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent, NSelect } from 'naive-ui'
+import { useRouter } from 'vue-router'
+import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent, NSelect, NInput, NIcon } from 'naive-ui'
 import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
 import AreaChart from '@/components/charts/AreaChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
+const router = useRouter()
 const { width: winWidth } = useWindowSize()
 const isMobile = computed(() => winWidth.value < 768)
 
@@ -214,6 +213,8 @@ function onSearchUser(query: string) {
         label: u.username || u.name || u.display_name,
         value: u.user_id || u.id,
       }))
+      const matched = userOptions.value.find(u => u.value === selectedUserId.value)
+      if (matched) selectedUserName.value = matched.label
     } catch { userOptions.value = [] }
     finally { searchingUsers.value = false }
   }, 300)
@@ -285,6 +286,10 @@ async function loadRankings() {
     const data = res.data?.data ?? res.data ?? {}
     items.value = data.items || []
     total.value = data.total || 0
+    if (selectedUserId.value && !selectedUserName.value) {
+      const matched = userOptions.value.find(u => u.value === selectedUserId.value)
+      if (matched) selectedUserName.value = matched.label
+    }
   } finally { loading.value = false }
 }
 
@@ -310,8 +315,6 @@ onMounted(() => { loadRankings() })
 .active-filters { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
 .search-bar { margin-bottom: 10px; }
 .card-list { display: flex; flex-direction: column; gap: 10px; }
-
-/* ===== 简洁卡片 ===== */
 .media-card {
   display: flex;
   align-items: center;
@@ -332,8 +335,6 @@ onMounted(() => { loadRankings() })
   border-color: rgba(99, 102, 241, 0.6);
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 8px 28px rgba(79, 70, 229, 0.10);
 }
-
-/* 排名 */
 .card-rank {
   flex-shrink: 0;
   width: 30px;
@@ -351,8 +352,6 @@ onMounted(() => { loadRankings() })
 .card-rank.rank-1 { background: linear-gradient(135deg, #FFD700, #FFA500); color: #1a1a1a; border-color: rgba(255,215,0,0.4); }
 .card-rank.rank-2 { background: linear-gradient(135deg, #C0C0C0, #9CA3AF); color: #1a1a1a; border-color: rgba(192,192,192,0.4); }
 .card-rank.rank-3 { background: linear-gradient(135deg, #CD7F32, #B87333); color: #1a1a1a; border-color: rgba(205,127,50,0.4); }
-
-/* 海报 */
 .poster-wrap {
   flex-shrink: 0;
   width: 56px;
@@ -368,8 +367,6 @@ onMounted(() => { loadRankings() })
   font-size: 1.2rem; font-weight: 800; color: rgba(0,0,0,0.35);
   background: linear-gradient(135deg, rgba(99,102,241,.15), rgba(30,41,59,.08));
 }
-
-/* 信息区 */
 .card-body {
   flex: 1;
   min-width: 0;
@@ -387,8 +384,6 @@ onMounted(() => { loadRankings() })
   text-overflow: ellipsis;
 }
 .card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
-
-/* 标签 */
 .tag {
   display: inline-flex;
   align-items: center;
@@ -401,8 +396,8 @@ onMounted(() => { loadRankings() })
 .tag-movie { background: rgba(245, 158, 11, 0.15); color: #B45309; }
 .tag-series { background: rgba(16, 185, 129, 0.15); color: #047857; }
 .tag-quality { background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.55); }
-
-/* 右侧统计 */
+.tag-duration { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.tag-plays { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 .card-stats {
   flex-shrink: 0;
   display: flex;
@@ -445,15 +440,11 @@ onMounted(() => { loadRankings() })
   min-width: 45px;
   text-align: right;
 }
-
-/* 分页 & 空状态 */
 .pagination-row { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 0; }
 .page-info { font-size: 0.8rem; color: var(--text-muted); }
 .empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
 .filter-group { margin-bottom: 1rem; }
 .filter-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-
-/* ===== 详情抽屉 hero 风格 ===== */
 .detail-hero {
   position: relative; overflow: hidden; border-radius: 22px;
   min-height: 220px; background-size: cover; background-position: center;
@@ -461,13 +452,10 @@ onMounted(() => { loadRankings() })
 }
 .detail-hero-overlay { position: absolute; inset: 0; background: radial-gradient(circle at 18% 22%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 34%); }
 .detail-poster-wrap {
-  position: absolute; left: 18px; bottom: 18px; z-index: 2;
-  width: 92px; aspect-ratio: 2 / 3; border-radius: 16px; overflow: hidden;
-  box-shadow: 0 18px 40px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.22);
-  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08);
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 100px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 10px; z-index: 2; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 .detail-poster { width: 100%; height: 100%; object-fit: cover; display: block; aspect-ratio: 2 / 3; }
-.detail-hero-info { position: relative; z-index: 2; margin-left: 128px; padding: 22px 18px 20px 0; color: #fff; }
+.detail-hero-info { position: relative; z-index: 2; margin-left: 132px; padding: 22px 18px 20px 0; color: #fff; }
 .detail-hero-info h3 { margin: 0 0 10px; font-size: 1.3rem; line-height: 1.25; text-shadow: 0 3px 14px rgba(0,0,0,0.45); }
 .detail-meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .detail-overview {
@@ -478,12 +466,11 @@ onMounted(() => { loadRankings() })
 .detail-section { margin-bottom: 1.25rem; }
 .detail-section h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; }
 .viewer-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.viewer-row { display: flex; align-items: center; gap: 0.5rem; }
+.viewer-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
 .viewer-body { flex: 1; }
-.viewer-name { font-size: 0.8rem; font-weight: 600; }
-.viewer-meta { font-size: 0.7rem; color: var(--text-muted); }
-
-/* 移动端 */
+.viewer-name { font-size: 0.8rem; font-weight: 600; color: var(--brand); cursor: pointer; }
+.viewer-name:hover { text-decoration: underline; }
+.viewer-meta { font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 6px; }
 @media (max-width: 767px) {
   .media-card { padding: 8px 10px; gap: 10px; border-radius: 12px; }
   .poster-wrap { width: 48px; aspect-ratio: 2 / 3; border-radius: 8px; }
@@ -492,7 +479,7 @@ onMounted(() => { loadRankings() })
   .duration-bar { width: 40px; }
   .duration-text { font-size: 0.7rem; min-width: 38px; }
   .detail-hero { min-height: 200px; }
-  .detail-poster-wrap { width: 76px; aspect-ratio: 2 / 3; }
+  .detail-poster-wrap { width: 76px; }
   .detail-hero-info { margin-left: 108px; padding: 18px 14px 18px 0; }
   .detail-overview { -webkit-line-clamp: 3; }
 }

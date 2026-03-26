@@ -20,7 +20,6 @@ class SystemService:
         from app.db.models.system import SystemSetting
         from sqlalchemy import select
 
-        # 默认配置项
         defaults = [
             SettingItem(
                 setting_key="TMDB_API_KEY",
@@ -42,7 +41,6 @@ class SystemService:
             ),
         ]
 
-        # 数据库覆盖
         try:
             stmt = select(SystemSetting)
             result = await self.db.execute(stmt)
@@ -52,14 +50,12 @@ class SystemService:
                     db_s = db_settings[item.setting_key]
                     if db_s.value_json is not None:
                         item.value = db_s.value_json
-                    # value_json only (no value_str column in model)
         except Exception:
             pass
 
         return defaults
 
     async def update_setting(self, key: str, value) -> SettingItem:
-        """更新配置项"""
         from app.db.models.system import SystemSetting
         from sqlalchemy import select
         from datetime import datetime, timezone
@@ -70,7 +66,6 @@ class SystemService:
 
         now = datetime.now(timezone.utc)
         if setting:
-            # SystemSetting only has value_json (JSONB)
             setting.value_json = value
             setting.updated_at = now
         else:
@@ -84,12 +79,31 @@ class SystemService:
 
         await self.db.flush()
 
-        # 同步到 settings 对象
         if key == "TMDB_API_KEY":
             from app.core.settings import settings as _s
             _s.TMDB_API_KEY = value or ""
 
         return SettingItem(setting_key=key, setting_group="general", value=value, description=None)
+
+    async def get_tmdb_setting(self) -> SettingItem:
+        value = settings.TMDB_API_KEY or ""
+        try:
+            all_settings = await self.get_settings()
+            for item in all_settings:
+                if item.setting_key == "TMDB_API_KEY":
+                    value = item.value or ""
+                    break
+        except Exception:
+            pass
+        return SettingItem(
+            setting_key="TMDB_API_KEY",
+            setting_group="api",
+            value=value,
+            description="TMDB API Key，用于获取媒体简介与图片回退",
+        )
+
+    async def update_tmdb_setting(self, value) -> SettingItem:
+        return await self.update_setting("TMDB_API_KEY", value or "")
 
     async def health(self) -> HealthResponse:
         db_ok = "ok"
@@ -125,5 +139,4 @@ class SystemService:
         )
 
     async def list_jobs(self) -> list[JobRunItem]:
-        # TODO: SELECT job_runs ORDER BY created_at DESC LIMIT 50
         return []

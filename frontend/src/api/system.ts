@@ -32,6 +32,12 @@ export const systemApi = {
   async updateSetting(key: string, value: any): Promise<ApiResponse<SettingItem>> {
     return (await apiClient.patch(`/system/settings/${key}`, { value })).data
   },
+  async getTmdbSetting(): Promise<ApiResponse<SettingItem>> {
+    return (await apiClient.get('/system/settings/tmdb')).data
+  },
+  async updateTmdbSetting(value: string): Promise<ApiResponse<SettingItem>> {
+    return (await apiClient.put('/system/settings/tmdb', { value })).data
+  },
   async jobs(): Promise<ApiResponse<JobRunItem[]>> {
     return (await apiClient.get('/system/jobs')).data
   },

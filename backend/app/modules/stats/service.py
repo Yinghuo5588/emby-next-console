@@ -7,9 +7,11 @@ import logging
 import re
 import urllib.parse
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+
+import httpx
 
 from app.core.emby import emby
+from app.core.settings import settings
 
 logger = logging.getLogger("app.stats")
 
@@ -116,6 +118,36 @@ async def _get_user_map() -> dict:
         return {}
 
 
+async def search_tmdb_first(name: str, media_type: str = "movie") -> dict:
+    """调用 TMDB search API，返回首个结果的 overview、poster_path、backdrop_path"""
+    api_key = (settings.TMDB_API_KEY or "").strip()
+    if not api_key or not name.strip():
+        return {"overview": "", "poster_path": "", "backdrop_path": ""}
+
+    url = f"https://api.themoviedb.org/3/search/{media_type}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                url,
+                params={
+                    "api_key": api_key,
+                    "query": name.strip(),
+                    "language": "zh-CN",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            first = (data.get("results") or [{}])[0] if (data.get("results") or []) else {}
+            return {
+                "overview": first.get("overview") or "",
+                "poster_path": first.get("poster_path") or "",
+                "backdrop_path": first.get("backdrop_path") or "",
+            }
+    except Exception as e:
+        logger.warning("TMDB 查询失败: %s", e)
+        return {"overview": "", "poster_path": "", "backdrop_path": ""}
+
+
 # ════════════════════════════════════════════════════════════
 # 总览页
 # ════════════════════════════════════════════════════════════
@@ -124,7 +156,6 @@ async def get_overview(period: str = "30d") -> dict:
     """核心指标（按 period 筛选）+ 媒体库总量"""
     pf = _period_filter(period)
 
-    # 播放统计（按时间）
     rows = await _query(
         f"SELECT COUNT(*) as total_plays, "
         f"COALESCE(SUM(PlayDuration), 0) as total_duration, "
@@ -133,7 +164,6 @@ async def get_overview(period: str = "30d") -> dict:
     )
     r = rows[0] if rows else {}
 
-    # 媒体库总量（始终显示）
     library = {"movie": 0, "series": 0, "episode": 0}
     try:
         resp = await emby.get("/Items/Counts")
@@ -178,7 +208,7 @@ async def get_trend_by_period(period: str = "30d") -> dict:
             "FROM PlaybackActivity "
             "GROUP BY label ORDER BY label"
         )
-    else:  # 30d
+    else:
         rows = await _query(
             "SELECT DATE(DateCreated) as label, "
             "COALESCE(SUM(PlayDuration), 0) as duration "
@@ -190,7 +220,6 @@ async def get_trend_by_period(period: str = "30d") -> dict:
 
 
 async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
-    """Top 内容（按时长排）"""
     pf = _period_filter(period)
     rows = await _query(
         f"SELECT ItemName, ItemId, ItemType, "
@@ -198,7 +227,6 @@ async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
         f"FROM PlaybackActivity WHERE {pf} "
         f"GROUP BY ItemName ORDER BY total_duration DESC LIMIT {limit * 3}"
     )
-    # 按作品级聚合
     agg: dict[str, dict] = {}
     for r in rows:
         clean = _clean_name(r.get("ItemName", ""), r.get("ItemType", ""))
@@ -219,7 +247,6 @@ async def get_top_content(limit: int = 5, period: str = "7d") -> list[dict]:
 
 
 async def get_top_users_ranked(limit: int = 5, period: str = "7d") -> list[dict]:
-    """Top 用户（按时长排）"""
     pf = _period_filter(period)
     rows = await _query(
         f"SELECT UserId as user_id, "
@@ -253,8 +280,6 @@ async def get_content_rankings(
     size: int = 20,
     user_id: str = None,
 ) -> dict:
-    """内容排行榜（筛选+分页）"""
-    # 搜索时忽略类型/时间筛选，全库搜索
     pf = _period_filter(period) if not search else "1=1"
 
     type_filter = ""
@@ -278,7 +303,6 @@ async def get_content_rankings(
         f"GROUP BY ItemName ORDER BY {order} LIMIT 500"
     )
 
-    # 按作品级聚合
     agg: dict[str, dict] = {}
     for r in rows:
         clean = _clean_name(r.get("ItemName", ""), r.get("ItemType", ""))
@@ -309,17 +333,13 @@ async def get_content_rankings(
 
 
 async def get_content_detail(item_id: str, period: str = "30d") -> dict:
-    """单个内容详情"""
-    # 安全转义 item_id
     safe_id = str(item_id).replace("'", "''")
 
-    # 先从数据库拿名称作为兜底
     db_rows = await _query(
         f"SELECT ItemName FROM PlaybackActivity WHERE ItemId = '{safe_id}' LIMIT 1"
     )
     db_name = db_rows[0]["ItemName"] if db_rows and db_rows[0].get("ItemName") else "未知"
 
-    # 基本信息（Emby）
     overview = ""
     production_year = None
     quality_tags: list[str] = []
@@ -338,7 +358,11 @@ async def get_content_detail(item_id: str, period: str = "30d") -> dict:
     except Exception:
         pass
 
-    # 播放趋势（按时间段）
+    if not overview.strip():
+        tmdb_type = "tv" if item_type in ("Series", "Episode") else "movie"
+        tmdb_data = await search_tmdb_first(name=name, media_type=tmdb_type)
+        overview = tmdb_data.get("overview") or overview
+
     pf = _period_filter(period)
     rows = await _query(
         f"SELECT DATE(DateCreated) as date, COUNT(*) as play_count, "
@@ -349,7 +373,6 @@ async def get_content_detail(item_id: str, period: str = "30d") -> dict:
     )
     trend = {r["date"]: {"plays": r["play_count"], "hours": round(r["duration"] / 3600, 1)} for r in rows} if rows else {}
 
-    # 观看用户
     user_rows = await _query(
         f"SELECT UserId, COUNT(*) as play_count, COALESCE(SUM(PlayDuration), 0) as duration "
         f"FROM PlaybackActivity WHERE ItemId = '{safe_id}' "
@@ -366,7 +389,7 @@ async def get_content_detail(item_id: str, period: str = "30d") -> dict:
             "duration_hours": round(r.get("duration", 0) / 3600, 1),
         })
 
-    result = {
+    return {
         "name": name,
         "type": item_type,
         "trend": trend,
@@ -378,7 +401,6 @@ async def get_content_detail(item_id: str, period: str = "30d") -> dict:
         "production_year": production_year,
         "quality_tags": quality_tags,
     }
-    return result
 
 
 # ════════════════════════════════════════════════════════════
@@ -390,7 +412,6 @@ async def get_user_rankings(
     page: int = 1,
     size: int = 20,
 ) -> dict:
-    """用户排行榜（分页）"""
     pf = _period_filter(period)
 
     rows = await _query(
@@ -419,11 +440,9 @@ async def get_user_rankings(
 
 
 async def get_user_detail(user_id: str, period: str = "7d") -> dict:
-    """单个用户画像 — 所有数据按 period 筛选"""
     pf = _period_filter(period)
     where = f"UserId = '{user_id}' AND {pf}"
 
-    # KPI
     kpi_rows = await _query(
         f"SELECT COUNT(*) as total_plays, "
         f"COALESCE(SUM(PlayDuration), 0) as total_duration, "
@@ -435,7 +454,6 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
     total_dur = kpi.get("total_duration", 0)
     avg_min = round(total_dur / total_plays / 60, 1) if total_plays else 0
 
-    # 用户信息
     username = f"用户 {user_id[:6]}"
     account_age_days = 1
     try:
@@ -452,7 +470,6 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
     except Exception:
         pass
 
-    # 内容偏好
     pref_rows = await _query(
         f"SELECT ItemType, COUNT(*) as cnt FROM PlaybackActivity WHERE {where} GROUP BY ItemType"
     )
@@ -463,7 +480,6 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
         elif r["ItemType"] == "Episode":
             episode_plays = r["cnt"]
 
-    # Top 最爱
     fav_rows = await _query(
         f"SELECT ItemName, ItemId, ItemType, COALESCE(SUM(PlayDuration), 0) as dur "
         f"FROM PlaybackActivity WHERE {where} GROUP BY ItemName ORDER BY dur DESC LIMIT 1"
@@ -477,7 +493,6 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(f.get('ItemName', ''), f.get('ItemType', '')))}" if f.get("ItemId") else "",
         }
 
-    # 播放趋势（近30天按天）
     trend_rows = await _query(
         f"SELECT DATE(DateCreated) as label, "
         f"COALESCE(SUM(PlayDuration), 0) as duration "
@@ -487,11 +502,9 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
     )
     trend = {r["label"]: round(r["duration"] / 3600, 1) for r in trend_rows} if trend_rows else {}
 
-    # 观影生物钟（二维热力图：day_of_week × hour）
     dc_rows = await _query(
         f"SELECT DateCreated FROM PlaybackActivity WHERE {where}"
     )
-    # 热力图 [day_of_week][hour]，day 0=周一 ... 6=周日
     heatmap = [[0] * 24 for _ in range(7)]
     for r in dc_rows:
         dc = r.get("DateCreated")
@@ -500,12 +513,11 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             if m:
                 from datetime import date as _d
                 dt = _d(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-                dow = dt.weekday()  # 0=Mon
+                dow = dt.weekday()
                 h = int(m.group(4))
                 if 0 <= h < 24 and 0 <= dow < 7:
                     heatmap[dow][h] += 1
 
-    # 设备分布：软件 + 硬件
     client_rows = await _query(
         f"SELECT COALESCE(ClientName, '未知') as device, COUNT(*) as cnt "
         f"FROM PlaybackActivity WHERE {where} GROUP BY device ORDER BY cnt DESC LIMIT 5"
@@ -515,7 +527,6 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
         f"FROM PlaybackActivity WHERE {where} GROUP BY device ORDER BY cnt DESC LIMIT 5"
     )
 
-    # 最近播放
     recent_rows = await _query(
         f"SELECT ItemName, ItemId, ItemType, DateCreated, PlayDuration "
         f"FROM PlaybackActivity WHERE {where} ORDER BY DateCreated DESC LIMIT 10"
@@ -530,7 +541,6 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(r.get('ItemName', ''), r.get('ItemType', '')))}" if r.get("ItemId") else "",
         })
 
-    # 成就徽章
     badges = await _get_badges(where)
 
     return {
@@ -557,144 +567,60 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
 
 
 async def _get_badges(where: str) -> list[dict]:
-    """趣味成就徽章"""
-    rows = await _query(
-        f"SELECT DateCreated, PlayDuration, COALESCE(ClientName, DeviceName) as client, "
-        f"ItemId, ItemName, ItemType FROM PlaybackActivity WHERE {where}"
+    badges: list[dict] = []
+
+    night_rows = await _query(
+        f"SELECT COUNT(*) as cnt FROM PlaybackActivity WHERE {where} "
+        f"AND cast(strftime('%H', DateCreated) as int) BETWEEN 0 AND 5"
     )
-    if not rows:
-        return []
+    if night_rows and (night_rows[0].get("cnt") or 0) >= 10:
+        badges.append({"id": "night", "name": "夜猫子", "icon": "🌙", "color": "#6366f1", "desc": "深夜观影达人"})
 
-    night_c = weekend_c = fish_c = morning_c = 0
-    dur_total = 0
-    devices = set()
-    items: dict[str, dict] = {}
-    movies = eps = 0
+    binge_rows = await _query(
+        f"SELECT COUNT(*) as cnt FROM PlaybackActivity WHERE {where} AND PlayDuration >= 7200"
+    )
+    if binge_rows and (binge_rows[0].get("cnt") or 0) >= 3:
+        badges.append({"id": "binge", "name": "刷剧狂魔", "icon": "🔥", "color": "#ef4444", "desc": "超长观看停不下来"})
 
-    for r in rows:
-        dur = r.get("PlayDuration") or 0
-        dur_total += dur
-        client = r.get("client")
-        if client:
-            devices.add(client)
-        iid = r.get("ItemId")
-        if iid:
-            items.setdefault(iid, {"name": r.get("ItemName"), "c": 0})
-            items[iid]["c"] += 1
-        it = r.get("ItemType")
-        if it == "Movie":
-            movies += 1
-        elif it == "Episode":
-            eps += 1
-
-        dc = r.get("DateCreated")
-        if dc:
-            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2})", str(dc))
-            if m:
-                hour = int(m.group(4))
-                try:
-                    dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-                except ValueError:
-                    continue
-                wd = dt.weekday()
-                if 2 <= hour <= 5:
-                    night_c += 1
-                if wd in (5, 6):
-                    weekend_c += 1
-                if 0 <= wd <= 4 and 9 <= hour <= 17:
-                    fish_c += 1
-                if 5 <= hour <= 8:
-                    morning_c += 1
-
-    badges = []
-    if night_c >= 2:
-        badges.append({"id": "night", "name": "深夜修仙", "icon": "fa-moon", "color": "text-indigo-500", "desc": "深夜是灵魂最自由的时刻"})
-    if weekend_c >= 5:
-        badges.append({"id": "weekend", "name": "周末狂欢", "icon": "fa-champagne-glasses", "color": "text-pink-500", "desc": "工作日唯唯诺诺，周末重拳出击"})
-    if dur_total > 180000:
-        badges.append({"id": "liver", "name": "核心肝帝", "icon": "fa-fire", "color": "text-red-500", "desc": "阅片无数，肝度爆表"})
-    if fish_c >= 5:
-        badges.append({"id": "fish", "name": "带薪观影", "icon": "fa-fish", "color": "text-cyan-500", "desc": "工作是老板的，快乐是自己的"})
-    if morning_c >= 2:
-        badges.append({"id": "morning", "name": "晨练追剧", "icon": "fa-sun", "color": "text-amber-500", "desc": "比你优秀的人，连看片都比你早"})
-    if len(devices) >= 2:
-        badges.append({"id": "device", "name": "全平台制霸", "icon": "fa-gamepad", "color": "text-emerald-500", "desc": "手机、平板、电视，哪里都能看"})
-    if items:
-        loyal = max(items.values(), key=lambda x: x["c"])
-        if loyal["c"] >= 3:
-            safe = str(loyal.get("name") or "未知").split(" - ")[0][:10]
-            badges.append({"id": "loyal", "name": "N刷狂魔", "icon": "fa-repeat", "color": "text-teal-500", "desc": f"对《{safe}》爱得深沉"})
-    total = movies + eps
-    if total > 10:
-        if movies / total > 0.6:
-            badges.append({"id": "movie_lover", "name": "电影鉴赏家", "icon": "fa-film", "color": "text-blue-500", "desc": "沉浸在两小时的艺术光影世界"})
-        elif eps / total > 0.6:
-            badges.append({"id": "tv_lover", "name": "追剧狂魔", "icon": "fa-tv", "color": "text-purple-500", "desc": "一集接一集，根本停不下来"})
+    movie_rows = await _query(
+        f"SELECT COUNT(*) as cnt FROM PlaybackActivity WHERE {where} AND ItemType = 'Movie'"
+    )
+    episode_rows = await _query(
+        f"SELECT COUNT(*) as cnt FROM PlaybackActivity WHERE {where} AND ItemType = 'Episode'"
+    )
+    movie_cnt = (movie_rows[0].get("cnt") or 0) if movie_rows else 0
+    episode_cnt = (episode_rows[0].get("cnt") or 0) if episode_rows else 0
+    if movie_cnt >= 20 and movie_cnt > episode_cnt * 1.5:
+        badges.append({"id": "cinephile", "name": "电影发烧友", "icon": "🎬", "color": "#f59e0b", "desc": "电影偏好明显"})
+    elif episode_cnt >= 20 and episode_cnt > movie_cnt * 1.5:
+        badges.append({"id": "series", "name": "追剧达人", "icon": "📺", "color": "#10b981", "desc": "剧集偏好明显"})
 
     return badges
 
 
-# ════════════════════════════════════════════════════════════
-# 总览页额外数据
-# ════════════════════════════════════════════════════════════
-
 async def get_heatmap(period: str = "30d") -> list[list[int]]:
-    """24×7 热力图数据：grid[hour][day_of_week] = 播放次数"""
     pf = _period_filter(period)
-    rows = await _query(
-        f"SELECT DateCreated FROM PlaybackActivity WHERE {pf}"
-    )
-    grid = [[0] * 7 for _ in range(24)]
-    day_names = ['一', '二', '三', '四', '五', '六', '日']
+    rows = await _query(f"SELECT DateCreated FROM PlaybackActivity WHERE {pf}")
+    heatmap = [[0] * 24 for _ in range(7)]
     for r in rows:
         dc = r.get("DateCreated")
         if dc:
-            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2})", str(dc))
+            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
             if m:
-                hour = int(m.group(4))
-                try:
-                    dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-                    dow = dt.weekday()  # 0=Mon
-                    if 0 <= hour < 24:
-                        grid[hour][dow] += 1
-                except ValueError:
-                    pass
-    return grid
+                from datetime import date as _d
+                dt = _d(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                dow = dt.weekday()
+                h = int(m.group(4))
+                if 0 <= h < 24 and 0 <= dow < 7:
+                    heatmap[dow][h] += 1
+    return heatmap
 
 
-async def get_device_dist(period: str = "30d", dist_type: str = "client") -> list[dict]:
-    """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)
-    优先走 Playback Reporting 插件数据，查不到 fallback 到 Emby /Devices API
-    """
+async def get_device_dist(period: str = "30d", type: str = "client") -> list[dict]:
     pf = _period_filter(period)
-    col = "DeviceName" if dist_type == "hardware" else "ClientName"
+    field = "ClientName" if type == "client" else "DeviceName"
     rows = await _query(
-        f"SELECT COALESCE({col}, '未知') as device, COUNT(*) as cnt "
-        f"FROM PlaybackActivity GROUP BY device ORDER BY cnt DESC LIMIT 8"
+        f"SELECT COALESCE({field}, '未知') as name, COUNT(*) as value "
+        f"FROM PlaybackActivity WHERE {pf} GROUP BY name ORDER BY value DESC LIMIT 10"
     )
-    result = [{"name": r["device"], "value": r["cnt"]} for r in rows if r.get("device") and r["device"].strip()]
-
-    # Playback Reporting 有数据就直接返回
-    if result and len(result) > 0 and not (len(result) == 1 and result[0]["name"] == "未知"):
-        return result
-
-    # fallback: Emby /Devices API
-    try:
-        devices = await emby.get_devices()
-        if devices:
-            if dist_type == "client":
-                counter: dict[str, int] = {}
-                for d in devices:
-                    name = d.get("AppName") or "未知客户端"
-                    counter[name] = counter.get(name, 0) + 1
-            else:
-                counter = {}
-                for d in devices:
-                    name = d.get("Name") or "未知设备"
-                    counter[name] = counter.get(name, 0) + 1
-            if counter:
-                return [{"name": k, "value": v} for k, v in sorted(counter.items(), key=lambda x: -x[1])[:8]]
-    except Exception:
-        pass
-
-    return []
+    return [{"name": r["name"], "value": r["value"]} for r in rows]

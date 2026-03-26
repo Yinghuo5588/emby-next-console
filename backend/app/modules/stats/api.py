@@ -11,9 +11,7 @@
   /api/v1/stats/user-rankings   → 用户排行（分页）
   /api/v1/stats/users/{id}      → 单个用户画像
 """
-from fastapi import APIRouter, Depends, Query
-from typing import Optional
-
+from fastapi import APIRouter, Query
 
 from app.shared.responses import ApiResponse
 from . import service
@@ -28,7 +26,6 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 @router.get("/overview")
 async def overview(
     period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
-    
 ):
     """核心指标：媒体总量 / 播放总次数 / 活跃用户 / 总时长（按 period）"""
     data = await service.get_overview(period=period)
@@ -38,7 +35,6 @@ async def overview(
 @router.get("/trend")
 async def trend(
     period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
-    
 ):
     """播放趋势：播放时长"""
     data = await service.get_trend_by_period(period)
@@ -49,7 +45,6 @@ async def trend(
 async def top_content(
     limit: int = Query(5, ge=1, le=20),
     period: str = Query("7d", regex=r"^(7d|30d|90d|all)$"),
-    
 ):
     """Top 内容（按时长排）"""
     data = await service.get_top_content(limit=limit, period=period)
@@ -60,7 +55,6 @@ async def top_content(
 async def top_users(
     limit: int = Query(5, ge=1, le=20),
     period: str = Query("7d", regex=r"^(7d|30d|90d|all)$"),
-    
 ):
     """Top 用户（按时长排）"""
     data = await service.get_top_users_ranked(limit=limit, period=period)
@@ -80,7 +74,6 @@ async def content_rankings(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=50),
     user_id: str = Query(None),
-    
 ):
     """内容排行榜（筛选+分页）"""
     data = await service.get_content_rankings(
@@ -99,6 +92,16 @@ async def content_detail(
     return ApiResponse.ok(data=data)
 
 
+@router.get("/proxy/tmdb")
+async def tmdb_proxy(
+    name: str = Query(..., min_length=1),
+    type: str = Query("movie", regex=r"^(movie|tv)$"),
+):
+    """TMDB 搜索代理，返回首个结果的简介与图片路径"""
+    data = await service.search_tmdb_first(name=name, media_type=type)
+    return ApiResponse.ok(data=data)
+
+
 # ════════════════════════════════════════════════════════════
 # 用户分析页
 # ════════════════════════════════════════════════════════════
@@ -108,7 +111,6 @@ async def user_rankings(
     period: str = Query("30d", regex=r"^(30d|90d|all)$"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=50),
-    
 ):
     """用户排行榜（分页）"""
     data = await service.get_user_rankings(period=period, page=page, size=size)
@@ -119,7 +121,6 @@ async def user_rankings(
 async def user_detail(
     user_id: str,
     period: str = Query("7d", regex=r"^(7d|30d|90d|all)$"),
-    
 ):
     """单个用户画像：KPI + 偏好 + 趋势 + 热力图 + 设备（按 period 筛选）"""
     data = await service.get_user_detail(user_id, period=period)
@@ -129,7 +130,6 @@ async def user_detail(
 @router.get("/search-users")
 async def search_users(
     q: str = Query(..., min_length=1),
-    
 ):
     """搜索用户（按用户名模糊匹配）"""
     user_map = await service._get_user_map()
@@ -148,7 +148,6 @@ async def search_users(
 @router.get("/heatmap")
 async def heatmap(
     period: str = Query("30d", regex=r"^(30d|90d|all)$"),
-    
 ):
     """24×7 热力图：观影生物钟"""
     data = await service.get_heatmap(period)
@@ -159,7 +158,6 @@ async def heatmap(
 async def device_dist(
     period: str = Query("30d", regex=r"^(30d|90d|all)$"),
     type: str = Query("client", regex=r"^(client|hardware)$"),
-    
 ):
     """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)"""
     data = await service.get_device_dist(period, type)
