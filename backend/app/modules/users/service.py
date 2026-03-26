@@ -292,7 +292,8 @@ async def update_user(user_id: str, **kwargs) -> dict:
     if "enable_video_transcoding" in kwargs:
         policy_fields["EnableVideoPlaybackTranscoding"] = kwargs["enable_video_transcoding"]
     if "max_parental_rating" in kwargs:
-        policy_fields["MaxParentalRating"] = kwargs["max_parental_rating"]
+        if kwargs["max_parental_rating"] is not None and kwargs["max_parental_rating"] > 0:
+            policy_fields["MaxParentalRating"] = kwargs["max_parental_rating"]
     if "enable_remote_access" in kwargs:
         policy_fields["EnableRemoteAccess"] = kwargs["enable_remote_access"]
     if "enable_all_folders" in kwargs:
@@ -305,6 +306,11 @@ async def update_user(user_id: str, **kwargs) -> dict:
     if policy_fields:
         current = await emby.get_user(user_id)
         current_policy = current.get("Policy", {}) or {}
+        # 无限制：从策略中移除 MaxParentalRating 字段
+        if "max_parental_rating" in kwargs:
+            rating = kwargs["max_parental_rating"]
+            if rating is None or rating <= 0:
+                current_policy.pop("MaxParentalRating", None)
         current_policy.update(policy_fields)
         await emby.post(f"/Users/{user_id}/Policy", json=current_policy)
 
