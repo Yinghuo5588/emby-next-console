@@ -39,17 +39,33 @@ class SystemService:
                 value=settings.EMBY_WEBHOOK_TOKEN or "",
                 description="Webhook 鉴权 Token（环境变量 EMBY_WEBHOOK_TOKEN）",
             ),
+            SettingItem(
+                setting_key="TMDB_IMG_PROXY",
+                setting_group="api",
+                value="",
+                description="TMDB 图片代理域名，替换 image.tmdb.org",
+            ),
         ]
 
         try:
             stmt = select(SystemSetting)
             result = await self.db.execute(stmt)
             db_settings = {s.setting_key: s for s in result.scalars().all()}
+            default_keys = {item.setting_key for item in defaults}
             for item in defaults:
                 if item.setting_key in db_settings:
                     db_s = db_settings[item.setting_key]
                     if db_s.value_json is not None:
                         item.value = db_s.value_json
+            # 加入数据库中有但 defaults 没有的设置
+            for key, db_s in db_settings.items():
+                if key not in default_keys and db_s.value_json is not None:
+                    defaults.append(SettingItem(
+                        setting_key=key,
+                        setting_group=db_s.setting_group or "general",
+                        value=db_s.value_json,
+                        description=None,
+                    ))
         except Exception:
             pass
 
