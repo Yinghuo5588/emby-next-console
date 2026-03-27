@@ -3,7 +3,7 @@
     <PageHeader title="分析总览" />
     <StatsTabs :filterActive="true" @toggle-filter="showTime = !showTime" />
 
-    <!-- 时间筛选（默认展开） -->
+    <!-- 时间筛选 -->
     <div class="unified-filter" v-show="showTime">
       <div class="segment-group">
         <button v-for="p in periods" :key="p.value"
@@ -12,59 +12,60 @@
       </div>
     </div>
 
-    <!-- KPI 卡片 -->
-    <div class="kpi-grid" v-if="overview">
-      <div class="kpi-card">
+    <!-- KPI 卡片：骨架屏 / 数据 -->
+    <KpiSkeleton v-if="loading" />
+    <div class="kpi-grid" v-else-if="overview">
+      <div class="kpi-card" style="--i:0">
         <div class="kpi-icon brand">
           <IosIcon name="film" :size="20" color="#fff" :stroke-width="2" />
         </div>
         <div class="kpi-body">
-          <div class="kpi-value">{{ overview.library.movie + overview.library.series }}</div>
+          <div class="kpi-value">{{ movieCount }}</div>
           <div class="kpi-label">媒体总量</div>
         </div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" style="--i:1">
         <div class="kpi-icon green">
           <IosIcon name="play" :size="20" color="#fff" :stroke-width="2" />
         </div>
         <div class="kpi-body">
-          <div class="kpi-value">{{ overview.total_plays }}</div>
+          <div class="kpi-value">{{ playsCount }}</div>
           <div class="kpi-label">播放总次数</div>
         </div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" style="--i:2">
         <div class="kpi-icon purple">
           <IosIcon name="users" :size="20" color="#fff" :stroke-width="2" />
         </div>
         <div class="kpi-body">
-          <div class="kpi-value">{{ overview.active_users }}</div>
+          <div class="kpi-value">{{ usersCount }}</div>
           <div class="kpi-label">活跃用户</div>
         </div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card" style="--i:3">
         <div class="kpi-icon pink">
           <IosIcon name="clock" :size="20" color="#fff" :stroke-width="2" />
         </div>
         <div class="kpi-body">
-          <div class="kpi-value">{{ overview.total_duration_hours }}</div>
+          <div class="kpi-value">{{ hoursCount }}</div>
           <div class="kpi-label">总时长 (小时)</div>
         </div>
       </div>
     </div>
 
     <!-- 播放趋势 -->
-    <div class="section-card">
+    <div class="section-card anim-in" style="--i:4">
       <h3 class="section-title">播放趋势</h3>
       <AreaChart :xData="trendXData" :series="[{ name: '播放时长', data: trendYData }]" height="260px" />
     </div>
 
     <!-- 热力图 + 软件分布 + 硬件分布 -->
     <div class="three-col">
-      <div class="section-card">
+      <div class="section-card anim-in" style="--i:5">
         <h3 class="section-title">观影生物钟</h3>
         <HeatmapChart :data="heatmapData" height="240px" />
       </div>
-      <div class="section-card">
+      <div class="section-card anim-in" style="--i:6">
         <h3 class="section-title">软件分布</h3>
         <PieChart v-if="clientDist.length > 0" :data="clientDist" height="240px" />
         <div v-else class="empty-state-sm">
@@ -72,7 +73,7 @@
           <span>暂无数据</span>
         </div>
       </div>
-      <div class="section-card">
+      <div class="section-card anim-in" style="--i:7">
         <h3 class="section-title">硬件分布</h3>
         <PieChart v-if="hardwareDist.length > 0" :data="hardwareDist" height="240px" />
         <div v-else class="empty-state-sm">
@@ -84,7 +85,7 @@
 
     <!-- Top 5 内容 + Top 5 用户 -->
     <div class="split-row">
-      <div class="section-card">
+      <div class="section-card anim-in" style="--i:8">
         <h3 class="section-title">热门内容 Top 5</h3>
         <div v-if="topContent.length === 0" class="empty-state-sm">
           <IosIcon name="fire" :size="28" color="var(--text-muted)" :stroke-width="1.5" />
@@ -102,7 +103,7 @@
         </div>
       </div>
 
-      <div class="section-card">
+      <div class="section-card anim-in" style="--i:9">
         <h3 class="section-title">活跃用户 Top 5</h3>
         <div v-if="topUsers.length === 0" class="empty-state-sm">
           <IosIcon name="users" :size="28" color="var(--text-muted)" :stroke-width="1.5" />
@@ -132,6 +133,8 @@ import AreaChart from '@/components/charts/AreaChart.vue'
 import PieChart from '@/components/charts/PieChart.vue'
 import HeatmapChart from '@/components/charts/HeatmapChart.vue'
 import IosIcon from '@/components/common/IosIcon.vue'
+import KpiSkeleton from '@/components/common/KpiSkeleton.vue'
+import { useCountUp } from '@/composables/useCountUp'
 import { statsApiV3 } from '@/api/stats-v3'
 
 const overview = ref<any>(null)
@@ -141,19 +144,30 @@ const topUsers = ref<any[]>([])
 const heatmapData = ref<number[][]>([])
 const clientDist = ref<{ name: string; value: number }[]>([])
 const hardwareDist = ref<{ name: string; value: number }[]>([])
+const loading = ref(true)
 
-const showTime = ref(false) // 默认收起，点击总览tab弹出
+const showTime = ref(false)
 const period = ref('30d')
 const periods = [{ label: '7天', value: '7d' }, { label: '30天', value: '30d' }, { label: '90天', value: '90d' }, { label: '全部', value: 'all' }]
 
 const trendXData = computed(() => Object.keys(trendData.value))
 const trendYData = computed(() => Object.values(trendData.value))
 
+// Count-up targets
+const movieTarget = computed(() => overview.value ? (overview.value.library?.movie ?? 0) + (overview.value.library?.series ?? 0) : undefined)
+const playsTarget = computed(() => overview.value?.total_plays)
+const usersTarget = computed(() => overview.value?.active_users)
+const hoursTarget = computed(() => overview.value?.total_duration_hours)
+
+const movieCount = useCountUp(movieTarget)
+const playsCount = useCountUp(playsTarget)
+const usersCount = useCountUp(usersTarget)
+const hoursCount = useCountUp(hoursTarget)
+
 async function loadAll() {
   const p = period.value
-  const trendP = p // 后端已支持 7d/30d/90d/all
   loadOverview(p)
-  loadTrend(trendP)
+  loadTrend(p)
   loadTopContent(p)
   loadTopUsers(p)
   loadHeatmap(p)
@@ -163,6 +177,7 @@ async function loadAll() {
 async function loadOverview(p: string) {
   const res = await statsApiV3.overview(p)
   overview.value = res.data?.data ?? res.data
+  loading.value = false
 }
 async function loadTrend(p: string) {
   const res = await statsApiV3.trend(p)
@@ -189,7 +204,7 @@ async function loadDeviceDist(p: string) {
   hardwareDist.value = hRes.data?.data ?? hRes.data ?? []
 }
 
-watch(period, loadAll)
+watch(period, () => { loading.value = true; loadAll() })
 onMounted(loadAll)
 </script>
 
@@ -200,6 +215,17 @@ onMounted(loadAll)
 .segment-group { display: inline-flex; background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 3px; }
 .seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
 .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* ── 入场动画 ── */
+.anim-in, .kpi-card {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: cardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+@keyframes cardIn {
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* ── KPI 卡片 ── */
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
@@ -280,7 +306,7 @@ onMounted(loadAll)
   color: #fff;
   border-radius: 50%;
 }
-.rank-avatar { flex-shrink: 0; }
+.rank-avatar { flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
 .rank-body { flex: 1; min-width: 0; }
 .rank-name { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
 .link-name { color: var(--brand); cursor: pointer; }
