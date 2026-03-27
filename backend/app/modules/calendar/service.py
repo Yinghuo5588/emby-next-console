@@ -17,7 +17,7 @@ logger = logging.getLogger("app.calendar")
 
 # ── 内存缓存 ──
 _cache: dict = {}
-CACHE_TTL = timedelta(hours=24)
+CACHE_TTL = timedelta(hours=12)
 
 TMDB_IMG_BASE = "https://image.tmdb.org/t/p/w300"
 
@@ -368,9 +368,41 @@ async def get_weekly_calendar(week_offset: int = 0, force_refresh: bool = False)
 # ════════════════════════════════════════════════════════════
 
 async def mark_episode_ready(series_id: str, season: int, episode: int):
-    """Webhook 联动：新剧集入库时清理缓存"""
-    _cache.clear()
+    """Webhook 联动：新剧集入库时校验并更新数据库 has_file"""
     logger.info(f"🟢 [日历] Webhook 触发入库: Series={series_id} S{season}E{episode}")
+
+    # 1. 清内存缓存，下次请求强制刷新
+    _cache.clear()
+
+    # 2. 严格校验 Emby 中该集是否真实存在
+    exists = await _check_episode_exists(series_id, season, episode)
+    if not exists:
+        logger.debug(f"🟡 [日历] 校验未通过，跳过 DB 更新: Series={series_id} S{season}E{episode}")
+        return
+
+    # 3. 更新数据库中匹配的 calendar_entries
+    try:
+        async with AsyncSessionFactory() as db:
+            stmt = (
+                select(CalendarEntry)
+                .where(
+                    CalendarEntry.emby_item_id == series_id,
+                    CalendarEntry.season_number == season,
+                    CalendarEntry.episode_number == episode,
+                    CalendarEntry.has_file == False,
+                )
+            )
+            result = await db.execute(stmt)
+            entries = result.scalars().all()
+            for entry in entries:
+                entry.has_file = True
+            if entries:
+                await db.commit()
+                logger.info(f"✅ [日历] 已更新 {len(entries)} 条记录 has_file=True: Series={series_id} S{season}E{episode}")
+            else:
+                logger.debug(f"🟡 [日历] 无匹配待入库记录: Series={series_id} S{season}E{episode}")
+    except Exception as e:
+        logger.error(f"❌ [日历] 更新 has_file 失败: {e}")
 
 
 # ════════════════════════════════════════════════════════════
