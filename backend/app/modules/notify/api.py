@@ -133,7 +133,7 @@ async def test_destination(dest_id: int, db: AsyncSessionDep):
     }
     ok, error = await _send_one(dest, payload)
     if ok:
-        dest.last_sent_at = datetime.now(timezone.utc)
+        dest.last_sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
         dest.last_error = None
         await db.commit()
         return ApiResponse.ok(message="发送成功")
@@ -182,7 +182,7 @@ async def _send_and_update(dest: NotifyDestination, payload: dict):
             result = await db.execute(select(NotifyDestination).where(NotifyDestination.id == dest.id))
             d = result.scalar_one_or_none()
             if d:
-                d.last_sent_at = datetime.now(timezone.utc)
+                d.last_sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
                 d.last_error = None if ok else error
                 await db.commit()
     except Exception:
