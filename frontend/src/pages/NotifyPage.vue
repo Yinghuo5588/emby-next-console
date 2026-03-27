@@ -151,15 +151,31 @@ async function sendTest() {
 }
 
 async function loadDests() {
-  try { destinations.value = (await notifyApi.list()).data ?? [] } catch { destinations.value = [] }
+  try {
+    const res = await notifyApi.list()
+    destinations.value = res.data?.data ?? res.data ?? []
+  } catch { destinations.value = [] }
 }
 
 async function loadEvents() {
-  try { events.value = (await notifyApi.events()).data ?? [] } catch { events.value = [] }
+  try {
+    const res = await notifyApi.events()
+    events.value = res.data?.data ?? res.data ?? []
+  } catch {
+    // 后端未部署时的默认事件列表
+    events.value = [
+      { key: 'risk.alert', label: '风控告警' },
+      { key: 'user.created', label: '创建用户' },
+      { key: 'user.deleted', label: '删除用户' },
+      { key: 'user.expired', label: '用户过期' },
+      { key: 'vip.changed', label: 'VIP 变更' },
+      { key: 'scan.complete', label: '扫描完成' },
+    ]
+  }
 }
 
 onMounted(async () => {
-  await Promise.all([loadDests(), loadEvents()])
+  try { await Promise.all([loadDests(), loadEvents()]) } catch {}
   loading.value = false
 })
 </script>
