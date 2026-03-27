@@ -12,7 +12,16 @@
       <!-- Logo 区域 -->
       <div class="login-header">
         <div class="login-logo">
-          <div class="logo-icon">🎬</div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+            <line x1="7" y1="2" x2="7" y2="22" />
+            <line x1="17" y1="2" x2="17" y2="22" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <line x1="2" y1="7" x2="7" y2="7" />
+            <line x1="2" y1="17" x2="7" y2="17" />
+            <line x1="17" y1="17" x2="22" y2="17" />
+            <line x1="17" y1="7" x2="22" y2="7" />
+          </svg>
         </div>
         <h1 class="login-title">Emby Console</h1>
         <p class="login-subtitle">媒体服务器管理控制台</p>
@@ -161,7 +170,7 @@ onMounted(async () => {
   padding: 1rem;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0A84FF 0%, #007AFF 50%, #0055D6 100%);
 }
 
 /* ── 背景装饰圆 ── */
@@ -221,16 +230,12 @@ onMounted(async () => {
   width: 64px;
   height: 64px;
   margin: 0 auto 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0A84FF 0%, #0055D6 100%);
   border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
-}
-.logo-icon {
-  font-size: 1.8rem;
-  filter: brightness(10);
+  box-shadow: 0 8px 24px rgba(0, 122, 255, 0.35);
 }
 .login-title {
   font-size: 1.5rem;
@@ -254,8 +259,8 @@ onMounted(async () => {
 }
 .login-card :deep(.n-input:hover),
 .login-card :deep(.n-input.n-input--focus) {
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.04);
+  border-color: #007AFF;
+  background: rgba(0, 122, 255, 0.04);
 }
 .login-card :deep(.n-input__input-el) {
   font-size: 15px;
@@ -272,14 +277,14 @@ onMounted(async () => {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0A84FF 0%, #0055D6 100%);
   border: none;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
   transition: all 0.2s;
 }
 .login-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
 }
 .login-btn:active:not(:disabled) {
   transform: translateY(0);
@@ -331,8 +336,8 @@ onMounted(async () => {
   }
   .login-card :deep(.n-input:hover),
   .login-card :deep(.n-input.n-input--focus) {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.08);
+    border-color: #0A84FF;
+    background: rgba(10, 132, 255, 0.08);
   }
 }
 
@@ -347,9 +352,6 @@ onMounted(async () => {
     width: 56px;
     height: 56px;
     border-radius: 16px;
-  }
-  .logo-icon {
-    font-size: 1.5rem;
   }
   .login-title {
     font-size: 1.3rem;
