@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import fnmatch
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -296,6 +296,7 @@ async def _execute_client_action(db, session_id: str, device_id: str, user_id: s
         await emby.force_kick(session_id, device_id)
         if user_id:
             await emby.ban_user(user_id)
+            await _log_action(db, "ban", f"{user_name or user_id}({user_id})", f"自动封禁{cp.get('ban_hours', 24)}小时")
 
     logger.info(f"客户端管控: {user_name}({client}) → {action}")
 
@@ -383,7 +384,7 @@ async def _scan_logic(db) -> dict[str, Any]:
             violation.last_action = action
             if action == "ban":
                 ban_hours = int(cp.get("ban_hours", 24) or 24)
-                violation.locked_until = datetime.now(timezone.utc) + __import__("datetime").timedelta(hours=ban_hours)
+                violation.locked_until = datetime.now(timezone.utc) + timedelta(hours=ban_hours)
 
             blocked.append({
                 "session_id": session_id,
@@ -574,7 +575,13 @@ async def kick(body: KickRequest, db: AsyncSessionDep, _: dict = Depends(get_cur
 async def ban(body: BanRequest, db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
     ok = await emby.ban_user(body.user_id)
     if ok:
-        await _log_action(db, "ban", body.user_id, body.reason or "管理员封禁")
+        # 查用户名
+        try:
+            user = await emby.get_user(body.user_id)
+            name = user.get("Name", body.user_id) if user else body.user_id
+        except Exception:
+            name = body.user_id
+        await _log_action(db, "ban", f"{name}({body.user_id})", body.reason or "管理员封禁")
     return ApiResponse.ok(data={"success": ok})
 
 
@@ -582,8 +589,14 @@ async def ban(body: BanRequest, db: AsyncSessionDep, _: dict = Depends(get_curre
 async def unban(body: BanRequest, db: AsyncSessionDep, _: dict = Depends(get_current_admin)):
     ok = await emby.unban_user(body.user_id)
     if ok:
-        await _log_action(db, "unban", body.user_id, body.reason or "管理员解封")
-        # 重置违规记录，允许重新触发风控
+        # 查用户名
+        try:
+            user = await emby.get_user(body.user_id)
+            name = user.get("Name", body.user_id) if user else body.user_id
+        except Exception:
+            name = body.user_id
+        await _log_action(db, "unban", f"{name}({body.user_id})", body.reason or "管理员解封")
+        # 重置违规记录
         from sqlalchemy import update as sql_update
         await db.execute(
             sql_update(RiskViolation)
