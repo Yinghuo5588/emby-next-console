@@ -338,5 +338,23 @@ onMounted(loadUsers)
 
 @media (max-width: 767px) {
   .fab { bottom: calc(80px + 0.5rem); right: 1rem; width: 48px; height: 48px; }
+  .batch-bar {
+    bottom: 64px;
+    padding: 0.6rem 0.75rem;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+  }
+  .batch-count { font-size: 0.8rem; }
+  .batch-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .batch-actions :deep(.n-button) {
+    font-size: 0.72rem;
+    padding: 0 8px;
+    height: 28px;
+  }
 }
 </style>
