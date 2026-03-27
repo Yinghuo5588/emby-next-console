@@ -435,6 +435,17 @@ async def _scan_logic(db) -> dict[str, Any]:
 
     if blocked or violations:
         await _record_scan_events(db, blocked, violations)
+        # 通知
+        try:
+            from app.modules.notify.api import dispatch
+            await dispatch("risk.alert", {
+                "blocked_count": len(blocked),
+                "violation_count": len(violations),
+                "blocked": [{"user_name": b.get("user_name",""), "client": b.get("client","")} for b in blocked[:5]],
+                "violations": [{"user_name": v.get("user_name",""), "current": v.get("current",0), "max": v.get("max",0)} for v in violations[:5]],
+            })
+        except Exception:
+            pass
 
     logger.info(f"扫描完成: 拦截{len(blocked)}个违规, {len(violations)}个越界, 总会话{len(sessions)}")
 
