@@ -57,7 +57,7 @@
 
           <div class="card-stats">
             <div class="stat-play">
-              <span class="stat-icon">▶</span>
+              <span class="stat-icon"><IosIcon name="play" :size="12" color="var(--brand)" :stroke-width="2.5" /></span>
               <span>{{ item.play_count }}</span>
             </div>
             <div class="stat-duration">
@@ -172,6 +172,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { NButton, NButtonGroup, NTag, NAvatar, NDrawer, NDrawerContent, NSelect, NInput, NIcon } from 'naive-ui'
 import { useWindowSize } from '@vueuse/core'
 import PageHeader from '@/components/common/PageHeader.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import StatsTabs from '@/components/stats/StatsTabs.vue'
 import AreaChart from '@/components/charts/AreaChart.vue'
 import { statsApiV3 } from '@/api/stats-v3'
