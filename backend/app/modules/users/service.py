@@ -359,6 +359,20 @@ async def batch_ops(operation: str, user_ids: list[str], **kwargs) -> dict:
                 await delete_user(uid)
             elif operation == "enable":
                 await update_user(uid, is_disabled=False)
+                # 重置风控违规记录
+                try:
+                    from app.db.models.risk import RiskViolation
+                    from sqlalchemy import update as sql_update
+                    from app.db.session import AsyncSessionFactory
+                    async with AsyncSessionFactory() as risk_db:
+                        await risk_db.execute(
+                            sql_update(RiskViolation)
+                            .where(RiskViolation.user_id == uid)
+                            .values(locked_until=None, violation_count=0, last_action=None)
+                        )
+                        await risk_db.commit()
+                except Exception:
+                    pass
             elif operation == "disable":
                 await update_user(uid, is_disabled=True)
             elif operation == "renew":
