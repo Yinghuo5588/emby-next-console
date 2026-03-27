@@ -73,7 +73,7 @@
               class="seg-btn" :class="{ active: detailPeriod === p.value }"
               @click="detailPeriod = p.value">{{ p.label }}</button>
           </div>
-          <span class="age-text">入驻 <b>{{ userDetail.account_age_days }}</b> 天</span>
+          <span class="age-tag">入驻 {{ userDetail.account_age_days }} 天</span>
         </div>
 
         <div class="section-sub">
@@ -89,11 +89,14 @@
             </div>
           </div>
           <div v-if="userDetail.top_fav" class="fav-item" @click="router.push(`/stats/content?item=${userDetail.top_fav.item_id}`)">
-            <n-avatar :src="userDetail.top_fav.poster_url" :size="32" round />
-            <div>
-              <div class="fav-name fav-link">最爱: {{ userDetail.top_fav.name }}</div>
-              <div class="fav-sub">{{ userDetail.top_fav.hours }}h</div>
+            <n-avatar :src="userDetail.top_fav.poster_url" :size="32" round class="fav-avatar" />
+            <div class="fav-body">
+              <div class="fav-name">{{ userDetail.top_fav.name }}</div>
+              <div class="fav-tags">
+                <span class="tag tag-hours">{{ userDetail.top_fav.hours }}h</span>
+              </div>
             </div>
+            <span class="rank-arrow">›</span>
           </div>
         </div>
 
@@ -259,8 +262,7 @@ onMounted(async () => {
 .segment-group.small .seg-btn { padding: 4px 10px; font-size: 0.75rem; }
 .seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
 .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.age-text { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
-.age-text b { color: var(--brand); }
+.age-tag { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: rgba(175,82,222,0.1); color: #AF52DE; white-space: nowrap; }
 .section-sub { margin-bottom: 1.25rem; }
 .section-sub h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--text); }
 .dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -274,10 +276,16 @@ onMounted(async () => {
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .dot.movie { background: #ff9500; }
 .dot.episode { background: #34c759; }
-.fav-item { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; cursor: pointer; }
-.fav-name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
-.fav-link { color: var(--brand); }
-.fav-sub { font-size: 0.7rem; color: var(--text-muted); }
+.fav-item { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; cursor: pointer; padding: 0.5rem; border-radius: 10px; transition: background 0.15s; }
+.fav-item:hover { background: rgba(0,122,255,0.04); }
+.fav-avatar { flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.fav-body { flex: 1; min-width: 0; }
+.fav-name { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-tags { display: flex; gap: 4px; margin-top: 3px; }
+.tag { font-size: 0.65rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; line-height: 1.5; }
+.tag-hours { background: rgba(52,199,89,0.1); color: #248A3D; }
+.rank-arrow { font-size: 1.2rem; color: var(--text-muted); opacity: 0.3; flex-shrink: 0; transition: opacity 0.15s; }
+.fav-item:hover .rank-arrow { opacity: 0.6; }
 .empty-chart { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.8rem; }
 @media (max-width: 767px) {
   .desktop-only { display: none; }
