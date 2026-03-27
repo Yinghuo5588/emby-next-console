@@ -103,7 +103,7 @@
           <div class="si-left">
             <IosIcon name="settings" :size="18" color="var(--text-muted)" :stroke-width="1.8" />
             <div>
-              <div class="si-title">{{ labelMap[item.setting_key] || item.setting_key }}</div>
+              <div class="si-title">{{ item.description || item.setting_key }}</div>
             </div>
           </div>
           <span class="si-value">{{ masked(item) }}</span>
@@ -141,7 +141,7 @@ const tmdbSaving = ref(false)
 const tmdbImgProxy = ref('')
 const tmdbProxySaving = ref(false)
 
-const labelMap: Record<string, string> = { TMDB_API_KEY: 'TMDB API Key', EMBY_HOST: 'Emby 服务器', EMBY_API_KEY: 'Emby API Key' }
+const labelMap: Record<string, string> = {}
 const webhookToken = ref('')
 
 const webhookUrl = computed(() => {
