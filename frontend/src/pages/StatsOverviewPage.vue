@@ -15,28 +15,36 @@
     <!-- KPI 卡片 -->
     <div class="kpi-grid" v-if="overview">
       <div class="kpi-card">
-        <div class="kpi-icon brand"><span class="kpi-emoji">🎬</span></div>
+        <div class="kpi-icon brand">
+          <IosIcon name="film" :size="20" color="#fff" :stroke-width="2" />
+        </div>
         <div class="kpi-body">
           <div class="kpi-value">{{ overview.library.movie + overview.library.series }}</div>
           <div class="kpi-label">媒体总量</div>
         </div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-icon green"><span class="kpi-emoji">▶</span></div>
+        <div class="kpi-icon green">
+          <IosIcon name="play" :size="20" color="#fff" :stroke-width="2" />
+        </div>
         <div class="kpi-body">
           <div class="kpi-value">{{ overview.total_plays }}</div>
           <div class="kpi-label">播放总次数</div>
         </div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-icon purple"><span class="kpi-emoji">👥</span></div>
+        <div class="kpi-icon purple">
+          <IosIcon name="users" :size="20" color="#fff" :stroke-width="2" />
+        </div>
         <div class="kpi-body">
           <div class="kpi-value">{{ overview.active_users }}</div>
           <div class="kpi-label">活跃用户</div>
         </div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-icon pink"><span class="kpi-emoji">⏱</span></div>
+        <div class="kpi-icon pink">
+          <IosIcon name="clock" :size="20" color="#fff" :stroke-width="2" />
+        </div>
         <div class="kpi-body">
           <div class="kpi-value">{{ overview.total_duration_hours }}</div>
           <div class="kpi-label">总时长 (小时)</div>
@@ -59,12 +67,18 @@
       <div class="section-card">
         <h3 class="section-title">软件分布</h3>
         <PieChart v-if="clientDist.length > 0" :data="clientDist" height="240px" />
-        <div v-else class="empty-chart">暂无数据</div>
+        <div v-else class="empty-state-sm">
+          <IosIcon name="device" :size="28" color="var(--text-muted)" :stroke-width="1.5" />
+          <span>暂无数据</span>
+        </div>
       </div>
       <div class="section-card">
         <h3 class="section-title">硬件分布</h3>
         <PieChart v-if="hardwareDist.length > 0" :data="hardwareDist" height="240px" />
-        <div v-else class="empty-chart">暂无数据</div>
+        <div v-else class="empty-state-sm">
+          <IosIcon name="device" :size="28" color="var(--text-muted)" :stroke-width="1.5" />
+          <span>暂无数据</span>
+        </div>
       </div>
     </div>
 
@@ -72,7 +86,10 @@
     <div class="split-row">
       <div class="section-card">
         <h3 class="section-title">热门内容 Top 5</h3>
-        <div v-if="topContent.length === 0" class="empty-text">暂无数据</div>
+        <div v-if="topContent.length === 0" class="empty-state-sm">
+          <IosIcon name="fire" :size="28" color="var(--text-muted)" :stroke-width="1.5" />
+          <span>暂无数据</span>
+        </div>
         <div v-else class="rank-list">
           <div v-for="(item, i) in topContent" :key="i" class="rank-item">
             <span class="rank-num" :class="{ 'rank-top': i < 3 }">{{ i + 1 }}</span>
@@ -87,7 +104,10 @@
 
       <div class="section-card">
         <h3 class="section-title">活跃用户 Top 5</h3>
-        <div v-if="topUsers.length === 0" class="empty-text">暂无数据</div>
+        <div v-if="topUsers.length === 0" class="empty-state-sm">
+          <IosIcon name="users" :size="28" color="var(--text-muted)" :stroke-width="1.5" />
+          <span>暂无数据</span>
+        </div>
         <div v-else class="rank-list">
           <div v-for="(item, i) in topUsers" :key="i" class="rank-item">
             <span class="rank-num" :class="{ 'rank-top': i < 3 }">{{ i + 1 }}</span>
@@ -111,6 +131,7 @@ import StatsTabs from '@/components/stats/StatsTabs.vue'
 import AreaChart from '@/components/charts/AreaChart.vue'
 import PieChart from '@/components/charts/PieChart.vue'
 import HeatmapChart from '@/components/charts/HeatmapChart.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import { statsApiV3 } from '@/api/stats-v3'
 
 const overview = ref<any>(null)
@@ -179,32 +200,105 @@ onMounted(loadAll)
 .segment-group { display: inline-flex; background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 3px; }
 .seg-btn { border: none; background: none; padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); border-radius: var(--radius); cursor: pointer; transition: all 0.15s; font-family: inherit; }
 .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* ── KPI 卡片 ── */
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
-.kpi-card { display: flex; align-items: center; gap: 0.75rem; background: var(--surface); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border); }
-.kpi-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.kpi-icon.brand { background: var(--brand); }
-.kpi-icon.green { background: #34c759; }
-.kpi-icon.purple { background: #af52de; }
-.kpi-icon.pink { background: #ff2d55; }
-.kpi-emoji { font-size: 1.1rem; filter: brightness(10); }
-.kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1.2; }
-.kpi-label { font-size: 0.75rem; color: var(--text-muted); }
-.section-card { background: var(--surface); border-radius: var(--radius-lg); padding: 1rem; border: 1px solid var(--border); margin-bottom: 1rem; }
+.kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+}
+.kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+.kpi-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.kpi-icon.brand { background: linear-gradient(135deg, #0A84FF, #0055D6); box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25); }
+.kpi-icon.green { background: linear-gradient(135deg, #34C759, #248A3D); box-shadow: 0 4px 12px rgba(52, 199, 89, 0.25); }
+.kpi-icon.purple { background: linear-gradient(135deg, #AF52DE, #8944AB); box-shadow: 0 4px 12px rgba(175, 82, 222, 0.25); }
+.kpi-icon.pink { background: linear-gradient(135deg, #FF2D55, #D70040); box-shadow: 0 4px 12px rgba(255, 45, 85, 0.25); }
+.kpi-value { font-size: 1.6rem; font-weight: 800; color: var(--text); line-height: 1.2; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.kpi-label { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Section 卡片 ── */
+.section-card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  transition: box-shadow 0.2s;
+}
+.section-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
 .section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0 0 0.75rem; }
+
+/* ── 布局 ── */
 .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
 .split-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* ── 排行榜 ── */
 .rank-list { display: flex; flex-direction: column; gap: 0.25rem; }
-.rank-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.25rem; border-radius: var(--radius); }
-.rank-num { width: 20px; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-align: center; flex-shrink: 0; }
-.rank-top { color: var(--brand); }
+.rank-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.5rem;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+.rank-item:hover { background: rgba(0, 122, 255, 0.04); }
+.rank-num {
+  width: 22px;
+  height: 22px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.rank-num.rank-top {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 50%;
+}
 .rank-avatar { flex-shrink: 0; }
 .rank-body { flex: 1; min-width: 0; }
 .rank-name { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
 .link-name { color: var(--brand); cursor: pointer; }
 .link-name:hover { text-decoration: underline; }
 .rank-sub { font-size: 0.7rem; color: var(--text-muted); }
-.empty-text { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
-.empty-chart { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.85rem; }
+
+/* ── 空状态 ── */
+.empty-state-sm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
 @media (max-width: 767px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .three-col { grid-template-columns: 1fr; }
