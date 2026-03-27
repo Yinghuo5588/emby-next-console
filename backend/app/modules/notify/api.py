@@ -201,7 +201,7 @@ async def _send_one(dest: NotifyDestination, payload: dict) -> tuple[bool, str |
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
                 resp = await client.post(dest.url, content=body_str, headers=headers)
                 if resp.status_code < 300:
                     return True, None
