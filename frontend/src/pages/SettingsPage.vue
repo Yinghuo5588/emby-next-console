@@ -95,31 +95,6 @@
       </div>
     </div>
 
-    <!-- 推送通知 -->
-    <div class="settings-group anim-in" style="--i:2.5">
-      <div class="group-label">推送通知</div>
-      <div class="group-card">
-        <div v-for="dest in notifyDests" :key="dest.id" class="notify-item" @click="editNotify(dest)">
-          <div class="ni-left">
-            <IosIcon name="bell" :size="18" :color="dest.is_active ? 'var(--brand)' : 'var(--text-muted)'" :stroke-width="2" />
-            <div class="ni-body">
-              <div class="ni-name">{{ dest.name }}</div>
-              <div class="ni-url">{{ dest.url }}</div>
-              <div class="ni-events">
-                <span v-for="ev in dest.events.slice(0, 3)" :key="ev" class="ni-event-tag">{{ eventLabel(ev) }}</span>
-                <span v-if="dest.events.length > 3" class="ni-more">+{{ dest.events.length - 3 }}</span>
-              </div>
-            </div>
-          </div>
-          <span class="status-tag" :class="dest.is_active ? 'status-on' : 'status-off'">{{ dest.is_active ? '活跃' : '停用' }}</span>
-        </div>
-        <div v-if="notifyDests.length === 0" class="ni-empty">暂无推送目标</div>
-        <n-button size="small" block secondary @click="showNotifyModal = true" style="margin-top:8px">
-          <IosIcon name="link" :size="14" style="margin-right:4px" /> 添加推送目标
-        </n-button>
-      </div>
-    </div>
-
     <!-- 其他配置 -->
     <div class="settings-group anim-in" style="--i:3">
       <div class="group-label">其他</div>
@@ -144,34 +119,6 @@
         <span>退出登录</span>
       </button>
     </div>
-    <!-- 推送通知弹窗 -->
-    <n-modal v-model:show="showNotifyModal" preset="card" :title="editingNotify ? '编辑推送目标' : '添加推送目标'" class="modal-card" :style="{ maxWidth: '440px' }">
-      <n-form :model="notifyForm" label-placement="top">
-        <n-form-item label="名称"><n-input v-model:value="notifyForm.name" placeholder="如：企业微信机器人" /></n-form-item>
-        <n-form-item label="URL"><n-input v-model:value="notifyForm.url" placeholder="https://..." /></n-form-item>
-        <n-form-item label="签名密钥（可选）"><n-input v-model:value="notifyForm.secret" placeholder="HMAC-SHA256 签名" /></n-form-item>
-        <n-form-item label="订阅事件">
-          <n-checkbox-group v-model:value="notifyForm.events">
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <n-checkbox v-for="ev in availableEvents" :key="ev.key" :value="ev.key" :label="ev.label" />
-            </div>
-          </n-checkbox-group>
-        </n-form-item>
-        <n-form-item label="状态">
-          <n-switch v-model:value="notifyForm.is_active" />
-          <span style="margin-left:8px;font-size:13px;color:var(--text-muted)">{{ notifyForm.is_active ? '活跃' : '停用' }}</span>
-        </n-form-item>
-      </n-form>
-      <template #action>
-        <div style="display:flex;gap:8px">
-          <n-button v-if="editingNotify" size="small" @click="testNotify" :loading="testing">发送测试</n-button>
-          <n-button v-if="editingNotify" size="small" type="error" quaternary @click="deleteNotify">删除</n-button>
-          <div style="flex:1" />
-          <n-button size="small" @click="showNotifyModal = false">取消</n-button>
-          <n-button size="small" type="primary" @click="saveNotify" :loading="saving">保存</n-button>
-        </div>
-      </template>
-    </n-modal>
   </div>
 </template>
 
@@ -181,7 +128,6 @@ import { NButton, NEmpty, NInput, useDialog, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import IosIcon from '@/components/common/IosIcon.vue'
 import { systemApi } from '@/api/system'
-import { notifyApi } from '@/api/notify'
 import type { SettingItem, HealthResponse } from '@/api/system'
 
 const dialog = useDialog()
@@ -197,70 +143,6 @@ const tmdbProxySaving = ref(false)
 
 const labelMap: Record<string, string> = { TMDB_API_KEY: 'TMDB API Key', EMBY_HOST: 'Emby 服务器', EMBY_API_KEY: 'Emby API Key' }
 const webhookToken = ref('')
-
-// ── 推送通知 ──
-const notifyDests = ref<any[]>([])
-const availableEvents = ref<{ key: string; label: string }[]>([])
-const showNotifyModal = ref(false)
-const editingNotify = ref<any>(null)
-const saving = ref(false)
-const testing = ref(false)
-const notifyForm = ref<{ name: string; url: string; secret: string; events: string[]; is_active: boolean }>({
-  name: '', url: '', secret: '', events: [], is_active: true,
-})
-
-function eventLabel(key: string) {
-  return availableEvents.value.find(e => e.key === key)?.label || key
-}
-function editNotify(dest: any) {
-  editingNotify.value = dest
-  notifyForm.value = { name: dest.name, url: dest.url, secret: '', events: [...dest.events], is_active: dest.is_active }
-  showNotifyModal.value = true
-}
-async function saveNotify() {
-  if (!notifyForm.value.name || !notifyForm.value.url) { msg.warning('请填写名称和URL'); return }
-  saving.value = true
-  try {
-    if (editingNotify.value) {
-      await notifyApi.update(editingNotify.value.id, notifyForm.value)
-    } else {
-      await notifyApi.create(notifyForm.value)
-    }
-    msg.success('已保存')
-    showNotifyModal.value = false
-    editingNotify.value = null
-    await loadNotifyDests()
-  } catch { msg.error('保存失败') }
-  finally { saving.value = false }
-}
-async function deleteNotify() {
-  if (!editingNotify.value) return
-  dialog.warning({ title: '删除', content: `确定删除「${editingNotify.value.name}」？`, positiveText: '删除', negativeText: '取消',
-    onPositiveClick: async () => {
-      await notifyApi.delete(editingNotify.value.id)
-      msg.success('已删除')
-      showNotifyModal.value = false
-      editingNotify.value = null
-      await loadNotifyDests()
-    }
-  })
-}
-async function testNotify() {
-  if (!editingNotify.value) return
-  testing.value = true
-  try {
-    const res = await notifyApi.test(editingNotify.value.id)
-    if (res.data?.message === '发送成功') msg.success('测试通知已发送')
-    else msg.error(res.data?.error || '发送失败')
-  } catch { msg.error('测试失败') }
-  finally { testing.value = false }
-}
-async function loadNotifyDests() {
-  try { notifyDests.value = (await notifyApi.list()).data ?? [] } catch { notifyDests.value = [] }
-}
-async function loadEvents() {
-  try { availableEvents.value = (await notifyApi.events()).data ?? [] } catch { availableEvents.value = [] }
-}
 
 const webhookUrl = computed(() => {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://your-server'
@@ -319,7 +201,7 @@ function handleLogout() {
     onPositiveClick: () => { localStorage.removeItem('token'); localStorage.removeItem('username'); localStorage.removeItem('avatarUrl'); window.location.href = '/login' }
   })
 }
-onMounted(async () => { await loadSettings(); await loadTmdbSetting(); loadTmdbProxy(); loadHealth(); loadWebhookInfo(); loadNotifyDests(); loadEvents() })
+onMounted(async () => { await loadSettings(); await loadTmdbSetting(); loadTmdbProxy(); loadHealth(); loadWebhookInfo() })
 </script>
 
 <style scoped>
@@ -417,23 +299,6 @@ onMounted(async () => { await loadSettings(); await loadTmdbSetting(); loadTmdbP
 }
 .logout-btn:active { background: rgba(255,59,48,0.06); }
 
-/* ── 推送通知 ── */
-.notify-item {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 0.6rem 0; cursor: pointer;
-  border-bottom: 0.5px solid var(--border);
-  transition: background 0.15s; border-radius: 8px;
-}
-.notify-item:last-of-type { border-bottom: none; }
-.notify-item:active { background: var(--bg-secondary); }
-.ni-left { display: flex; align-items: flex-start; gap: 0.5rem; flex: 1; min-width: 0; }
-.ni-body { flex: 1; min-width: 0; }
-.ni-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
-.ni-url { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-.ni-events { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
-.ni-event-tag { font-size: 0.6rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; background: rgba(0,122,255,0.08); color: var(--brand); }
-.ni-more { font-size: 0.6rem; color: var(--text-muted); }
-.ni-empty { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.8rem; }
 
 @media (max-width: 767px) {
   .si-form { flex-direction: column; }
