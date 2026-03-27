@@ -6,11 +6,12 @@
     <div class="filter-bar">
       <n-input v-model:value="search" placeholder="搜索用户名..." clearable size="medium" class="search-input">
         <template #prefix>
-          <n-icon size="16"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></n-icon>
+          <IosIcon name="search" :size="16" color="var(--text-muted)" :stroke-width="2" />
         </template>
       </n-input>
       <div class="filter-chips">
         <button v-for="f in filters" :key="f.key" class="chip" :class="{ active: activeFilter === f.key }" @click="activeFilter = f.key">
+          <IosIcon v-if="f.icon" :name="f.icon" :size="13" :color="activeFilter === f.key ? '#fff' : 'var(--text-muted)'" :stroke-width="2" />
           {{ f.label }}
           <span v-if="f.count !== undefined" class="chip-count">{{ f.count }}</span>
         </button>
@@ -32,14 +33,23 @@
     </transition>
 
     <!-- 用户列表 -->
-    <div v-if="loading" class="loading-state">加载中...</div>
-    <div v-else-if="filteredUsers.length === 0" class="empty-state">暂无用户</div>
+    <div v-if="loading" class="loading-state">
+      <div v-for="i in 5" :key="i" class="skel-card">
+        <div class="skel-avatar" />
+        <div class="skel-body"><div class="skel-line w60" /><div class="skel-line w40" /></div>
+      </div>
+    </div>
+    <div v-else-if="filteredUsers.length === 0" class="empty-state">
+      <IosIcon name="users" :size="36" color="var(--text-muted)" :stroke-width="1.5" />
+      <span>暂无用户</span>
+    </div>
     <div v-else class="user-list">
       <div
-        v-for="user in filteredUsers"
+        v-for="(user, idx) in filteredUsers"
         :key="user.user_id"
-        class="user-card"
+        class="user-card anim-in"
         :class="{ disabled: user.is_disabled, 'batch-selected': selectedIds.includes(user.user_id) }"
+        :style="{ '--i': idx % 12 }"
         @click="onCardClick(user)"
       >
         <!-- 批量选择框 -->
@@ -70,9 +80,7 @@
         </div>
 
         <!-- 操作 -->
-        <div v-if="!batchMode" class="user-action">
-          <n-icon size="16" color="#c7c7cc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></n-icon>
-        </div>
+        <div v-if="!batchMode" class="rank-arrow">›</div>
       </div>
     </div>
 
@@ -129,6 +137,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NButton, NIcon, NCheckbox, NModal, NForm, NFormItem, NSelect, NInputNumber, useMessage, useDialog } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import { usersApi, type UserInfo, type CreateUserRequest } from '@/api/users'
 
 const router = useRouter()
@@ -153,11 +162,11 @@ const createRules = {
 }
 
 const filters = computed(() => [
-  { key: 'all', label: '全部', count: users.value.length },
-  { key: 'active', label: '活跃', count: users.value.filter(u => !u.is_disabled).length },
-  { key: 'disabled', label: '禁用', count: users.value.filter(u => u.is_disabled).length },
-  { key: 'vip', label: 'VIP', count: users.value.filter(u => u.is_vip).length },
-  { key: 'expired', label: '已过期', count: users.value.filter(u => u.expire_date && new Date(u.expire_date) < new Date()).length },
+  { key: 'all', label: '全部', icon: 'users', count: users.value.length },
+  { key: 'active', label: '活跃', icon: 'check', count: users.value.filter(u => !u.is_disabled).length },
+  { key: 'disabled', label: '禁用', icon: 'alert', count: users.value.filter(u => u.is_disabled).length },
+  { key: 'vip', label: 'VIP', icon: 'trophy', count: users.value.filter(u => u.is_vip).length },
+  { key: 'expired', label: '已过期', icon: 'clock', count: users.value.filter(u => u.expire_date && new Date(u.expire_date) < new Date()).length },
 ])
 
 const filteredUsers = computed(() => {
@@ -267,7 +276,30 @@ onMounted(loadUsers)
 .chip { border: none; background: var(--bg-secondary); color: var(--text-muted); padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all 0.15s; font-family: inherit; }
 .chip.active { background: var(--brand); color: #fff; }
 .chip-count { font-size: 0.7rem; margin-left: 4px; opacity: 0.7; }
-.loading-state, .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.85rem; }
+.loading-state, .empty-state { text-align: center; padding: 1.5rem 1rem; color: var(--text-muted); font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+
+/* ── 骨架屏 ── */
+.skel-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 8px; }
+.skel-avatar { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg) 50%, var(--bg-secondary) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; flex-shrink: 0; }
+.skel-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.skel-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg) 50%, var(--bg-secondary) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+.skel-line.w60 { width: 60%; }
+.skel-line.w40 { width: 40%; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── 入场动画 ── */
+.anim-in { opacity: 0; transform: translateY(10px); animation: slideUp 0.3s cubic-bezier(0.22,1,0.36,1) forwards; animation-delay: calc(var(--i, 0) * 30ms); }
+@keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+
+.vip-badge { position: absolute; bottom: -2px; right: -2px; background: linear-gradient(135deg, #FFD700, #FFA500); color: #fff; font-size: 0.55rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; box-shadow: 0 2px 6px rgba(255,165,0,0.3); }
+.user-avatar img { box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 12px; }
+.role-tag { font-size: 0.65rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+.role-tag.admin { background: rgba(0,122,255,0.1); color: #007AFF; }
+.role-tag.disabled { background: rgba(255,59,48,0.1); color: #FF3B30; }
+.rank-arrow { font-size: 1.2rem; color: var(--text-muted); opacity: 0.3; flex-shrink: 0; transition: opacity 0.15s; }
+.user-card:hover .rank-arrow { opacity: 0.6; }
+.chip { display: inline-flex; align-items: center; gap: 4px; }
+.chip:active { transform: scale(0.95); }
 .user-list { display: flex; flex-direction: column; gap: 1px; }
 .user-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; cursor: pointer; transition: all 0.15s; }
 .user-card:active { transform: scale(0.98); opacity: 0.8; }
