@@ -352,6 +352,10 @@ async def batch_ops(operation: str, user_ids: list[str], **kwargs) -> dict:
                 days = kwargs.get("days", 30)
                 new_expire = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
                 await update_user(uid, expire_date=new_expire)
+            elif operation == "set_vip":
+                await update_user(uid, is_vip=True)
+            elif operation == "unset_vip":
+                await update_user(uid, is_vip=False)
             results["success"].append(uid)
         except Exception as e:
             results["failed"].append({"user_id": uid, "error": str(e)})
