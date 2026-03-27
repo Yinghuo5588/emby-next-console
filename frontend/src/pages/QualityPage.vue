@@ -158,7 +158,7 @@
     </div>
 
     <div v-if="!hasData && !scanStatus.running" class="empty-state">
-      <div class="empty-icon">🎬</div>
+      <div class="empty-icon"><IosIcon name="palette" :size="36" color="var(--text-muted)" :stroke-width="1.5" /></div>
       <div class="empty-title">还没有扫描数据</div>
       <div class="empty-desc">点击「开始扫描」获取媒体库质量信息</div>
       <n-button type="primary" size="medium" round @click="startScan">开始扫描</n-button>
@@ -175,6 +175,7 @@ import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { qualityApi } from '@/api/quality'
 import PageHeader from '@/components/common/PageHeader.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import { useUiStore } from '@/stores/ui'
 
 echarts.use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
@@ -789,8 +790,8 @@ onMounted(() => {
   gap: 10px;
 }
 .empty-icon {
-  font-size: 48px;
   margin-bottom: 8px;
+  opacity: 0.5;
 }
 .empty-title {
   font-size: 16px;
