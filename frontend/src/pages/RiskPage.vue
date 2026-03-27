@@ -22,35 +22,19 @@
       <div class="drawer-actions">
         <n-button size="small" :loading="scanning" @click="handleScan">
           <span class="btn-content">
-            <svg class="btn-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M13 3V6H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M3 13V10H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M4.2 6.3A4.8 4.8 0 0 1 13 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M11.8 9.7A4.8 4.8 0 0 1 3 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <IosIcon name="zap" :size="16" :stroke-width="2" style="flex-shrink:0" />
             <span>扫描</span>
           </span>
         </n-button>
         <n-button size="small" type="warning" :loading="sweeping" @click="handleSweep">
           <span class="btn-content">
-            <svg class="btn-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M6 3.5h6.5l-1.6 3.1c-.2.4-.6.7-1.1.7H7.7c-.5 0-.9-.3-1.1-.7L5 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-              <path d="M4 12.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M7 7.5 5.5 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M9 7.5l1.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M4 3.5h1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
+            <IosIcon name="fire" :size="16" :stroke-width="2" style="flex-shrink:0" />
             <span>扫荡</span>
           </span>
         </n-button>
         <n-button size="small" @click="loadAll">
           <span class="btn-content">
-            <svg class="btn-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M13 3V6H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M3 13V10H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M4.2 6.3A4.8 4.8 0 0 1 13 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M11.8 9.7A4.8 4.8 0 0 1 3 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <IosIcon name="filter" :size="16" :stroke-width="2" style="flex-shrink:0" />
             <span>刷新</span>
           </span>
         </n-button>
@@ -60,20 +44,29 @@
     <!-- ═══ 总览 ═══ -->
     <template v-if="activeTab === 'overview'">
       <div class="overview-row">
-        <StatCard label="待处理" :value="summary?.open_count ?? 0" :danger="(summary?.open_count ?? 0) > 0" />
-        <StatCard label="高危" :value="summary?.high_count ?? 0" :danger="(summary?.high_count ?? 0) > 0" />
-        <StatCard label="播放中" :value="liveSessions.length" />
-        <StatCard label="黑名单" :value="blacklist.length" @click="activeTab = 'policy'" />
+        <div class="rkpi-card" :class="{ danger: (summary?.open_count ?? 0) > 0 }" style="--i:0">
+          <div class="rkpi-icon" :class="(summary?.open_count ?? 0) > 0 ? 'rkpi-red' : 'rkpi-gray'"><IosIcon name="alert" :size="18" color="#fff" :stroke-width="2" /></div>
+          <div class="rkpi-body"><span class="rkpi-val">{{ summary?.open_count ?? 0 }}</span><span class="rkpi-lbl">待处理</span></div>
+        </div>
+        <div class="rkpi-card" :class="{ danger: (summary?.high_count ?? 0) > 0 }" style="--i:1">
+          <div class="rkpi-icon" :class="(summary?.high_count ?? 0) > 0 ? 'rkpi-red' : 'rkpi-gray'"><IosIcon name="zap" :size="18" color="#fff" :stroke-width="2" /></div>
+          <div class="rkpi-body"><span class="rkpi-val">{{ summary?.high_count ?? 0 }}</span><span class="rkpi-lbl">高危</span></div>
+        </div>
+        <div class="rkpi-card" style="--i:2">
+          <div class="rkpi-icon rkpi-green"><IosIcon name="play" :size="18" color="#fff" :stroke-width="2" /></div>
+          <div class="rkpi-body"><span class="rkpi-val">{{ liveSessions.length }}</span><span class="rkpi-lbl">播放中</span></div>
+        </div>
+        <div class="rkpi-card" style="--i:3" @click="activeTab = 'policy'">
+          <div class="rkpi-icon rkpi-purple"><IosIcon name="trash" :size="18" color="#fff" :stroke-width="2" /></div>
+          <div class="rkpi-body"><span class="rkpi-val">{{ blacklist.length }}</span><span class="rkpi-lbl">黑名单</span></div>
+        </div>
       </div>
 
       <!-- 实时播放 -->
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">
-            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="8" cy="8" r="6" fill="currentColor" fill-opacity="0.12"/>
-              <path d="M6.4 5.4 10.6 8l-4.2 2.6V5.4Z" fill="currentColor"/>
-            </svg>
+            <IosIcon name="play" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
             <span>实时播放</span>
           </span>
           <n-button text size="tiny" @click="loadSessions">刷新</n-button>
@@ -84,10 +77,7 @@
           <div v-for="s in liveSessions" :key="s.Id" class="session-card">
             <div class="sc-top">
               <span class="sc-user-wrap">
-                <svg class="user-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <circle cx="8" cy="5.2" r="2.4" stroke="currentColor" stroke-width="1.4"/>
-                  <path d="M3.8 12.5c.9-2 2.4-3 4.2-3s3.3 1 4.2 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                </svg>
+                <IosIcon name="users" :size="16" color="var(--text-muted)" :stroke-width="1.5" style="flex-shrink:0" />
                 <span class="sc-user">{{ s.UserName || '未知' }}</span>
               </span>
               <n-tag v-if="s.Client" size="tiny" type="info">{{ s.Client }}</n-tag>
@@ -105,11 +95,7 @@
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">
-            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M3 12.5V8.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-              <path d="M8 12.5V4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-              <path d="M13 12.5V6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            </svg>
+            <IosIcon name="chart" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
             <span>并发状态</span>
           </span>
           <n-button text size="tiny" @click="loadConcurrent">刷新</n-button>
@@ -134,11 +120,7 @@
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">
-            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M8 2.6 13.2 11.8c.4.7-.1 1.6-.9 1.6H3.7c-.8 0-1.3-.9-.9-1.6L8 2.6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-              <path d="M8 6v3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <circle cx="8" cy="11.3" r=".75" fill="currentColor"/>
-            </svg>
+            <IosIcon name="alert" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
             <span>风控事件</span>
           </span>
           <div class="filter-pills">
@@ -180,17 +162,7 @@
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">
-            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M8 2.8v1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="M8 11.8v1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="M3.6 8H2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="M13.8 8h-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="m4.9 4.9-1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="m12.1 12.1-1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="m11.1 4.9 1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="m3.9 12.1 1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <circle cx="8" cy="8" r="2.4" stroke="currentColor" stroke-width="1.4"/>
-            </svg>
+            <IosIcon name="settings" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
             <span>策略配置</span>
           </span>
           <n-button text size="tiny" :loading="policyLoading" @click="savePolicy">保存</n-button>
@@ -256,10 +228,7 @@
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">
-            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.5"/>
-              <path d="m4.5 11.5 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
+            <IosIcon name="link" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
             <span>客户端黑名单</span>
           </span>
         </div>
@@ -281,10 +250,7 @@
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">
-            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M3 4v8.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="m5.3 6.2 2.2 2.2 3.2-3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <IosIcon name="check" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
             <span>违规记录</span>
           </span>
           <n-button text size="tiny" @click="loadViolations">刷新</n-button>
@@ -306,13 +272,8 @@
       <div class="section-card">
         <div class="section-head">
           <span class="section-title">
-            <svg class="section-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 4.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M4 8h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M4 11.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <circle cx="2.5" cy="4.5" r=".8" fill="currentColor"/>
-              <circle cx="2.5" cy="8" r=".8" fill="currentColor"/>
-              <circle cx="2.5" cy="11.5" r=".8" fill="currentColor"/>
+            <IosIcon name="tasks" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
+            <span>运行日志</span>
             </svg>
             <span>执法日志</span>
           </span>
@@ -385,7 +346,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NTag, NInput, NEmpty, NSwitch, NInputNumber, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
-import StatCard from '@/components/common/StatCard.vue'
+import IosIcon from '@/components/common/IosIcon.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import { riskApi } from '@/api/risk'
 import type { RiskActionLog, ConcurrentItem, RiskPolicy, RiskViolation } from '@/api/risk'
@@ -621,7 +582,29 @@ onMounted(loadAll)
 }
 .btn-icon { flex-shrink: 0; }
 
-.overview-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+.overview-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+
+/* ── KPI 卡片 ── */
+.rkpi-card {
+  display: flex; align-items: center; gap: 0.65rem;
+  background: var(--surface); border-radius: 14px; padding: 0.85rem;
+  border: 1px solid var(--border); cursor: default;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  opacity: 0; transform: translateY(12px);
+  animation: rkpiIn 0.4s cubic-bezier(0.22,1,0.36,1) forwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.rkpi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+.rkpi-card.danger { border-color: rgba(255,59,48,0.2); }
+@keyframes rkpiIn { to { opacity: 1; transform: translateY(0); } }
+.rkpi-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rkpi-red { background: linear-gradient(135deg, #FF3B30, #D70015); box-shadow: 0 3px 10px rgba(255,59,48,0.25); }
+.rkpi-gray { background: linear-gradient(135deg, #8e8e93, #636366); }
+.rkpi-green { background: linear-gradient(135deg, #34C759, #248A3D); box-shadow: 0 3px 10px rgba(52,199,89,0.25); }
+.rkpi-purple { background: linear-gradient(135deg, #AF52DE, #8944AB); box-shadow: 0 3px 10px rgba(175,82,222,0.25); }
+.rkpi-body { display: flex; flex-direction: column; }
+.rkpi-val { font-size: 1.3rem; font-weight: 800; color: var(--text); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.rkpi-lbl { font-size: 0.68rem; color: var(--text-muted); margin-top: 1px; }
 .section-card {
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -859,6 +842,7 @@ onMounted(loadAll)
 
 @media (min-width: 769px) {
   .overview-row { grid-template-columns: repeat(4, 1fr); }
+  .rkpi-card { padding: 1rem; }
   .ev-item { flex-direction: row; }
   .ev-acts { flex-direction: row; }
   .policy-grid { grid-template-columns: repeat(2, 1fr); }
