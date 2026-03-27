@@ -26,8 +26,10 @@
           <n-button size="small" @click="batchAction('enable')">启用</n-button>
           <n-button size="small" @click="batchAction('disable')">禁用</n-button>
           <n-button size="small" @click="showRenewModal = true">续期</n-button>
+          <n-button size="small" @click="batchAction('set_vip')">设VIP</n-button>
+          <n-button size="small" @click="batchAction('unset_vip')">取消VIP</n-button>
           <n-button size="small" type="error" quaternary @click="batchAction('delete')">删除</n-button>
-          <n-button size="small" quaternary @click="selectedIds = []">取消</n-button>
+          <n-button size="small" quaternary @click="exitBatch">取消</n-button>
         </div>
       </div>
     </transition>
@@ -84,9 +86,10 @@
       </div>
     </div>
 
-    <!-- 长按提示 / 批量入口 -->
-    <div class="batch-toggle" v-if="!batchMode && users.length > 0" @click="batchMode = true">
-      多选操作
+    <!-- 批量模式切换 -->
+    <div class="batch-toggle" v-if="users.length > 0" @click="batchMode = !batchMode">
+      <IosIcon :name="batchMode ? 'check' : 'filter'" :size="14" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
+      {{ batchMode ? '完成' : '多选操作' }}
     </div>
 
     <!-- 创建用户 FAB -->
@@ -202,6 +205,10 @@ function onCardClick(user: UserInfo) {
 function toggleSelect(id: string, checked: boolean) {
   if (checked) selectedIds.value.push(id)
   else selectedIds.value = selectedIds.value.filter(i => i !== id)
+}
+function exitBatch() {
+  selectedIds.value = []
+  batchMode.value = false
 }
 
 async function loadUsers() {
