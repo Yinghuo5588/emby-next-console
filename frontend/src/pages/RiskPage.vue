@@ -521,6 +521,8 @@ function logDotClass(a: string) {
 }
 function fmtTime(iso: string) {
   const d = new Date(iso), diff = Date.now() - d.getTime()
+  // 未来时间显示绝对时间
+  if (diff < 0) return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   if (diff < 60000) return '刚刚'
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
