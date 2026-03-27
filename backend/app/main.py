@@ -21,6 +21,7 @@ from app.modules.risk.api import router as risk_router
 from app.modules.webhook.api import router as webhook_router
 from app.modules.quality.api import router as quality_router
 from app.modules.calendar.api import router as calendar_router
+from app.modules.notify.api import router as notify_router
 from app.core.risk_monitor import start_monitor, stop_monitor
 
 logging.basicConfig(level=logging.INFO)
@@ -60,6 +61,7 @@ app.include_router(risk_router, prefix=API_PREFIX)
 app.include_router(webhook_router, prefix=API_PREFIX)
 app.include_router(quality_router, prefix=API_PREFIX)
 app.include_router(calendar_router, prefix=API_PREFIX)
+app.include_router(notify_router, prefix=API_PREFIX)
 
 
 @app.get("/healthz", tags=["health"])
