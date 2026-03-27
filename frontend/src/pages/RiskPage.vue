@@ -278,7 +278,7 @@
         </div>
         <n-empty v-if="logs.length === 0" description="暂无记录" />
         <div v-else class="log-list">
-          <div v-for="l in logs" :key="l.id" class="log-item">
+          <div v-for="l in logs.slice(0, logShowAll ? 999 : 5)" :key="l.id" class="log-item">
             <div class="log-dot" :class="logDotClass(l.action)"></div>
             <div class="log-body">
               <div class="log-top">
@@ -289,6 +289,9 @@
               <span class="log-reason">{{ l.reason }}</span>
             </div>
           </div>
+        </div>
+        <div v-if="logs.length > 5" class="log-more" @click="logShowAll = !logShowAll">
+          {{ logShowAll ? '收起' : `查看更多 (${logs.length - 5})` }}
         </div>
       </div>
     </template>
@@ -378,6 +381,7 @@ const evLoading = ref(false)
 const acting = ref<string | null>(null)
 const kicking = ref<string | null>(null)
 const unbanning = ref(false)
+const logShowAll = ref(false)
 const scanning = ref(false)
 const sweeping = ref(false)
 const blacklist = ref<string[]>([])
@@ -791,6 +795,12 @@ onMounted(loadAll)
   gap: 10px;
   padding: 8px 0 8px 4px;
 }
+.log-more {
+  text-align: center; padding: 10px; color: var(--brand);
+  font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  border-radius: 8px; transition: background 0.15s;
+}
+.log-more:active { background: rgba(0,122,255,0.06); }
 .log-dot {
   width: 10px;
   height: 10px;
