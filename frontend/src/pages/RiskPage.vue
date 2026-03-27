@@ -273,8 +273,6 @@
         <div class="section-head">
           <span class="section-title">
             <IosIcon name="tasks" :size="16" color="var(--brand)" :stroke-width="2" style="margin-right:4px" />
-            <span>运行日志</span>
-            </svg>
             <span>执法日志</span>
           </span>
         </div>
