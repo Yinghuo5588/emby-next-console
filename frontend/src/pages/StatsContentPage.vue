@@ -149,15 +149,16 @@
         <div class="detail-section" v-if="detail.viewers?.length > 0">
           <h4>观看用户</h4>
           <div class="viewer-list">
-            <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row">
+            <div v-for="v in detail.viewers" :key="v.user_id" class="viewer-row" @click="router.push(`/stats/users?user=${v.user_id}`)">
               <span class="avatar-wrap"><img :src="`/api/v1/manage/users/${v.user_id}/avatar`" @error="($event.target as HTMLImageElement).classList.add('hide')" />{{ v.username?.charAt(0) || '?' }}</span>
               <div class="viewer-body">
-                <div class="viewer-name"><span class="link-name" @click="router.push(`/users/${v.user_id}`)">{{ v.username }}</span> <n-button size="tiny" quaternary @click="router.push(`/stats/users?user=${v.user_id}`)">分析</n-button></div>
+                <div class="viewer-name"><span class="link-name" @click.stop="router.push(`/users/${v.user_id}`)">{{ v.username }}</span></div>
                 <div class="viewer-meta">
-                  <span class="tag tag-duration">{{ v.duration_hours }}h</span>
                   <span class="tag tag-plays">{{ v.play_count }}次</span>
+                  <span class="tag tag-duration">{{ v.duration_hours }}h</span>
                 </div>
               </div>
+              <span class="rank-arrow">›</span>
             </div>
           </div>
         </div>
@@ -474,9 +475,12 @@ onMounted(async () => {
 .detail-section { margin-bottom: 1.25rem; }
 .detail-section h4 { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; }
 .viewer-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.viewer-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-.viewer-body { flex: 1; }
+.viewer-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.4rem 0.25rem; border-radius: 8px; transition: background 0.15s; }
+.viewer-row:hover { background: rgba(0,122,255,0.04); }
+.viewer-body { flex: 1; min-width: 0; }
 .viewer-name { font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.rank-arrow { font-size: 1.1rem; color: var(--text-muted); opacity: 0.3; flex-shrink: 0; transition: opacity 0.15s; }
+.viewer-row:hover .rank-arrow { opacity: 0.6; }
 .link-name { color: var(--brand); cursor: pointer; }
 .link-name:hover { text-decoration: underline; }
 .viewer-meta { font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 6px; }
