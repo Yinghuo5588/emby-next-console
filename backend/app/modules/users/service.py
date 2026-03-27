@@ -264,6 +264,9 @@ async def create_user(
         pass
 
     return {"user_id": user_id, "name": name}
+
+
+async def update_user(user_id: str, **kwargs) -> dict:
     """更新用户信息"""
     # 1. 更新基本用户名
     if "name" in kwargs:
