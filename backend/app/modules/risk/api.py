@@ -296,7 +296,7 @@ async def _execute_client_action(db, session_id: str, device_id: str, user_id: s
         await emby.force_kick(session_id, device_id)
         if user_id:
             await emby.ban_user(user_id)
-            await _log_action(db, "ban", f"{user_name or user_id}({user_id})", f"自动封禁{cp.get('ban_hours', 24)}小时")
+            await _log_action(db, "ban", user_name or user_id, f"自动封禁{cp.get('ban_hours', 24)}小时")
 
     logger.info(f"客户端管控: {user_name}({client}) → {action}")
 
@@ -581,7 +581,7 @@ async def ban(body: BanRequest, db: AsyncSessionDep, _: dict = Depends(get_curre
             name = user.get("Name", body.user_id) if user else body.user_id
         except Exception:
             name = body.user_id
-        await _log_action(db, "ban", f"{name}({body.user_id})", body.reason or "管理员封禁")
+        await _log_action(db, "ban", name, body.reason or "管理员封禁")
     return ApiResponse.ok(data={"success": ok})
 
 
@@ -595,7 +595,7 @@ async def unban(body: BanRequest, db: AsyncSessionDep, _: dict = Depends(get_cur
             name = user.get("Name", body.user_id) if user else body.user_id
         except Exception:
             name = body.user_id
-        await _log_action(db, "unban", f"{name}({body.user_id})", body.reason or "管理员解封")
+        await _log_action(db, "unban", name, body.reason or "管理员解封")
         # 重置违规记录
         from sqlalchemy import update as sql_update
         await db.execute(
