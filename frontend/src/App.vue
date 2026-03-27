@@ -95,6 +95,7 @@ const showMore = ref(false)
 const moreItems = [
   { icon: 'calendar', label: '追剧日历', path: '/calendar' },
   { icon: 'palette', label: '质量盘点', path: '/quality' },
+  { icon: 'bell', label: '通知', path: '/notify' },
 ]
 const settingsItem = { icon: 'settings', label: '设置', path: '/settings' }
 
