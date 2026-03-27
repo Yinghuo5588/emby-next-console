@@ -10,6 +10,7 @@ import { PieChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { useUiStore } from '@/stores/ui'
+import { chartColors, chartTextStyle, chartTooltipStyle } from './theme'
 
 use([PieChart, CanvasRenderer, TooltipComponent, LegendComponent])
 
@@ -22,18 +23,11 @@ const props = withDefaults(defineProps<{
 
 const uiStore = useUiStore()
 
-const defaultColors = [
-  '#007AFF', '#34C759', '#FF9500', '#FF3B30', '#AF52DE',
-  '#5AC8FA', '#FF2D55', '#5856D6',
-]
-
 const chartOption = computed(() => ({
-  color: props.colors || defaultColors,
+  color: props.colors || chartColors,
   tooltip: {
     trigger: 'item',
-    backgroundColor: uiStore.isDark ? 'rgba(44,44,46,0.95)' : 'rgba(255,255,255,0.95)',
-    borderColor: uiStore.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
-    textStyle: { color: uiStore.isDark ? '#fff' : '#000', fontSize: 13 },
+    ...chartTooltipStyle(uiStore.isDark),
     formatter: '{b}: {c} ({d}%)',
   },
   series: [{
