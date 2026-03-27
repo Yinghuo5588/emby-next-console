@@ -583,6 +583,14 @@ async def unban(body: BanRequest, db: AsyncSessionDep, _: dict = Depends(get_cur
     ok = await emby.unban_user(body.user_id)
     if ok:
         await _log_action(db, "unban", body.user_id, body.reason or "管理员解封")
+        # 重置违规记录，允许重新触发风控
+        from sqlalchemy import update as sql_update
+        await db.execute(
+            sql_update(RiskViolation)
+            .where(RiskViolation.user_id == body.user_id)
+            .values(locked_until=None, violation_count=0, last_action=None)
+        )
+        await db.commit()
     return ApiResponse.ok(data={"success": ok})
 
 
