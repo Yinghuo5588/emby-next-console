@@ -834,7 +834,7 @@ onMounted(loadAll)
 .vi-time { margin-left: auto; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 
 /* 违规详情抽屉 */
-.vi-detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: flex; justify-content: flex-end; }
+.vi-detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 3000; display: flex; justify-content: flex-end; }
 .vi-detail-drawer { width: min(340px, 85vw); height: 100%; background: var(--bg); display: flex; flex-direction: column; animation: slideInRight 0.25s ease; }
 @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
 .vi-detail-head { display: flex; justify-content: space-between; align-items: center; padding: 16px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--border); }
