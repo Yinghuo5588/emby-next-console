@@ -10,6 +10,7 @@ import { HeatmapChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import { GridComponent, TooltipComponent, VisualMapComponent } from 'echarts/components'
 import { useUiStore } from '@/stores/ui'
+import { chartTextStyle, chartMutedStyle, chartTooltipStyle } from './theme'
 
 use([HeatmapChart, CanvasRenderer, GridComponent, TooltipComponent, VisualMapComponent])
 
@@ -41,9 +42,7 @@ const chartOption = computed(() => {
 
   return {
     tooltip: {
-      backgroundColor: uiStore.isDark ? 'rgba(44,44,46,0.95)' : 'rgba(255,255,255,0.95)',
-      borderColor: uiStore.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
-      textStyle: { color: uiStore.isDark ? '#fff' : '#000', fontSize: 13 },
+      ...chartTooltipStyle(uiStore.isDark),
       formatter: (p: any) => {
         const hour = p.data[0]
         const dow = p.data[1]
@@ -57,11 +56,7 @@ const chartOption = computed(() => {
       data: props.xLabels || defaultXLabels,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: {
-        color: uiStore.isDark ? '#8e8e93' : '#8e8e93',
-        fontSize: 10,
-        interval: 3,
-      },
+      axisLabel: { ...chartMutedStyle(), fontSize: 10, interval: 3 },
       splitArea: { show: false },
     },
     yAxis: {
@@ -69,7 +64,7 @@ const chartOption = computed(() => {
       data: props.yLabels || defaultYLabels,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: uiStore.isDark ? '#8e8e93' : '#8e8e93', fontSize: 11 },
+      axisLabel: chartMutedStyle(),
       splitArea: { show: false },
     },
     visualMap: { show: false, min: 0, max: maxVal },
