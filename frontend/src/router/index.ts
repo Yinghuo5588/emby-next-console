@@ -68,6 +68,12 @@ const router = createRouter({
       meta: { title: '设置' },
     },
     {
+      path: '/notify',
+      name: 'Notify',
+      component: () => import('@/pages/NotifyPage.vue'),
+      meta: { title: '通知' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/stats',
     },
