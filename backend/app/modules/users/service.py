@@ -256,10 +256,14 @@ async def create_user(
         "template_name": template_name,
     })
 
+    # 通知
+    try:
+        from app.modules.notify.api import dispatch
+        await dispatch("user.created", {"user_id": user_id, "name": name, "expire_days": expire_days, "max_concurrent": max_concurrent, "is_vip": is_vip})
+    except Exception:
+        pass
+
     return {"user_id": user_id, "name": name}
-
-
-async def update_user(user_id: str, **kwargs) -> dict:
     """更新用户信息"""
     # 1. 更新基本用户名
     if "name" in kwargs:
@@ -329,7 +333,13 @@ async def delete_user(user_id: str) -> bool:
         resp.raise_for_status()
         # 清理 meta
         await _reload_meta()
-        _meta_cache.pop(user_id, None)
+        name = _meta_cache.pop(user_id, None)
+        # 通知
+        try:
+            from app.modules.notify.api import dispatch
+            await dispatch("user.deleted", {"user_id": user_id, "name": name.get("name", "") if name else ""})
+        except Exception:
+            pass
         return True
     except Exception as e:
         logger.warning(f"Delete user {user_id} failed: {e}")
@@ -354,8 +364,18 @@ async def batch_ops(operation: str, user_ids: list[str], **kwargs) -> dict:
                 await update_user(uid, expire_date=new_expire)
             elif operation == "set_vip":
                 await update_user(uid, is_vip=True)
+                try:
+                    from app.modules.notify.api import dispatch
+                    await dispatch("vip.changed", {"user_id": uid, "is_vip": True})
+                except Exception:
+                    pass
             elif operation == "unset_vip":
                 await update_user(uid, is_vip=False)
+                try:
+                    from app.modules.notify.api import dispatch
+                    await dispatch("vip.changed", {"user_id": uid, "is_vip": False})
+                except Exception:
+                    pass
             results["success"].append(uid)
         except Exception as e:
             results["failed"].append({"user_id": uid, "error": str(e)})
