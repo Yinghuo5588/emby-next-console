@@ -37,10 +37,20 @@
                 <Transition name="slide-up">
                   <div v-if="showMore" class="more-sheet">
                     <div class="more-handle" />
-                    <button v-for="item in moreItems" :key="item.label" class="more-item" @click="$router.push(item.path); showMore = false">
-                      <span class="more-item-icon">{{ item.icon }}</span>
-                      <span>{{ item.label }}</span>
-                    </button>
+                    <div class="more-section">
+                      <div class="more-section-label">工具</div>
+                      <button v-for="item in moreItems" :key="item.label" class="more-item" @click="$router.push(item.path); showMore = false">
+                        <span class="more-item-icon"><IosIcon :name="item.icon" :size="20" color="var(--brand)" /></span>
+                        <span>{{ item.label }}</span>
+                      </button>
+                    </div>
+                    <div class="more-divider" />
+                    <div class="more-section">
+                      <button class="more-item" @click="$router.push(settingsItem.path); showMore = false">
+                        <span class="more-item-icon"><IosIcon :name="settingsItem.icon" :size="20" color="var(--text-muted)" /></span>
+                        <span>{{ settingsItem.label }}</span>
+                      </button>
+                    </div>
                     <button class="more-item more-item-cancel" @click="showMore = false">取消</button>
                   </div>
                 </Transition>
@@ -59,6 +69,7 @@ import { useRoute } from 'vue-router'
 import { darkTheme } from 'naive-ui'
 import type { GlobalThemeOverrides } from 'naive-ui'
 import { useUiStore } from '@/stores/ui'
+import IosIcon from '@/components/common/IosIcon.vue'
 
 const uiStore = useUiStore()
 const route = useRoute()
@@ -74,10 +85,10 @@ const tabs = [
 
 const showMore = ref(false)
 const moreItems = [
-  { icon: '📅', label: '追剧日历', path: '/calendar' },
-  { icon: '📊', label: '质量盘点', path: '/quality' },
-  { icon: '⚙️', label: '设置', path: '/settings' },
+  { icon: 'calendar', label: '追剧日历', path: '/calendar' },
+  { icon: 'palette', label: '质量盘点', path: '/quality' },
 ]
+const settingsItem = { icon: 'settings', label: '设置', path: '/settings' }
 
 function isActive(path: string) {
   return route.path === path || route.path.startsWith(path + '/')
@@ -160,9 +171,21 @@ const themeOverrides: GlobalThemeOverrides = {
   color: var(--text-muted);
   transition: color 0.15s;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 .nav-item.active {
   color: var(--brand);
+}
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
 }
 .nav-icon {
   width: 22px;
@@ -200,6 +223,19 @@ const themeOverrides: GlobalThemeOverrides = {
   border-radius: 2.5px;
   background: var(--text-tertiary, #c7c7cc);
   margin: 4px auto 12px;
+}
+.more-section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted, #8e8e93);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 16px 4px;
+}
+.more-divider {
+  height: 1px;
+  background: var(--border, rgba(0,0,0,0.06));
+  margin: 4px 16px;
 }
 .more-item {
   display: flex;
