@@ -3,7 +3,7 @@
     <PageHeader title="设置" desc="系统配置" />
 
     <div class="section-card">
-      <div class="section-title">🎬 TMDB 配置</div>
+      <div class="section-title"><IosIcon name="globe" :size="18" color="var(--brand)" :stroke-width="2" style="margin-right: 6px; vertical-align: -2px;" /> TMDB 配置</div>
       <p class="section-desc">用于补全内容详情里的 TMDB 简介与图片信息。</p>
       <div class="tmdb-form">
         <n-input
@@ -25,7 +25,7 @@
     </div>
 
     <div class="section-card">
-      <div class="section-title">🔗 Webhook 配置</div>
+      <div class="section-title"><IosIcon name="link" :size="18" color="var(--brand)" :stroke-width="2" style="margin-right: 6px; vertical-align: -2px;" /> Webhook 配置</div>
       <p class="section-desc">在 Emby 后台 → 通知 → Webhook 中添加以下 URL</p>
 
       <div class="webhook-block">
@@ -83,7 +83,7 @@
     <div class="section-card">
       <div class="section-title">账户</div>
       <div class="setting-row clickable" @click="handleLogout">
-        <span>🚪</span>
+        <IosIcon name="trash" :size="18" color="#FF3B30" :stroke-width="2" />
         <span class="sr-label">退出登录</span>
         <span class="sr-arrow">›</span>
       </div>
@@ -92,7 +92,7 @@
     <div class="section-card">
       <div class="section-title">关于</div>
       <div class="setting-row">
-        <span>ℹ️</span>
+        <IosIcon name="check" :size="18" color="var(--success)" :stroke-width="2" />
         <span class="sr-label">Emby Next Console</span>
         <span class="sr-value">v1.0.3</span>
       </div>
@@ -105,6 +105,7 @@ import { ref, computed, onMounted } from 'vue'
 import { NButton, NEmpty, NInput, useDialog, useMessage } from 'naive-ui'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { systemApi } from '@/api/system'
+import IosIcon from '@/components/common/IosIcon.vue'
 import type { SettingItem, HealthResponse } from '@/api/system'
 
 const dialog = useDialog()
