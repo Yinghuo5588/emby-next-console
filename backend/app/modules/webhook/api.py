@@ -111,9 +111,10 @@ async def receive_emby_webhook(
     if str(event_type).lower() in PLAYBACK_EVENTS:
         asyncio.create_task(_quick_risk_scan())
 
-    # 新剧集入库触发日历状态更新
-    if str(event_type).lower() in ("library.new", "itemadded", "library_new"):
-        asyncio.create_task(_notify_calendar(payload))
+    # 新剧集入库触发日历状态更新（延迟 5s 等 Emby 索引完成）
+    event_lower = str(event_type).lower()
+    if any(k in event_lower for k in ("library.new", "itemadded", "library_new", "item.added", "librarychanged", "library.changed")):
+        asyncio.create_task(_notify_calendar_delayed(payload))
 
     return ApiResponse.ok(message="ok")
 
@@ -135,6 +136,15 @@ async def _quick_risk_scan():
         await _auto_unban_expired()
     except Exception as e:
         logger.error(f"Quick risk scan error: {e}")
+
+
+async def _notify_calendar_delayed(payload: dict):
+    """延迟通知日历模块，等 Emby 完成文件索引"""
+    try:
+        await asyncio.sleep(5)
+        await _notify_calendar(payload)
+    except Exception as e:
+        logger.debug(f"日历延迟通知失败: {e}")
 
 
 async def _notify_calendar(payload: dict):
