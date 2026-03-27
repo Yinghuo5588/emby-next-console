@@ -332,6 +332,7 @@
           <div v-if="isLocked(viDetail)" class="vd-row"><span class="vd-label">状态</span><n-tag type="error" size="small">封禁中</n-tag></div>
         </div>
         <div class="vi-detail-foot">
+          <n-button v-if="isLocked(viDetail)" size="small" type="primary" :loading="unbanning" @click="doUnban(viDetail)">解封</n-button>
           <n-button size="small" type="error" quaternary @click="deleteViolation(viDetail.id); viDetail = null">清除记录</n-button>
         </div>
       </div>
@@ -376,6 +377,7 @@ const events = ref<any[]>([])
 const evLoading = ref(false)
 const acting = ref<string | null>(null)
 const kicking = ref<string | null>(null)
+const unbanning = ref(false)
 const scanning = ref(false)
 const sweeping = ref(false)
 const blacklist = ref<string[]>([])
@@ -444,6 +446,16 @@ async function loadViolations() { try { const r = await riskApi.violations(undef
 async function deleteViolation(id: number) {
   try { await riskApi.deleteViolation(id); violationItems.value = violationItems.value.filter(v => v.id !== id); msg.success('已清除') }
   catch { msg.error('失败') }
+}
+async function doUnban(v: any) {
+  unbanning.value = true
+  try {
+    await riskApi.unban(v.user_id)
+    msg.success('已解封，违规记录已重置')
+    viDetail.value = null
+    await loadViolations()
+  } catch { msg.error('解封失败') }
+  finally { unbanning.value = false }
 }
 function isLocked(v: RiskViolation) { return v.locked_until && new Date(v.locked_until).getTime() > Date.now() }
 function actionLabel(a: string) { return ({ message: '弹窗', stop: '停止', force_kick: '强踢', ban: '封禁' })[a] ?? a }
