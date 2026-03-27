@@ -121,7 +121,7 @@
 
     <!-- 列表 -->
     <div v-if="hasData" class="list-section">
-      <div v-for="item in items" :key="item.item_id" class="item-card">
+      <div v-for="(item, idx) in items" :key="item.item_id" class="item-card anim-in" :style="{ '--i': idx % 10 }" @click="toggleIgnore(item)">
         <div class="item-poster">
           <img
             :src="`/api/v1/proxy/image/${item.item_id}/Primary`"
@@ -133,27 +133,24 @@
         <div class="item-body">
           <div class="item-name">{{ item.name }}</div>
           <div class="item-meta">
-            <n-tag :type="resTagType(item.resolution)" size="tiny" round>{{ item.resolution }}</n-tag>
-            <n-tag :type="vrTagType(item.video_range)" size="tiny" round>{{ item.video_range }}</n-tag>
-            <n-tag type="default" size="tiny" round>{{ item.item_type === 'Movie' ? '电影' : '剧集' }}</n-tag>
+            <span class="q-tag" :class="resClass(item.resolution)">{{ item.resolution }}</span>
+            <span class="q-tag" :class="vrClass(item.video_range)">{{ item.video_range }}</span>
+            <span class="q-tag q-type">{{ item.item_type === 'Movie' ? '电影' : '剧集' }}</span>
           </div>
         </div>
-        <n-button
-          size="tiny"
-          :type="item.is_ignored ? 'default' : 'warning'"
-          quaternary
-          round
-          @click.stop="toggleIgnore(item)"
-        >
+        <span class="item-action" :class="{ 'action-ignored': item.is_ignored }">
           {{ item.is_ignored ? '恢复' : '忽略' }}
-        </n-button>
+        </span>
       </div>
 
       <!-- 分页 -->
       <div v-if="totalPages > 1" class="pager-row">
-        <n-button :disabled="page <= 1" size="small" quaternary round @click="page--">上一页</n-button>
-        <span class="pager-info">{{ page }} / {{ totalPages }}</span>
-        <n-button :disabled="page >= totalPages" size="small" quaternary round @click="page++">下一页</n-button>
+        <button class="pager-btn" :disabled="page <= 1" @click="page--">‹</button>
+        <template v-for="p in pagerPages" :key="p">
+          <span v-if="p === '...'" class="pager-ellipsis">…</span>
+          <button v-else class="pager-num" :class="{ active: p === page }" @click="page = Number(p)">{{ p }}</button>
+        </template>
+        <button class="pager-btn" :disabled="page >= totalPages" @click="page++">›</button>
       </div>
     </div>
 
@@ -483,15 +480,30 @@ function onImgError(e: Event) {
   img.style.display = 'none'
 }
 
-function resTagType(res: string) {
-  return res === '4K' ? 'info' : res === '1080P' ? 'success' : 'warning'
+function resClass(res: string) {
+  if (res === '4K' || res === '2160p') return 'q-res-4k'
+  if (res === '1080P' || res === '1080p') return 'q-res-1080'
+  if (res === '720P' || res === '720p') return 'q-res-720'
+  return 'q-res-low'
 }
-function vrTagType(vr: string) {
-  if (vr === 'Dolby Vision') return 'warning'
-  if (vr === 'HDR10+' || vr === 'HDR10') return 'error'
-  if (vr === 'HLG') return 'info'
-  return 'default'
+function vrClass(vr: string) {
+  if (vr === 'Dolby Vision') return 'q-vr-dv'
+  if (vr === 'HDR10+' || vr === 'HDR10') return 'q-vr-hdr'
+  if (vr === 'HLG') return 'q-vr-hlg'
+  return 'q-vr-sdr'
 }
+
+const pagerPages = computed(() => {
+  const total = totalPages.value
+  const cur = page.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | string)[] = [1]
+  if (cur > 3) pages.push('...')
+  for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i)
+  if (cur < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+})
 
 watch(page, loadItems)
 
@@ -808,4 +820,64 @@ onMounted(() => {
   .chart-box { height: 220px; }
   .chart-card-inner { min-height: 280px; }
 }
+
+/* ── 入场动画 ── */
+.anim-in {
+  opacity: 0; transform: translateY(10px);
+  animation: slideIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+@keyframes slideIn { to { opacity: 1; transform: translateY(0); } }
+
+/* ── 自定义质量标签 ── */
+.q-tag {
+  font-size: 0.6rem; font-weight: 700;
+  padding: 1px 6px; border-radius: 4px;
+  line-height: 1.5; display: inline-block;
+}
+.q-res-4k { background: rgba(52,199,89,0.12); color: #248A3D; }
+.q-res-1080 { background: rgba(0,122,255,0.1); color: #007AFF; }
+.q-res-720 { background: rgba(255,159,10,0.12); color: #B45309; }
+.q-res-low { background: rgba(142,142,147,0.1); color: #8e8e93; }
+.q-vr-dv { background: rgba(175,82,222,0.12); color: #8944AB; }
+.q-vr-hdr { background: rgba(255,159,10,0.12); color: #E08600; }
+.q-vr-hlg { background: rgba(90,200,250,0.12); color: #007AFF; }
+.q-vr-sdr { background: rgba(142,142,147,0.08); color: #8e8e93; }
+.q-type { background: rgba(0,0,0,0.04); color: var(--text-muted); }
+
+/* ── 海报阴影 ── */
+.item-poster img { box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 10px; }
+
+/* ── 操作按钮 ── */
+.item-action {
+  font-size: 0.7rem; font-weight: 600;
+  padding: 3px 8px; border-radius: 6px;
+  background: rgba(255,159,10,0.1); color: #E08600;
+  flex-shrink: 0; cursor: pointer;
+  transition: all 0.15s;
+}
+.item-action:active { transform: scale(0.95); }
+.action-ignored { background: rgba(142,142,147,0.08); color: var(--text-muted); }
+
+/* ── 分页器 ── */
+.pager-row { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 16px; padding-bottom: 20px; }
+.pager-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: none; background: var(--bg-secondary); color: var(--text);
+  font-size: 1.1rem; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; font-family: inherit;
+}
+.pager-btn:disabled { opacity: 0.3; cursor: default; }
+.pager-btn:active:not(:disabled) { transform: scale(0.9); }
+.pager-num {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: none; background: none; color: var(--text-muted);
+  font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; font-family: inherit;
+}
+.pager-num.active { background: var(--brand); color: #fff; }
+.pager-num:active { transform: scale(0.9); }
+.pager-ellipsis { color: var(--text-muted); font-size: 0.8rem; padding: 0 2px; }
 </style>
