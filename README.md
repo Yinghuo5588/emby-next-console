@@ -1,6 +1,7 @@
 # Emby Next Console
 
 Emby 媒体服务器管理控制台 — FastAPI + Vue 3 + PostgreSQL + Redis
+Openclaw（mimo-v2-pro）:所有代码Ai编写
 
 ## 功能概览
 
