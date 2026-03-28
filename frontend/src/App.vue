@@ -96,6 +96,7 @@ const moreItems = [
   { icon: 'calendar', label: '追剧日历', path: '/calendar' },
   { icon: 'palette', label: '质量盘点', path: '/quality' },
   { icon: 'bell', label: '通知', path: '/notify' },
+  { icon: 'link', label: 'API 密钥', path: '/api-keys' },
 ]
 const settingsItem = { icon: 'settings', label: '设置', path: '/settings' }
 
