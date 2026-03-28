@@ -267,7 +267,6 @@ async def create_user(
 
     # 通知
     await _notify("user.created", {"user_id": user_id, "name": name, "expire_days": expire_days, "max_concurrent": max_concurrent, "is_vip": is_vip})
-        pass
 
     return {"user_id": user_id, "name": name}
 
