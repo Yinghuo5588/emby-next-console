@@ -14,6 +14,15 @@ from app.db.session import AsyncSessionFactory
 logger = logging.getLogger("app.users")
 
 
+async def _notify(event: str, data: dict):
+    """发送通知（静默失败，不影响主流程）"""
+    try:
+        from app.modules.notify.api import dispatch
+        await dispatch(event, data)
+    except Exception:
+        pass
+
+
 # ════════════════════════════════════════════════════════════
 # Meta 缓存（每次从 DB 重新加载，避免多 worker 缓存不一致）
 # ════════════════════════════════════════════════════════════
@@ -257,10 +266,7 @@ async def create_user(
     })
 
     # 通知
-    try:
-        from app.modules.notify.api import dispatch
-        await dispatch("user.created", {"user_id": user_id, "name": name, "expire_days": expire_days, "max_concurrent": max_concurrent, "is_vip": is_vip})
-    except Exception:
+    await _notify("user.created", {"user_id": user_id, "name": name, "expire_days": expire_days, "max_concurrent": max_concurrent, "is_vip": is_vip})
         pass
 
     return {"user_id": user_id, "name": name}
@@ -338,11 +344,7 @@ async def delete_user(user_id: str) -> bool:
         await _reload_meta()
         name = _meta_cache.pop(user_id, None)
         # 通知
-        try:
-            from app.modules.notify.api import dispatch
-            await dispatch("user.deleted", {"user_id": user_id, "name": name.get("name", "") if name else ""})
-        except Exception:
-            pass
+        await _notify("user.deleted", {"user_id": user_id, "name": name.get("name", "") if name else ""})
         return True
     except Exception as e:
         logger.warning(f"Delete user {user_id} failed: {e}")
@@ -381,18 +383,10 @@ async def batch_ops(operation: str, user_ids: list[str], **kwargs) -> dict:
                 await update_user(uid, expire_date=new_expire)
             elif operation == "set_vip":
                 await update_user(uid, is_vip=True)
-                try:
-                    from app.modules.notify.api import dispatch
-                    await dispatch("vip.changed", {"user_id": uid, "is_vip": True})
-                except Exception:
-                    pass
+                await _notify("vip.changed", {"user_id": uid, "is_vip": True})
             elif operation == "unset_vip":
                 await update_user(uid, is_vip=False)
-                try:
-                    from app.modules.notify.api import dispatch
-                    await dispatch("vip.changed", {"user_id": uid, "is_vip": False})
-                except Exception:
-                    pass
+                await _notify("vip.changed", {"user_id": uid, "is_vip": False})
             results["success"].append(uid)
         except Exception as e:
             results["failed"].append({"user_id": uid, "error": str(e)})
