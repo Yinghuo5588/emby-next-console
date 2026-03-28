@@ -74,12 +74,6 @@ const router = createRouter({
       meta: { title: '通知' },
     },
     {
-      path: '/api-docs',
-      name: 'ApiDocs',
-      component: () => import('@/pages/ApiPage.vue'),
-      meta: { title: 'API' },
-    },
-    {
       path: '/:pathMatch(.*)*',
       redirect: '/stats',
     },
