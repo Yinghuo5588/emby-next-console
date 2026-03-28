@@ -331,6 +331,11 @@ async def update_user(user_id: str, **kwargs) -> dict:
             meta[key] = kwargs[key]
     await _save_meta(user_id, meta)
 
+    # VIP 变更通知
+    if "is_vip" in kwargs and kwargs["is_vip"] is not None:
+        user_info = await get_user(user_id)
+        await _notify("vip.changed", {"user_id": user_id, "name": user_info.get("name", ""), "is_vip": kwargs["is_vip"]})
+
     return await get_user(user_id)
 
 
