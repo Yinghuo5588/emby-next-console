@@ -357,6 +357,7 @@ import apiClient from '@/api/client'
 const msg = useMessage()
 const router = useRouter()
 
+// ── Tab 导航 ──
 type TabKey = 'overview' | 'policy' | 'records'
 const activeTab = ref<TabKey>('overview')
 const showDrawer = ref(false)
@@ -376,28 +377,40 @@ function handleTabClick(key: TabKey) {
 }
 
 const summary = ref<any>(null)
-const events = ref<any[]>([])
-const evLoading = ref(false)
-const acting = ref<string | null>(null)
-const kicking = ref<string | null>(null)
-const unbanning = ref(false)
-const logShowAll = ref(false)
+const blacklist = ref<string[]>([])
 const scanning = ref(false)
 const sweeping = ref(false)
-const blacklist = ref<string[]>([])
+
+// ── 实时播放 ──
+const liveSessions = ref<any[]>([])
+const sessionsLoading = ref(false)
+const kicking = ref<string | null>(null)
+
+// ── 并发状态 ──
+const concurrent = ref<ConcurrentItem[]>([])
+const concurrentLoading = ref(false)
+
+// ── 风控事件 ──
+const events = ref<any[]>([])
+const evLoading = ref(false)
+const evFilter = reactive({ status: 'open' })
+const acting = ref<string | null>(null)
+
+// ── 违规记录 ──
+const violationItems = ref<RiskViolation[]>([])
+const viDetail = ref<RiskViolation | null>(null)
+const unbanning = ref(false)
+
+// ── 执法日志 ──
+const logs = ref<RiskActionLog[]>([])
+const logShowAll = ref(false)
+
+// ── 策略配置 ──
+const policy = ref<RiskPolicy | null>(null)
+const policyLoading = ref(false)
 const newItem = ref('')
 const showHistory = ref(false)
 const suggestions = ref<string[]>([])
-const evFilter = reactive({ status: 'open' })
-const liveSessions = ref<any[]>([])
-const sessionsLoading = ref(false)
-const logs = ref<RiskActionLog[]>([])
-const concurrent = ref<ConcurrentItem[]>([])
-const concurrentLoading = ref(false)
-const violationItems = ref<RiskViolation[]>([])
-const viDetail = ref<RiskViolation | null>(null)
-const policy = ref<RiskPolicy | null>(null)
-const policyLoading = ref(false)
 const clientActions = [
   { value: 'message', label: '弹窗' },
   { value: 'stop', label: '停止' },
@@ -418,6 +431,7 @@ const msgTemplates = [
 const currentActionLabel = computed(() => (msgTemplates.find(m => m.key === 'msg_' + policy.value?.client_policy?.action)?.label) || '')
 const currentMsgKey = computed(() => 'msg_' + (policy.value?.client_policy?.action || ''))
 
+// ── 数据加载 ──
 async function loadSummary() { try { summary.value = (await riskApi.summary()).data } catch {} }
 async function loadEvents() {
   evLoading.value = true
