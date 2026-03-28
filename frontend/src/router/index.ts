@@ -74,6 +74,12 @@ const router = createRouter({
       meta: { title: '通知' },
     },
     {
+      path: '/api-keys',
+      name: 'ApiKeys',
+      component: () => import('@/pages/ApiKeyPage.vue'),
+      meta: { title: 'API 密钥' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/stats',
     },
