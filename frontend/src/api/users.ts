@@ -55,4 +55,13 @@ export const usersApi = {
     apiClient.post('/manage/users/batch', data),
   libraryFolders: () => apiClient.get('/manage/users/libraries'),
   avatarUrl: (id: string) => `/api/v1/manage/users/${id}/avatar`,
+  avatarUrl: (id: string) => `/api/v1/manage/users/${id}/avatar`,
+  uploadAvatar: (id: string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return apiClient.post(`/manage/users/${id}/avatar`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  deleteAvatar: (id: string) => apiClient.delete(`/manage/users/${id}/avatar`),
 }
