@@ -4,51 +4,51 @@
       <n-button quaternary circle size="small" @click="router.back()">
         <n-icon size="20"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></n-icon>
       </n-button>
-      <span class="header-title">ç¨æ·è¯¦æ</span>
-      <n-button size="small" type="error" quaternary @click="handleDelete">å é¤</n-button>
+      <span class="header-title">用户详情</span>
+      <n-button size="small" type="error" quaternary @click="handleDelete">删除</n-button>
     </div>
 
-    <div v-if="loading" class="loading-state">å è½½ä¸­...</div>
+    <div v-if="loading" class="loading-state">加载中...</div>
     <template v-else-if="user">
-      <!-- ç¨æ·å¤´é¨ -->
+      <!-- 用户头部 -->
       <div class="user-hero">
         <div class="hero-avatar">
           <img :src="usersApi.avatarUrl(user.user_id)" :alt="user.name" />
-          <label class="avatar-upload" title="æ´æ¢å¤´å">
+          <label class="avatar-upload" title="更换头像">
             <input type="file" accept="image/*" @change="onAvatarChange" hidden />
-            <span class="upload-icon">ð·</span>
+            <span class="upload-icon">📷</span>
           </label>
         </div>
         <div class="hero-info">
           <h2 class="hero-name">{{ user.name }}</h2>
           <div class="hero-tags">
-            <span v-if="user.is_admin" class="role-tag admin">ç®¡çå</span>
-            <span v-if="user.is_disabled" class="role-tag disabled">å·²ç¦ç¨</span>
+            <span v-if="user.is_admin" class="role-tag admin">管理员</span>
+            <span v-if="user.is_disabled" class="role-tag disabled">已禁用</span>
             <span v-if="user.is_vip" class="role-tag vip">VIP</span>
           </div>
           <div class="hero-meta">
-            åå»º: {{ formatDate(user.create_date) }}
-            <span v-if="user.last_login_date"> Â· æåç»å½: {{ formatDate(user.last_login_date) }}</span>
+            创建: {{ formatDate(user.create_date) }}
+            <span v-if="user.last_login_date"> · 最后登录: {{ formatDate(user.last_login_date) }}</span>
           </div>
         </div>
       </div>
 
       <!-- Tab -->
       <n-tabs v-model:value="activeTab" type="segment" class="detail-tabs">
-        <n-tab-pane name="overview" tab="æ¦è§">
+        <n-tab-pane name="overview" tab="概览">
           <div class="info-section">
             <div class="info-row">
-              <span class="info-label">ç¶æ</span>
+              <span class="info-label">状态</span>
               <n-button size="small" :type="user.is_disabled ? 'success' : 'warning'" quaternary @click="toggleDisabled">
-                {{ user.is_disabled ? 'å¯ç¨' : 'ç¦ç¨' }}
+                {{ user.is_disabled ? '启用' : '禁用' }}
               </n-button>
             </div>
             <div class="info-row">
-              <span class="info-label">è¿ææ¶é´</span>
+              <span class="info-label">过期时间</span>
               <n-date-picker v-model:value="expireValue" type="date" clearable size="small" class="date-picker" @update:value="saveField('expire_date', $event)" />
             </div>
             <div class="info-row">
-              <span class="info-label">å¹¶åéå¶</span>
+              <span class="info-label">并发限制</span>
               <n-input-number v-model:value="editForm.max_concurrent" :min="1" :max="10" size="small" style="width: 80px" @update:value="saveField('max_concurrent', $event)" />
             </div>
             <div class="info-row">
@@ -56,44 +56,44 @@
               <n-switch v-model:value="editForm.is_vip" @update:value="saveField('is_vip', $event)" />
             </div>
             <div class="info-row">
-              <span class="info-label">å¤æ³¨</span>
-              <n-input v-model:value="editForm.note" placeholder="ç®¡çåå¤æ³¨" size="small" @blur="saveField('note', editForm.note)" />
+              <span class="info-label">备注</span>
+              <n-input v-model:value="editForm.note" placeholder="管理员备注" size="small" @blur="saveField('note', editForm.note)" />
             </div>
             <div class="info-row">
-              <span class="info-label">å¯ç </span>
-              <n-button size="small" @click="showPasswordModal = true">éç½®å¯ç </n-button>
+              <span class="info-label">密码</span>
+              <n-button size="small" @click="showPasswordModal = true">重置密码</n-button>
             </div>
           </div>
         </n-tab-pane>
 
-        <n-tab-pane name="permissions" tab="æé">
+        <n-tab-pane name="permissions" tab="权限">
           <div class="info-section">
             <div class="info-row">
-              <span class="pr-label">è¿ç¨è®¿é®</span>
+              <span class="pr-label">远程访问</span>
               <n-switch v-model:value="permForm.enable_remote_access" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="pr-label">åå®¹ä¸è½½</span>
+              <span class="pr-label">内容下载</span>
               <n-switch v-model:value="permForm.enable_content_downloading" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="pr-label">è§é¢è½¬ç </span>
+              <span class="pr-label">视频转码</span>
               <n-switch v-model:value="permForm.enable_video_transcoding" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="pr-label">å®¶é¿åçº§</span>
+              <span class="pr-label">家长分级</span>
               <n-select v-model:value="permForm.max_parental_rating" :options="ratingOptions" clearable size="small" style="width: 160px" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="pr-label">åªä½åºè®¿é®</span>
+              <span class="pr-label">媒体库访问</span>
               <n-switch v-model:value="permForm.enable_all_folders" @update:value="savePerm" />
             </div>
             <div v-if="!permForm.enable_all_folders" class="info-row">
-              <span class="pr-label">åè®¸çåªä½åº</span>
+              <span class="pr-label">允许的媒体库</span>
               <n-select v-model:value="permForm.enabled_folders" :options="folderOptions" multiple size="small" style="width: 240px" @update:value="savePerm" />
             </div>
             <div class="info-row">
-              <span class="pr-label">ç¦æ­¢æªè¯çº§åå®¹</span>
+              <span class="pr-label">禁止未评级内容</span>
               <n-select v-model:value="permForm.block_unrated_items" :options="unratedOptions" multiple size="small" style="width: 240px" @update:value="savePerm" />
             </div>
           </div>
@@ -101,10 +101,10 @@
       </n-tabs>
     </template>
 
-    <!-- éç½®å¯ç å¼¹çª -->
-    <n-modal v-model:show="showPasswordModal" preset="dialog" title="éç½®å¯ç " positive-text="ç¡®è®¤" negative-text="åæ¶" @positive-click="resetPassword">
-      <n-form-item label="æ°å¯ç ">
-        <n-input v-model:value="newPassword" type="password" show-password-on="click" placeholder="è¾å¥æ°å¯ç " />
+    <!-- 重置密码弹窗 -->
+    <n-modal v-model:show="showPasswordModal" preset="dialog" title="重置密码" positive-text="确认" negative-text="取消" @positive-click="resetPassword">
+      <n-form-item label="新密码">
+        <n-input v-model:value="newPassword" type="password" show-password-on="click" placeholder="输入新密码" />
       </n-form-item>
     </n-modal>
   </div>
@@ -149,21 +149,21 @@ const expireValue = computed({
 })
 
 const ratingOptions = [
-  { label: 'æ éå¶', value: null },
-  { label: 'G (å¨å¹´é¾)', value: 1 },
-  { label: 'PG (å®¶é¿æå¯¼)', value: 3 },
+  { label: '无限制', value: null },
+  { label: 'G (全年龄)', value: 1 },
+  { label: 'PG (家长指导)', value: 3 },
   { label: 'PG-13', value: 4 },
-  { label: 'R (éå¶çº§)', value: 5 },
+  { label: 'R (限制级)', value: 5 },
   { label: 'NC-17', value: 6 },
 ]
 const folderOptions = ref<{ label: string; value: string }[]>([])
 const unratedOptions = [
-  { label: 'çµå½±', value: 'Movie' },
-  { label: 'å§é', value: 'Series' },
-  { label: 'é³ä¹', value: 'Music' },
-  { label: 'ä¹¦ç±', value: 'Book' },
-  { label: 'æ¸¸æ', value: 'Game' },
-  { label: 'ç´æ­çµè§', value: 'LiveTvChannel' },
+  { label: '电影', value: 'Movie' },
+  { label: '剧集', value: 'Series' },
+  { label: '音乐', value: 'Music' },
+  { label: '书籍', value: 'Book' },
+  { label: '游戏', value: 'Game' },
+  { label: '直播电视', value: 'LiveTvChannel' },
 ]
 
 function formatDate(d: string) {
@@ -193,7 +193,7 @@ async function loadUser() {
       }
     }
   } catch (e: any) {
-    message.error('å è½½å¤±è´¥')
+    message.error('加载失败')
   } finally {
     loading.value = false
   }
@@ -208,9 +208,9 @@ async function saveField(key: string, value: any) {
       (payload as any)[key] = value
     }
     await usersApi.update(userId, payload)
-    message.success('å·²ä¿å­', { duration: 1000 })
+    message.success('已保存', { duration: 1000 })
   } catch {
-    message.error('ä¿å­å¤±è´¥')
+    message.error('保存失败')
   }
 }
 
@@ -225,9 +225,9 @@ async function savePerm() {
       enabled_folders: permForm.value.enabled_folders,
       block_unrated_items: permForm.value.block_unrated_items,
     })
-    message.success('å·²ä¿å­', { duration: 1000 })
+    message.success('已保存', { duration: 1000 })
   } catch {
-    message.error('ä¿å­å¤±è´¥')
+    message.error('保存失败')
   }
 }
 
@@ -236,9 +236,9 @@ async function toggleDisabled() {
   try {
     await usersApi.update(userId, { is_disabled: !user.value.is_disabled })
     user.value.is_disabled = !user.value.is_disabled
-    message.success(user.value.is_disabled ? 'å·²ç¦ç¨' : 'å·²å¯ç¨')
+    message.success(user.value.is_disabled ? '已禁用' : '已启用')
   } catch {
-    message.error('æä½å¤±è´¥')
+    message.error('操作失败')
   }
 }
 
@@ -246,27 +246,27 @@ async function resetPassword() {
   if (!newPassword.value) return
   try {
     await usersApi.update(userId, { password: newPassword.value })
-    message.success('å¯ç å·²éç½®')
+    message.success('密码已重置')
     showPasswordModal.value = false
     newPassword.value = ''
   } catch {
-    message.error('éç½®å¤±è´¥')
+    message.error('重置失败')
   }
 }
 
 function handleDelete() {
   dialog.warning({
-    title: 'ç¡®è®¤å é¤',
-    content: `ç¡®å®å é¤ç¨æ·ã${user.value?.name}ãï¼æ­¤æä½ä¸å¯æ¤éã`,
-    positiveText: 'å é¤',
-    negativeText: 'åæ¶',
+    title: '确认删除',
+    content: `确定删除用户「${user.value?.name}」？此操作不可撤销。`,
+    positiveText: '删除',
+    negativeText: '取消',
     onPositiveClick: async () => {
       try {
         await usersApi.delete(userId)
-        message.success('å·²å é¤')
+        message.success('已删除')
         router.replace('/users')
       } catch {
-        message.error('å é¤å¤±è´¥')
+        message.error('删除失败')
       }
     },
   })
@@ -275,7 +275,7 @@ function handleDelete() {
 async function onAvatarChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  message.info('å¤´åä¸ä¼ åè½å¼åä¸­')
+  message.info('头像上传功能开发中')
 }
 
 onMounted(async () => {

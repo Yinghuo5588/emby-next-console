@@ -1,7 +1,7 @@
 """
-ç¨æ·ç®¡ç API â Emby ç®¡çåæä½ç¨æ·
+用户管理 API — Emby 管理员操作用户
 """
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.core.dependencies import get_current_admin
@@ -48,14 +48,14 @@ class BatchRequest(BaseModel):
 
 @router.get("")
 async def list_users(_: dict = Depends(get_current_admin)):
-    """ç¨æ·åè¡¨ï¼åå¹¶ Emby + metaï¼èªå¨æ£æµè¿æï¼"""
+    """用户列表（合并 Emby + meta，自动检测过期）"""
     data = await service.list_users()
     return ApiResponse.ok(data=data)
 
 
 @router.get("/libraries")
 async def list_library_folders(_: dict = Depends(get_current_admin)):
-    """è·ååªä½åºåè¡¨"""
+    """获取媒体库列表"""
     folders = await emby.get_library_virtual_folders()
     result = [{"value": f.get("Guid", f.get("Name", "")), "label": f.get("Name", "")} for f in folders]
     return ApiResponse.ok(data=result)
@@ -63,16 +63,16 @@ async def list_library_folders(_: dict = Depends(get_current_admin)):
 
 @router.get("/{user_id}")
 async def get_user(user_id: str, _: dict = Depends(get_current_admin)):
-    """åä¸ªç¨æ·è¯¦æ"""
+    """单个用户详情"""
     data = await service.get_user(user_id)
     if not data:
-        return ApiResponse.error("ç¨æ·ä¸å­å¨")
+        return ApiResponse.error("用户不存在")
     return ApiResponse.ok(data=data)
 
 
 @router.post("")
 async def create_user(body: CreateUserRequest, _: dict = Depends(get_current_admin)):
-    """åå»ºç¨æ·ï¼æ¯ææ¨¡æ¿åéï¼"""
+    """创建用户（支持模板克隆）"""
     data = await service.create_user(
         name=body.name,
         password=body.password,
@@ -82,28 +82,28 @@ async def create_user(body: CreateUserRequest, _: dict = Depends(get_current_adm
         is_vip=body.is_vip,
         note=body.note,
     )
-    return ApiResponse.ok(data=data, message="åå»ºæå")
+    return ApiResponse.ok(data=data, message="创建成功")
 
 
 @router.put("/{user_id}")
 async def update_user(user_id: str, body: UpdateUserRequest, _: dict = Depends(get_current_admin)):
-    """æ´æ°ç¨æ·"""
+    """更新用户"""
     data = await service.update_user(user_id, **body.model_dump(exclude_none=True))
-    return ApiResponse.ok(data=data, message="æ´æ°æå")
+    return ApiResponse.ok(data=data, message="更新成功")
 
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, _: dict = Depends(get_current_admin)):
-    """å é¤ç¨æ·"""
+    """删除用户"""
     ok = await service.delete_user(user_id)
     if not ok:
-        return ApiResponse.error("å é¤å¤±è´¥")
-    return ApiResponse.ok(message="å é¤æå")
+        return ApiResponse.error("删除失败")
+    return ApiResponse.ok(message="删除成功")
 
 
 @router.post("/batch")
 async def batch_ops(body: BatchRequest, _: dict = Depends(get_current_admin)):
-    """æ¹éæä½"""
+    """批量操作"""
     data = await service.batch_ops(
         operation=body.operation,
         user_ids=body.user_ids,
@@ -114,49 +114,9 @@ async def batch_ops(body: BatchRequest, _: dict = Depends(get_current_admin)):
 
 @router.get("/{user_id}/avatar")
 async def get_avatar(user_id: str):
-    """ä»£çç¨æ·å¤´å"""
-    from fastapi.responses import Response
-    import httpx
-
-
-@router.get("/{user_id}/avatar")
-async def get_avatar(user_id: str):
     """代理用户头像"""
     from fastapi.responses import Response
     import httpx
-    url = f"{emby._host}/emby/Users/{user_id}/Images/Primary?quality=90"
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers={"X-Emby-Token": emby._api_key})
-            if resp.status_code == 200:
-                return Response(content=resp.content, media_type=resp.headers.get("content-type", "image/jpeg"))
-    except Exception:
-        pass
-    return Response(status_code=404)
-
-
-@router.post("/{user_id}/avatar")
-async def upload_avatar(user_id: str, file: UploadFile = File(...), _: dict = Depends(get_current_admin)):
-    """上传用户头像"""
-    allowed = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-    if file.content_type not in allowed:
-        return ApiResponse.error("仅支持 JPG/PNG/GIF/WEBP 格式")
-    data = await file.read()
-    if len(data) > 5 * 1024 * 1024:
-        return ApiResponse.error("图片大小不能超过 5MB")
-    ok = await emby.upload_user_avatar(user_id, data, file.content_type)
-    if not ok:
-        return ApiResponse.error("上传失败")
-    return ApiResponse.ok(message="头像上传成功")
-
-
-@router.delete("/{user_id}/avatar")
-async def delete_avatar(user_id: str, _: dict = Depends(get_current_admin)):
-    """删除用户头像"""
-    ok = await emby.delete_user_avatar(user_id)
-    if not ok:
-        return ApiResponse.error("删除失败")
-    return ApiResponse.ok(message="头像已删除")
 
     host = emby._host
     api_key = emby._api_key
@@ -170,5 +130,5 @@ async def delete_avatar(user_id: str, _: dict = Depends(get_current_admin)):
                 return Response(content=resp.content, media_type=resp.headers.get("content-type", "image/jpeg"))
     except Exception:
         pass
-    # Emby æ²¡æå¤´å â è¿å 404ï¼åç«¯æ¾ç¤ºé¦å­æ¯ fallback
+    # Emby 没有头像 → 返回 404，前端显示首字母 fallback
     return Response(status_code=404)
