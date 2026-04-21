@@ -34,7 +34,7 @@ const chartOption = computed(() => {
   for (let hour = 0; hour < 24; hour++) {
     for (let dow = 0; dow < 7; dow++) {
       const val = grid[hour]?.[dow] ?? 0
-      heatData.push([hour, dow, val])
+      heatData.push([dow, hour, val])
       if (val > maxVal) maxVal = val
     }
   }
