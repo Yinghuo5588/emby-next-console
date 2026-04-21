@@ -61,6 +61,7 @@ jobs:
         with:
           context: ./frontend
           push: true
+          no-cache: true
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
