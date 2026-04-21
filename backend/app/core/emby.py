@@ -216,26 +216,25 @@ class EmbyAdapter:
         return f"{self._host}/emby/Users/{user_id}/Images/Primary"
 
     async def upload_user_image(self, user_id: str, image_data: bytes, content_type: str = "image/jpeg") -> bool:
-        """上传用户头像到 Emby"""
+        """上传用户头像到 Emby（需要 base64 编码）"""
         try:
-            client = await self._get_client()
-            url = self._build_url(f"/Users/{user_id}/Images/Primary")
+            import base64 as _b64
 
-            # 先删除旧头像（如果存在）
+            # 先删除旧头像
             try:
-                del_resp = await client.delete(url, headers=self._headers())
+                del_resp = await self.delete(f"/Users/{user_id}/Images/Primary")
                 logger.info("删除旧头像 %s: %d", user_id, del_resp.status_code)
             except Exception:
                 pass
 
-            # 上传新头像（Emby 接受二进制数据）
-            resp = await client.post(
-                url,
-                content=image_data,
-                headers={
-                    **self._headers(),
-                    "Content-Type": content_type,
-                },
+            # Emby 要求图片数据 base64 编码后传输
+            b64_data = _b64.b64encode(image_data).decode()
+
+            resp = await self._request(
+                "POST",
+                f"/Users/{user_id}/Images/Primary",
+                data=b64_data,
+                headers={"Content-Type": content_type},
             )
             if resp.status_code not in (200, 204):
                 logger.error("上传用户头像 %s 失败: %d %s", user_id, resp.status_code, resp.text[:200])
