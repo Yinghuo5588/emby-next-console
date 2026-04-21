@@ -275,7 +275,23 @@ function handleDelete() {
 async function onAvatarChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  message.info('头像上传功能开发中')
+  if (file.size > 5 * 1024 * 1024) {
+    message.error('图片不能超过 5MB')
+    return
+  }
+  if (!file.type.startsWith('image/')) {
+    message.error('只支持图片文件')
+    return
+  }
+  try {
+    await usersApi.uploadAvatar(userId, file)
+    message.success('头像已更新')
+    // 刷新头像（加时间戳避免缓存）
+    const img = document.querySelector('.hero-avatar img') as HTMLImageElement
+    if (img) img.src = usersApi.avatarUrl(userId) + '?t=' + Date.now()
+  } catch {
+    message.error('头像上传失败')
+  }
 }
 
 onMounted(async () => {
