@@ -33,7 +33,7 @@
           <div class="ranking-body">
             <div class="ranking-name">{{ item.username }}</div>
             <div class="ranking-meta">
-              <span>{{ item.total_duration_hours }}h</span>
+              <span>{{ Number(item.total_duration_hours.toFixed(2)) }}h</span>
               <span>·</span>
               <span>{{ item.play_count }} 次</span>
             </div>

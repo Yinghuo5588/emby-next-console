@@ -79,7 +79,7 @@
                 <div class="rank-name">{{ item.name }}</div>
                 <div class="rank-tags">
                   <span class="tag tag-plays">{{ item.play_count }} 次</span>
-                  <span class="tag tag-hours">{{ item.total_duration_hours }}h</span>
+                  <span class="tag tag-hours">{{ Number(item.total_duration_hours.toFixed(2)) }}h</span>
                 </div>
               </div>
               <span class="rank-arrow">›</span>
@@ -99,7 +99,7 @@
                 <div class="rank-name"><span class="link-name" @click.stop="$router.push(`/users/${item.user_id}`)">{{ item.username }}</span></div>
                 <div class="rank-tags">
                   <span class="tag tag-plays">{{ item.play_count }} 次</span>
-                  <span class="tag tag-hours">{{ item.total_duration_hours }}h</span>
+                  <span class="tag tag-hours">{{ Number(item.total_duration_hours.toFixed(2)) }}h</span>
                 </div>
               </div>
               <span class="rank-arrow">›</span>
