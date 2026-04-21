@@ -1,7 +1,7 @@
 """
 用户管理 API — Emby 管理员操作用户
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File
 from pydantic import BaseModel
 
 from app.core.dependencies import get_current_admin
@@ -132,3 +132,32 @@ async def get_avatar(user_id: str):
         pass
     # Emby 没有头像 → 返回 404，前端显示首字母 fallback
     return Response(status_code=404)
+
+
+@router.post("/{user_id}/avatar")
+async def upload_avatar(user_id: str, file: UploadFile = File(...), _: dict = Depends(get_current_admin)):
+    """上传用户头像"""
+    # 校验文件类型
+    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    if file.content_type not in allowed_types:
+        return ApiResponse.error("仅支持 JPG/PNG/GIF/WEBP 格式")
+
+    # 校验文件大小（最大 5MB）
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        return ApiResponse.error("图片大小不能超过 5MB")
+
+    # 上传到 Emby
+    ok = await emby.upload_user_image(user_id, data, file.content_type)
+    if not ok:
+        return ApiResponse.error("上传失败，请检查 Emby 连接")
+    return ApiResponse.ok(message="头像上传成功")
+
+
+@router.delete("/{user_id}/avatar")
+async def delete_avatar(user_id: str, _: dict = Depends(get_current_admin)):
+    """删除用户头像"""
+    ok = await emby.delete_user_image(user_id)
+    if not ok:
+        return ApiResponse.error("删除失败")
+    return ApiResponse.ok(message="头像已删除")
