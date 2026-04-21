@@ -265,6 +265,25 @@ async def create_user(
         "template_name": template_name,
     })
 
+    # 6. 设置随机头像（DiceBear）
+    try:
+        import httpx, base64 as _b64
+        styles = ["notionists", "micah", "avataaars", "bottts", "lorelei", "adventurer", "fun-emoji", "open-peeps"]
+        style = styles[hash(name) % len(styles)]
+        avatar_url = f"https://api.dicebear.com/9.x/{style}/png?seed={name}"
+        r = httpx.get(avatar_url, timeout=10)
+        if r.status_code == 200:
+            b64_data = _b64.b64encode(r.content).decode()
+            await emby._request(
+                "POST",
+                f"/Users/{user_id}/Images/Primary",
+                data=b64_data,
+                headers={"Content-Type": "image/png"},
+            )
+            logger.info("Random avatar set for %s via DiceBear %s", user_id, style)
+    except Exception as e:
+        logger.warning("Set random avatar failed for %s: %s", name, e)
+
     # 通知
     await _notify("user.created", {"user_id": user_id, "name": name, "expire_days": expire_days, "max_concurrent": max_concurrent, "is_vip": is_vip})
 
