@@ -215,6 +215,44 @@ class EmbyAdapter:
         """获取用户头像 URL"""
         return f"{self._host}/emby/Users/{user_id}/Images/Primary"
 
+    async def upload_user_image(self, user_id: str, image_data: bytes, content_type: str = "image/jpeg") -> bool:
+        """上传用户头像到 Emby"""
+        try:
+            client = await self._get_client()
+            url = self._build_url(f"/Users/{user_id}/Images/Primary")
+
+            # 先删除旧头像（如果存在）
+            try:
+                del_resp = await client.delete(url, headers=self._headers())
+                logger.info("删除旧头像 %s: %d", user_id, del_resp.status_code)
+            except Exception:
+                pass
+
+            # 上传新头像（Emby 接受二进制数据）
+            resp = await client.post(
+                url,
+                content=image_data,
+                headers={
+                    **self._headers(),
+                    "Content-Type": content_type,
+                },
+            )
+            if resp.status_code not in (200, 204):
+                logger.error("上传用户头像 %s 失败: %d %s", user_id, resp.status_code, resp.text[:200])
+            return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.error("上传用户头像 %s 失败: %s", user_id, e)
+            return False
+
+    async def delete_user_image(self, user_id: str) -> bool:
+        """删除用户头像"""
+        try:
+            resp = await self.delete(f"/Users/{user_id}/Images/Primary")
+            return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.error("删除用户头像 %s 失败: %s", user_id, e)
+            return False
+
 
 
     # ── 风控执法 ────────────────────────────────────────────────
