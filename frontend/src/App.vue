@@ -51,6 +51,11 @@
                     </div>
                     <div class="more-divider" />
                     <div class="more-section">
+                      <button class="more-item" @click="toggleDark(); showMore = false">
+                        <span class="more-item-icon">{{ uiStore.isDark ? '🌙' : '☀️' }}</span>
+                        <span>{{ uiStore.isDark ? '浅色模式' : '深色模式' }}</span>
+                        <span class="more-item-check">{{ uiStore.isDark ? '✓' : '' }}</span>
+                      </button>
                       <button class="more-item" @click="$router.push(settingsItem.path); showMore = false">
                         <span class="more-item-icon"><IosIcon :name="settingsItem.icon" :size="20" color="var(--text-muted)" /></span>
                         <span>{{ settingsItem.label }}</span>
@@ -102,6 +107,11 @@ const settingsItem = { icon: 'settings', label: '设置', path: '/settings' }
 
 function isActive(path: string) {
   return route.path === path || route.path.startsWith(path + '/')
+}
+
+function toggleDark() {
+  uiStore.toggleTheme()
+  showMore.value = false
 }
 
 const themeOverrides: GlobalThemeOverrides = {
@@ -216,6 +226,7 @@ const themeOverrides: GlobalThemeOverrides = {
 .more-item:active { background: var(--bg-secondary, #f2f2f7); }
 .more-item-icon { font-size: 20px; width: 28px; text-align: center; }
 .more-item-arrow { margin-left: auto; font-size: 1.2rem; color: var(--text-muted); opacity: 0.3; }
+.more-item-check { margin-left: auto; font-size: 1rem; color: var(--brand); font-weight: 700; }
 .more-item-cancel {
   justify-content: center;
   color: var(--brand, #007AFF); font-weight: 600;

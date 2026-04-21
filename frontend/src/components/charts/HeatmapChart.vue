@@ -27,27 +27,31 @@ const defaultXLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
 const defaultYLabels = ['一', '二', '三', '四', '五', '六', '日']
 
 const chartOption = computed(() => {
-  // data is grid[dow][hour], convert to [dow, hour, value] for ECharts
+  // data is grid[dow][hour] = 7×24, ECharts heatmap [x,y,val] maps to [col,row,val]
+  // xAxis = 24小时 (cols), yAxis = 7天 (rows)
+  // 所以 xIndex = hour, yIndex = dow; invert yAxis 让周一在上方
   const heatData: [number, number, number][] = []
   const grid = props.data
   let maxVal = 0
-  for (let hour = 0; hour < 24; hour++) {
-    for (let dow = 0; dow < 7; dow++) {
+  for (let dow = 0; dow < 7; dow++) {
+    for (let hour = 0; hour < 24; hour++) {
       const val = grid[dow]?.[hour] ?? 0
-      heatData.push([dow, hour, val])
+      heatData.push([hour, dow, val])  // x=hour(0-23), y=dow(0-6)
       if (val > maxVal) maxVal = val
     }
   }
   maxVal = Math.max(maxVal, 1)
+  // 颜色梯度起点不用接近背景的深色，改用「低值也清晰可见」的配色
+  // maxVal 较小时（如1-3），颜色仍保持可辨识
 
   return {
     tooltip: {
       ...chartTooltipStyle(uiStore.isDark),
       formatter: (p: any) => {
-        const hour = p.data[0]
-        const dow = p.data[1]
+        const hour = p.data[0]  // x轴：小时（0-23）
+        const dow = p.data[1]   // y轴：星期（0-6）
         const val = p.data[2]
-        return `${defaultYLabels[dow]} ${hour}:00<br/>播放 <b>${val}</b> 次`
+        return `${defaultYLabels[dow]} ${String(hour).padStart(2, '0')}:00<br/>播放 <b>${val}</b> 次`
       },
     },
     grid: { left: 36, right: 16, top: 8, bottom: 28 },
@@ -66,15 +70,16 @@ const chartOption = computed(() => {
       axisTick: { show: false },
       axisLabel: chartMutedStyle(),
       splitArea: { show: false },
+      inverse: true,  // dow=0（周一）在上方
     },
     visualMap: {
       show: false,
       min: 0,
-      max: maxVal,
+      max: Math.max(maxVal, 3),   // 保证至少有3档，低值也清晰
       inRange: {
         color: uiStore.isDark
-          ? ['#1c1c1e', '#0A84FF', '#34C759', '#FF9F0A', '#FF453A']
-          : ['#f2f2f7', '#007AFF', '#34C759', '#FF9500', '#FF3B30'],
+          ? ['#1e3a5f', '#0066CC', '#00AA55', '#FFCC00', '#FF3333']
+          : ['#dce8f5', '#007AFF', '#34C759', '#FF9500', '#FF3B30'],
       },
     },
     series: [{

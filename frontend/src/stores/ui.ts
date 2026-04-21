@@ -12,11 +12,13 @@ export const useUiStore = defineStore('ui', () => {
     })
     const saved = localStorage.getItem('theme')
     isDark.value = saved === 'dark'
+    document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : '')
   }
 
   function toggleTheme() {
     isDark.value = !isDark.value
     localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+    document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : '')
   }
 
   return { isDark, isMobile, init, toggleTheme }
