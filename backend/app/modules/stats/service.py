@@ -522,10 +522,12 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
         if dc:
             m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
             if m:
-                from datetime import date as _d
-                dt = _d(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-                dow = dt.weekday()
-                h = int(m.group(4))
+                # 数据库时间视为 UTC，加上配置的时区偏移转成本地时间
+                dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
+                tz_offset = timezone(timedelta(hours=settings.HEATMAP_TIMEZONE_OFFSET))
+                dt_local = dt_utc.astimezone(tz_offset)
+                dow = dt_local.weekday()
+                h = dt_local.hour
                 if 0 <= h < 24 and 0 <= dow < 7:
                     heatmap[dow][h] += 1
 
@@ -618,10 +620,11 @@ async def get_heatmap(period: str = "30d") -> list[list[int]]:
         if dc:
             m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
             if m:
-                from datetime import date as _d
-                dt = _d(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-                dow = dt.weekday()
-                h = int(m.group(4))
+                dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
+                tz_offset = timezone(timedelta(hours=settings.HEATMAP_TIMEZONE_OFFSET))
+                dt_local = dt_utc.astimezone(tz_offset)
+                dow = dt_local.weekday()
+                h = dt_local.hour
                 if 0 <= h < 24 and 0 <= dow < 7:
                     heatmap[dow][h] += 1
     return heatmap
