@@ -145,6 +145,15 @@ async def search_users(
 # 总览页额外数据
 # ════════════════════════════════════════════════════════════
 
+@router.get("/debug-heatmap")
+async def debug_heatmap(
+    period: str = Query("7d", regex=r"^(7d|30d|90d|all)$"),
+):
+    """Debug：返回原始数据条数 + 前20条时间 + 转换中间值，排查时区问题"""
+    data = await service.debug_heatmap(period)
+    return ApiResponse.ok(data=data)
+
+
 @router.get("/heatmap")
 async def heatmap(
     period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
