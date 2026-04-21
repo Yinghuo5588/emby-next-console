@@ -83,8 +83,7 @@ def _extract_quality_tags(file_name: str | None) -> list[str]:
 
 
 async def _enrich_media_cards(items: list[dict]) -> None:
-    """补充媒体卡片常用字段：poster/backdrop/title/meta/quality_tags
-    不修改 item_id，让 proxy 按原始 ID 自己解析上溯源码"""
+    """补充媒体卡片常用字段：poster/backdrop/title/meta/quality_tags"""
     for item in items:
         iid = item.get("item_id")
         name = item.get("name", "")
@@ -97,13 +96,13 @@ async def _enrich_media_cards(items: list[dict]) -> None:
 
 
 def _period_filter(period: str) -> str:
-    """时间范围条件"""
+    """时间范围条件（使用 localtime 适配服务器时区）"""
     if period == "7d":
-        return "DateCreated >= date('now', '-7 days')"
+        return "DateCreated >= date('now', 'localtime', '-7 days')"
     elif period == "30d":
-        return "DateCreated >= date('now', '-30 days')"
+        return "DateCreated >= date('now', 'localtime', '-30 days')"
     elif period == "90d":
-        return "DateCreated >= date('now', '-90 days')"
+        return "DateCreated >= date('now', 'localtime', '-90 days')"
     else:  # all
         return "1=1"
 
@@ -138,9 +137,7 @@ async def search_tmdb_first(name: str, media_type: str = "movie") -> dict:
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             base = {"api_key": api_key, "query": name.strip(), "language": "zh-CN"}
-            # 先按类型搜索
             result = await _do_search(client, f"https://api.themoviedb.org/3/search/{media_type}", base)
-            # 没结果时用 multi 搜索
             if not result["overview"] and not result["poster_path"]:
                 result = await _do_search(client, "https://api.themoviedb.org/3/search/multi", base)
             return result
@@ -190,30 +187,30 @@ async def get_trend_by_period(period: str = "30d") -> dict:
     """播放趋势：只有播放时长"""
     if period == "7d":
         rows = await _query(
-            "SELECT DATE(DateCreated) as label, "
+            "SELECT DATE(DateCreated, 'localtime') as label, "
             "COALESCE(SUM(PlayDuration), 0) as duration "
-            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-7 days') "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', 'localtime', '-7 days') "
             "GROUP BY label ORDER BY label"
         )
     elif period == "90d":
         rows = await _query(
-            "SELECT strftime('%Y-%m-%d', DateCreated) as label, "
+            "SELECT strftime('%Y-%m', DateCreated, 'localtime') as label, "
             "COALESCE(SUM(PlayDuration), 0) as duration "
-            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-90 days') "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', 'localtime', '-90 days') "
             "GROUP BY label ORDER BY label"
         )
     elif period == "all":
         rows = await _query(
-            "SELECT substr(replace(DateCreated, 'T', ' '), 1, 7) as label, "
+            "SELECT substr(DateCreated, 1, 7) as label, "
             "COALESCE(SUM(PlayDuration), 0) as duration "
             "FROM PlaybackActivity "
             "GROUP BY label ORDER BY label"
         )
     else:
         rows = await _query(
-            "SELECT DATE(DateCreated) as label, "
+            "SELECT DATE(DateCreated, 'localtime') as label, "
             "COALESCE(SUM(PlayDuration), 0) as duration "
-            "FROM PlaybackActivity WHERE DateCreated >= date('now', '-30 days') "
+            "FROM PlaybackActivity WHERE DateCreated >= date('now', 'localtime', '-30 days') "
             "GROUP BY label ORDER BY label"
         )
 
@@ -327,7 +324,7 @@ async def get_content_rankings(
 
     total = len(all_items)
     start = (page - 1) * size
-    page_items = all_items[start : start + size]
+    page_items = all_items[start: start + size]
 
     await _enrich_media_cards(page_items)
     return {"total": total, "items": page_items}
@@ -361,21 +358,19 @@ async def get_content_detail(item_id: str, period: str = "30d") -> dict:
 
     if not overview.strip():
         tmdb_type = "tv" if item_type in ("Series", "Episode") else "movie"
-        # 优先用 Emby 原始标题搜索 TMDB，去掉 " - 第N季" 等后缀
         orig_name = ""
         try:
             orig_name = info.get("OriginalTitle") or ""
         except Exception:
             pass
         search_name = orig_name or name
-        # 去掉 " - 第1季" / " - Season 1" 等后缀
-        search_name = re.split(r'\s*-\s*(?:第\d+季|Season\s*\d+|S\d+)', search_name, flags=re.I)[0].strip()
+        search_name = re.split(r"\s*-\s*(?:第\d+季|Season\s*\d+|S\d+)", search_name, flags=re.I)[0].strip()
         tmdb_data = await search_tmdb_first(name=search_name, media_type=tmdb_type)
         overview = tmdb_data.get("overview") or overview
 
     pf = _period_filter(period)
     rows = await _query(
-        f"SELECT DATE(DateCreated) as date, COUNT(*) as play_count, "
+        f"SELECT DATE(DateCreated, 'localtime') as date, COUNT(*) as play_count, "
         f"COALESCE(SUM(PlayDuration), 0) as duration "
         f"FROM PlaybackActivity WHERE ItemId = '{safe_id}' "
         f"AND {pf} "
@@ -444,7 +439,7 @@ async def get_user_rankings(
 
     total = len(all_users)
     start = (page - 1) * size
-    page_items = all_users[start : start + size]
+    page_items = all_users[start: start + size]
 
     return {"total": total, "items": page_items}
 
@@ -501,35 +496,33 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "item_id": str(f.get("ItemId", "")),
             "name": _clean_name(f.get("ItemName", ""), f.get("ItemType", "")),
             "hours": round(f["dur"] / 3600, 1),
-            "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(f.get('ItemName', ''), f.get('ItemType', '')))}" if f.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(f.get('ItemName', ''), f.get('ItemType', ''))}" if f.get("ItemId") else "",
         }
 
     trend_rows = await _query(
-        f"SELECT DATE(DateCreated) as label, "
+        f"SELECT DATE(DateCreated, 'localtime') as label, "
         f"COALESCE(SUM(PlayDuration), 0) as duration "
         f"FROM PlaybackActivity WHERE {where} "
-        f"AND DateCreated >= date('now', '-30 days') "
         f"GROUP BY label ORDER BY label"
     )
     trend = {r["label"]: round(r["duration"] / 3600, 1) for r in trend_rows} if trend_rows else {}
 
-    dc_rows = await _query(
-        f"SELECT DateCreated FROM PlaybackActivity WHERE {where}"
-    )
+    # heatmap: DB时间存UTC，直接用datetime解析后按本地时间聚合
+    dc_rows = await _query(f"SELECT DateCreated FROM PlaybackActivity WHERE {where}")
     heatmap = [[0] * 24 for _ in range(7)]
     for r in dc_rows:
         dc = r.get("DateCreated")
-        if dc:
-            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
-            if m:
-                # 数据库时间视为 UTC，加上配置的时区偏移转成本地时间
-                dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
-                tz_offset = timezone(timedelta(hours=settings.HEATMAP_TIMEZONE_OFFSET))
-                dt_local = dt_utc.astimezone(tz_offset)
-                dow = dt_local.weekday()
-                h = dt_local.hour
-                if 0 <= h < 24 and 0 <= dow < 7:
-                    heatmap[dow][h] += 1
+        if not dc:
+            continue
+        m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
+        if not m:
+            continue
+        dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
+        dt_local = dt_utc.astimezone(timezone(timedelta(hours=8))
+        dow = dt_local.weekday()
+        h = dt_local.hour
+        if 0 <= h < 24 and 0 <= dow < 7:
+            heatmap[dow][h] += 1
 
     client_rows = await _query(
         f"SELECT COALESCE(ClientName, '未知') as device, COUNT(*) as cnt "
@@ -551,7 +544,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "item_id": r.get("ItemId"),
             "date": r.get("DateCreated", "")[:16].replace("T", " "),
             "duration_min": round((r.get("PlayDuration") or 0) / 60, 1),
-            "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(r.get('ItemName', ''), r.get('ItemType', '')))}" if r.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(r.get('ItemName', ''), r.get('ItemType', ''))}" if r.get("ItemId") else "",
         })
 
     badges = await _get_badges(where)
@@ -584,7 +577,7 @@ async def _get_badges(where: str) -> list[dict]:
 
     night_rows = await _query(
         f"SELECT COUNT(*) as cnt FROM PlaybackActivity WHERE {where} "
-        f"AND cast(strftime('%H', DateCreated) as int) BETWEEN 0 AND 5"
+        f"AND cast(strftime('%H', DateCreated, 'localtime') as int) BETWEEN 0 AND 5"
     )
     if night_rows and (night_rows[0].get("cnt") or 0) >= 10:
         badges.append({"id": "night", "name": "夜猫子", "icon": "🌙", "color": "#6366f1", "desc": "深夜观影达人"})
@@ -617,16 +610,17 @@ async def get_heatmap(period: str = "30d") -> list[list[int]]:
     heatmap = [[0] * 24 for _ in range(7)]
     for r in rows:
         dc = r.get("DateCreated")
-        if dc:
-            m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
-            if m:
-                dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
-                tz_offset = timezone(timedelta(hours=settings.HEATMAP_TIMEZONE_OFFSET))
-                dt_local = dt_utc.astimezone(tz_offset)
-                dow = dt_local.weekday()
-                h = dt_local.hour
-                if 0 <= h < 24 and 0 <= dow < 7:
-                    heatmap[dow][h] += 1
+        if not dc:
+            continue
+        m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
+        if not m:
+            continue
+        dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
+        dt_local = dt_utc.astimezone(timezone(timedelta(hours=8))
+        dow = dt_local.weekday()
+        h = dt_local.hour
+        if 0 <= h < 24 and 0 <= dow < 7:
+            heatmap[dow][h] += 1
     return heatmap
 
 
