@@ -67,7 +67,16 @@ const chartOption = computed(() => {
       axisLabel: chartMutedStyle(),
       splitArea: { show: false },
     },
-    visualMap: { show: false, min: 0, max: maxVal },
+    visualMap: {
+      show: false,
+      min: 0,
+      max: maxVal,
+      inRange: {
+        color: uiStore.isDark
+          ? ['#1c1c1e', '#0A84FF', '#34C759', '#FF9F0A', '#FF453A']
+          : ['#f2f2f7', '#007AFF', '#34C759', '#FF9500', '#FF3B30'],
+      },
+    },
     series: [{
       type: 'heatmap',
       data: heatData,
@@ -75,9 +84,6 @@ const chartOption = computed(() => {
       emphasis: {
         itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.2)' },
       },
-      color: uiStore.isDark
-        ? ['#000', '#0A84FF', '#34C759', '#FF9F0A', '#FF453A']
-        : ['#f2f2f7', '#007AFF', '#34C759', '#FF9500', '#FF3B30'],
     }],
   }
 })
