@@ -27,13 +27,13 @@ const defaultXLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
 const defaultYLabels = ['一', '二', '三', '四', '五', '六', '日']
 
 const chartOption = computed(() => {
-  // data is grid[hour][dow], convert to [dow, hour, value] for ECharts
+  // data is grid[dow][hour], convert to [dow, hour, value] for ECharts
   const heatData: [number, number, number][] = []
   const grid = props.data
   let maxVal = 0
   for (let hour = 0; hour < 24; hour++) {
     for (let dow = 0; dow < 7; dow++) {
-      const val = grid[hour]?.[dow] ?? 0
+      const val = grid[dow]?.[hour] ?? 0
       heatData.push([dow, hour, val])
       if (val > maxVal) maxVal = val
     }
