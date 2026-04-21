@@ -68,7 +68,7 @@ async def top_users(
 @router.get("/content-rankings")
 async def content_rankings(
     type: str = Query("all", regex=r"^(all|movie|series)$"),
-    period: str = Query("30d", regex=r"^(30d|90d|all)$"),
+    period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
     sort: str = Query("duration", regex=r"^(duration|count)$"),
     search: str = Query(None),
     page: int = Query(1, ge=1),
@@ -108,7 +108,7 @@ async def tmdb_proxy(
 
 @router.get("/user-rankings")
 async def user_rankings(
-    period: str = Query("30d", regex=r"^(30d|90d|all)$"),
+    period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=50),
 ):
@@ -147,7 +147,7 @@ async def search_users(
 
 @router.get("/heatmap")
 async def heatmap(
-    period: str = Query("30d", regex=r"^(30d|90d|all)$"),
+    period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
 ):
     """24×7 热力图：观影生物钟"""
     data = await service.get_heatmap(period)
@@ -156,7 +156,7 @@ async def heatmap(
 
 @router.get("/device-dist")
 async def device_dist(
-    period: str = Query("30d", regex=r"^(30d|90d|all)$"),
+    period: str = Query("30d", regex=r"^(7d|30d|90d|all)$"),
     type: str = Query("client", regex=r"^(client|hardware)$"),
 ):
     """设备分布 — client=软件(客户端) / hardware=硬件(设备型号)"""

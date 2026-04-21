@@ -496,7 +496,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "item_id": str(f.get("ItemId", "")),
             "name": _clean_name(f.get("ItemName", ""), f.get("ItemType", "")),
             "hours": round(f["dur"] / 3600, 1),
-            "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(f.get('ItemName', ''), f.get('ItemType', ''))}" if f.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={f['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(f.get('ItemName', ''), f.get('ItemType', '')))}" if f.get("ItemId") else "",
         }
 
     trend_rows = await _query(
@@ -518,7 +518,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
         if not m:
             continue
         dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
-        dt_local = dt_utc.astimezone(timezone(timedelta(hours=8))
+        dt_local = dt_utc.astimezone(timezone(timedelta(hours=8)))
         dow = dt_local.weekday()
         h = dt_local.hour
         if 0 <= h < 24 and 0 <= dow < 7:
@@ -544,7 +544,7 @@ async def get_user_detail(user_id: str, period: str = "7d") -> dict:
             "item_id": r.get("ItemId"),
             "date": r.get("DateCreated", "")[:16].replace("T", " "),
             "duration_min": round((r.get("PlayDuration") or 0) / 60, 1),
-            "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(r.get('ItemName', ''), r.get('ItemType', ''))}" if r.get("ItemId") else "",
+            "poster_url": f"/api/v1/proxy/smart_image?item_id={r['ItemId']}&type=Primary&name={urllib.parse.quote(_clean_name(r.get('ItemName', ''), r.get('ItemType', '')))}" if r.get("ItemId") else "",
         })
 
     badges = await _get_badges(where)
@@ -604,6 +604,41 @@ async def _get_badges(where: str) -> list[dict]:
     return badges
 
 
+
+async def debug_heatmap(period: str = "7d") -> dict:
+    """Debug 版 heatmap：返回原始数据条数 + 前20条原始时间 + 转换中间值"""
+    pf = _period_filter(period)
+    rows = await _query(f"SELECT DateCreated FROM PlaybackActivity WHERE {pf} ORDER BY DateCreated DESC LIMIT 20")
+    heatmap = [[0] * 24 for _ in range(7)]
+    samples = []
+    for r in rows:
+        dc = r.get("DateCreated")
+        if not dc:
+            continue
+        m = re.search(r"(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):", str(dc))
+        if not m:
+            continue
+        dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
+        dt_local = dt_utc.astimezone(timezone(timedelta(hours=8)))
+        dow = dt_local.weekday()
+        h = dt_local.hour
+        samples.append({
+            "raw": dc,
+            "dow": dow,
+            "hour": h,
+            "label": f"{'一二三四五六日'[dow]}周{int(h):02d}:00",
+        })
+        if 0 <= h < 24 and 0 <= dow < 7:
+            heatmap[dow][h] += 1
+    total = await _query(f"SELECT COUNT(*) as cnt FROM PlaybackActivity WHERE {pf}")
+    return {
+        "period": period,
+        "filter_sql": pf,
+        "total_count": total[0]["cnt"] if total else 0,
+        "samples": samples,
+        "heatmap": heatmap,
+    }
+
 async def get_heatmap(period: str = "30d") -> list[list[int]]:
     pf = _period_filter(period)
     rows = await _query(f"SELECT DateCreated FROM PlaybackActivity WHERE {pf}")
@@ -616,7 +651,7 @@ async def get_heatmap(period: str = "30d") -> list[list[int]]:
         if not m:
             continue
         dt_utc = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
-        dt_local = dt_utc.astimezone(timezone(timedelta(hours=8))
+        dt_local = dt_utc.astimezone(timezone(timedelta(hours=8)))
         dow = dt_local.weekday()
         h = dt_local.hour
         if 0 <= h < 24 and 0 <= dow < 7:
