@@ -29,7 +29,8 @@ services:
     restart: unless-stopped  # v3-stats-rebuild
 
   backend:
-    image: ghcr.io/${GITHUB_REPOSITORY:-owner/emby-next-console}-backend:latest
+    build:
+      context: ./backend
     container_name: emby-backend
     environment:
       APP_ENV: production
