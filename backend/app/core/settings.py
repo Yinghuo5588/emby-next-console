@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     EMBY_WEBHOOK_TOKEN: str = "embyconsole"
     DEFAULT_MAX_CONCURRENT: int = 2  # 默认并发限额
 
+    # 观影生物钟时区偏移量（小时），相对于 UTC
+    # 中国大陆: +8，日本: +9，美国西部: -8
+    HEATMAP_TIMEZONE_OFFSET: int = 8
+
     # TMDB
     TMDB_API_KEY: str = ""
 
