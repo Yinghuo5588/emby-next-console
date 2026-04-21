@@ -43,6 +43,7 @@
     <div class="two-col">
       <div class="section-card anim-in" style="--i:5">
         <h3 class="section-title">观影生物钟</h3>
+        <div v-if="periodLabel" class="section-sub">{{ periodLabel }}</div>
         <HeatmapChart :data="heatmapData" height="240px" />
       </div>
 
@@ -129,6 +130,17 @@ const trendData = ref<Record<string, number>>({})
 const topContent = ref<any[]>([])
 const topUsers = ref<any[]>([])
 const heatmapData = ref<number[][]>([])
+const periodLabel = computed(() => {
+  const p = period.value
+  const now = new Date()
+  let start: Date
+  if (p === '7d') start = new Date(now.getTime() - 6 * 86400000)
+  else if (p === '30d') start = new Date(now.getTime() - 29 * 86400000)
+  else if (p === '90d') start = new Date(now.getTime() - 89 * 86400000)
+  else return ''
+  const fmt = (d: Date) => `${d.getMonth()+1}月${d.getDate()}日`
+  return `${fmt(start)} - ${fmt(now)}`
+})
 const clientDist = ref<{ name: string; value: number }[]>([])
 const hardwareDist = ref<{ name: string; value: number }[]>([])
 const loading = ref(true)
@@ -243,7 +255,8 @@ onMounted(loadAll)
   transition: box-shadow 0.2s;
 }
 .section-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-.section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0 0 0.75rem; }
+.section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0 0 0.25rem; }
+.section-sub { font-size: 0.72rem; color: var(--text-muted); margin: 0 0 0.75rem; }
 
 /* ── 布局 ── */
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
