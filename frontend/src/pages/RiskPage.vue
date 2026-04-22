@@ -128,7 +128,7 @@
           </div>
         </div>
         <LoadingState v-if="evLoading && events.length === 0" />
-        <n-empty v-else-if="events.length === 0" description="系统正常 ✅" />
+        <n-empty v-else-if="events.length === 0" description="系统正常" />
         <div v-else class="ev-list">
           <div v-for="ev in events" :key="ev.event_id" class="ev-item" :class="{ 'ev-high': ev.severity === 'high' && ev.status === 'open', 'ev-open': ev.status === 'open' }">
             <div class="ev-main">
